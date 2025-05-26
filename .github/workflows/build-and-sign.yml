@@ -3,7 +3,7 @@ name: Build and Sign Executable
 on:
   push:
     branches:
-      - release
+      - 'release/**'
 
 permissions:
   contents: write
