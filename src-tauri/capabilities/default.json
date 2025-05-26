@@ -1,0 +1,50 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for the main window",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "fs:default",
+    "fs:allow-exists",
+    "fs:allow-read",
+    "fs:allow-watch",
+    "fs:allow-unwatch",
+    "fs:allow-app-read",
+    "fs:allow-app-read-recursive",
+    "fs:allow-app-write",
+    "fs:allow-app-write-recursive",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        "$APPDATA/**",
+        "**/Game.log",
+        "/Users/robertbalfre/Downloads/*.log"
+      ]
+    },
+    "dialog:default",
+    "store:default",
+    "opener:default",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [
+        {
+          "path": "$APPDATA"
+        },
+        {
+          "path": "$APPDATA/**"
+        },
+        {
+          "path": "/Users/robertbalfre/Downloads/**"
+        },
+        {
+          "path": "**/Game.log"
+        }
+      ]
+    },
+    "websocket:default",
+    "updater:default"
+  ]
+}

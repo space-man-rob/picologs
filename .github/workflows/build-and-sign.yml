@@ -1,0 +1,110 @@
+name: Build and Sign Executable
+
+on:
+  push:
+    branches:
+      - release
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  publish-tauri:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'windows-latest'
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: install frontend dependencies
+        run: pnpm install
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: app-v__VERSION__ # the action automatically replaces \_\_VERSION\_\_ with the app version.
+          releaseName: 'App v__VERSION__'
+          releaseBody: 'See the assets to download this version and install.'
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
+
+
+jobs:
+  build-and-sign:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Azure Code Signing
+      uses: azure/trusted-signing-action@v0.5.1
+      with:
+        azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+        endpoint: https://eus.codesigning.azure.net/
+        trusted-signing-account-name: ${{ secrets.CODE_SIGNING_ACCOUNT_NAME }}
+        certificate-profile-name: ${{ secrets.CERTIFICATE_PROFILE_NAME }}
+        files-folder: 'dist'
+        files-folder-filter: '*.exe'
+        timestamp-rfc3161: http://timestamp.acs.microsoft.com
+        timestamp-digest: SHA256
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: picologs-${{ secrets.VERSION }}
+        path: dist/picologs-${{ secrets.VERSION }}.exe
+
+  release:
+    needs: build-and-sign
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Download artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: picologs-${{ secrets.VERSION }}
+        path: dist
+
+    - name: Create Tag
+      uses: actions/github-script@v7
+      with:
+        script: |
+          github.rest.git.createRef({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            ref: `refs/tags/v${{ secrets.VERSION }}`,
+            sha: context.sha
+          })
+
+    - name: Create Release
+      id: create_release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: dist/picologs-${{ secrets.VERSION }}.exe
+        generate_release_notes: true
+        draft: false
+        prerelease: false
+        name: Release v${{ secrets.VERSION }}
+        tag_name: v${{ secrets.VERSION }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
