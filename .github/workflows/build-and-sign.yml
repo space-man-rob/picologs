@@ -51,7 +51,7 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }}
 
-      - name: Azure Code Signing
+      - name: Azure Code Signing (.msi)
         uses: azure/trusted-signing-action@v0.5.1
         with:
           azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -60,7 +60,7 @@ jobs:
           endpoint: https://eus.codesigning.azure.net/
           trusted-signing-account-name: ${{ secrets.CODE_SIGNING_ACCOUNT_NAME }}
           certificate-profile-name: ${{ secrets.CERTIFICATE_PROFILE_NAME }}
-          files-folder: 'src-tauri/target/release'
-          files-folder-filter: '*.{exe,msi}'
+          files-folder: 'src-tauri/target/release/bundle/msi'
+          files-folder-filter: '*.msi'
           timestamp-rfc3161: http://timestamp.acs.microsoft.com
           timestamp-digest: SHA256
