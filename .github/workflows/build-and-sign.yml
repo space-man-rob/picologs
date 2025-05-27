@@ -40,12 +40,24 @@ jobs:
       - name: install frontend dependencies
         run: pnpm install
 
+      - name: Extract version from tauri.conf.json and tag commit
+        id: version
+        run: |
+          VERSION=$(node -p "require('./src-tauri/tauri.conf.json').package.version")
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag app-v$VERSION
+          git push origin app-v$VERSION
+
       - uses: tauri-apps/tauri-action@v0
         id: tauri
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: app-v__VERSION__ # the action automatically replaces \_\_VERSION\_\_ with the app version.
+          tagName: app-v__VERSION__
           releaseName: 'App v__VERSION__'
           releaseBody: 'See the assets to download this version and install.'
           releaseDraft: true
@@ -71,4 +83,4 @@ jobs:
         with:
           files: src-tauri/target/release/bundle/msi/*.msi
           token: ${{ secrets.GITHUB_TOKEN }}
-          tag_name: app-v${{ steps.tauri.outputs.appVersion }}
+          tag_name: app-v${{ steps.version.outputs.version }}
