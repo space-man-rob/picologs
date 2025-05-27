@@ -40,10 +40,6 @@ jobs:
       - name: install frontend dependencies
         run: pnpm install
 
-      - name: Get version from package.json
-        id: get_version
-        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
-
       - uses: tauri-apps/tauri-action@v0
         id: tauri
         env:
@@ -75,4 +71,4 @@ jobs:
         with:
           files: src-tauri/target/release/bundle/msi/*.msi
           token: ${{ secrets.GITHUB_TOKEN }}
-          tag_name: app-v__VERSION__
+          tag_name: app-v${{ steps.tauri.outputs.appVersion }}
