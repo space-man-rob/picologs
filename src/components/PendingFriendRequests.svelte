@@ -2,7 +2,6 @@
 	import { X } from "@lucide/svelte";
 
 	let { pendingFriendRequests, removeFriendRequest } = $props();
-
 </script>
 
 <div class="pending-friend-requests">

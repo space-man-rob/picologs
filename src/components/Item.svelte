@@ -42,13 +42,16 @@
     
 	.item {
 		display: flex;
-		align-items: center;
+		align-items: flex-start;
 		gap: 1rem;
 		padding: 1rem;
 	}
     
     .emoji {
 		font-size: 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
 	}
 
 	.line {
@@ -62,4 +65,13 @@
 		font-size: 0.7rem;
 		color: rgba(255, 255, 255, 0.5);
 	}
+
+    .original {
+        font-size: 0.7rem;
+        color: rgba(255, 255, 255, .7);
+        background-color: rgba(255, 255, 255, 0.1);
+        padding: 0.5rem;
+        border-radius: 0.5rem;
+        margin-top: 0.5rem;
+    }
 </style>
