@@ -24,29 +24,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: setup node
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
 
-      - name: install Rust stable
+      - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
-      - name: install pnpm
+      - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 10
 
-      - name: install frontend dependencies
+      - name: Install frontend dependencies
         run: pnpm install
+
+      - name: Get version from package.json
+        id: get_version
+        shell: bash
+        run: echo "version=$(node -p \"require('./package.json').version\")" >> $GITHUB_OUTPUT
 
       - uses: tauri-apps/tauri-action@v0
         id: tauri
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: app-v__VERSION__ # the action automatically replaces \_\_VERSION\_\_ with the app version.
-          releaseName: 'App v__VERSION__'
+          tagName: app-v${{ steps.get_version.outputs.version }}
+          releaseName: 'App v${{ steps.get_version.outputs.version }}'
           releaseBody: 'See the assets to download this version and install.'
           releaseDraft: true
           prerelease: false
@@ -66,8 +71,30 @@ jobs:
           timestamp-rfc3161: http://timestamp.acs.microsoft.com
           timestamp-digest: SHA256
 
+      - name: Azure Code Signing (.exe)
+        uses: azure/trusted-signing-action@v0.5.1
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: https://eus.codesigning.azure.net/
+          trusted-signing-account-name: ${{ secrets.CODE_SIGNING_ACCOUNT_NAME }}
+          certificate-profile-name: ${{ secrets.CERTIFICATE_PROFILE_NAME }}
+          files-folder: 'src-tauri/target/release/bundle/nsis'
+          files-folder-filter: '*.exe'
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
       - name: Upload signed MSI to release
         uses: softprops/action-gh-release@v2
         with:
           files: src-tauri/target/release/bundle/msi/*.msi
           token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: app-v${{ steps.get_version.outputs.version }}
+
+      - name: Upload signed NSIS EXE to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: src-tauri/target/release/bundle/nsis/*.exe
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: app-v${{ steps.get_version.outputs.version }}
