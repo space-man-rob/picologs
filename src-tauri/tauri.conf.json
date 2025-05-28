@@ -32,7 +32,7 @@
     ],
     "createUpdaterArtifacts": true,
     "windows": {
-      "signCommand": "trusted-signing-cli -e https://wus2.codesigning.azure.net -a space-man-rob -c picologs -d picologs %1"
+      "signCommand": "trusted-signing-cli -e https://eus.codesigning.azure.net -a sccommand -c space-man-rob -d Picologs %1"
     }
   },
   "plugins": {
