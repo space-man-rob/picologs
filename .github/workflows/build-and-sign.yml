@@ -53,26 +53,3 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
-
-      - name: Azure Code Signing (.msi)
-        uses: azure/trusted-signing-action@v0.5.1
-        with:
-          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-          endpoint: https://eus.codesigning.azure.net/
-          trusted-signing-account-name: ${{ secrets.CODE_SIGNING_ACCOUNT_NAME }}
-          certificate-profile-name: ${{ secrets.CERTIFICATE_PROFILE_NAME }}
-          files-folder: 'src-tauri/target/release/bundle/msi'
-          files-folder-filter: '*.msi'
-          timestamp-rfc3161: http://timestamp.acs.microsoft.com
-          timestamp-digest: SHA256
-
-      - name: Upload signed MSI to release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: src-tauri/target/release/bundle/msi/*.msi
-          token: ${{ secrets.GITHUB_TOKEN }}
-          prerelease: false
-          draft: true
-          tag_name: app-v${{ steps.tauri.outputs.appVersion }}

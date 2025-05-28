@@ -443,10 +443,16 @@
 			fileContent = dedupeAndSortLogs(storedLogs);
 		}
 
-		check().then((update: any) => {
+		check().then(async (update: any) => {
 			if (update?.available) {
-				if (confirm('A new update is available. Would you like to download and install it now?')) {
-					update.downloadAndInstall();
+				const answer = await ask('A new update is available. Would you like to download and install it now?', {
+					title: 'Update available',
+					kind: 'info'
+				});
+				if (answer) {
+					update.downloadAndInstall().catch((error: any) => {
+						console.error('Error downloading and installing update:', error);
+					});
 				}
 			}
 		});

@@ -40,7 +40,8 @@
       ],
       "windows": {
         "installMode": "passive"
-      }
+      },
+      "signCommand": "trusted-signing-cli -e https://wus2.codesigning.azure.net -a space-man-rob -c picologs -d picologs %1"
     }
   }
 }

@@ -31,7 +31,7 @@
     "date-fns-tz": "^3.2.0",
     "prettier": "^3.5.3",
     "prettier-plugin-svelte": "^3.4.0",
-    "svelte": "^5.33.2",
+    "svelte": "^5.33.4",
     "svelte-check": "^4.2.1",
     "svelte-lazy": "^1.2.11",
     "typescript": "~5.8.3",
