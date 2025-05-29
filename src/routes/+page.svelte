@@ -2,7 +2,6 @@
 	import { readTextFile, watchImmediate, writeFile } from '@tauri-apps/plugin-fs';
 	import { load } from '@tauri-apps/plugin-store';
 	import { open } from '@tauri-apps/plugin-dialog';
-	import Item from '../components/Item.svelte';
 	import { onMount } from 'svelte';
 	import Friends from '../components/Friends.svelte';
 	import User from '../components/User.svelte';
@@ -13,6 +12,7 @@
 	import PendingFriendRequests from '../components/PendingFriendRequests.svelte';
 	import { ask } from '@tauri-apps/plugin-dialog';
 	import { check } from '@tauri-apps/plugin-updater';
+	import Timeline from '../components/Timeline.svelte';
 
 	let ws = $state<WebSocket | null>(null);
 	let file = $state<string | null>(null);
@@ -105,7 +105,6 @@
 	function sendLogViaWebSocket(log: Log) {
 		if (ws && ws.readyState === WebSocket.OPEN) {
 			ws.send(JSON.stringify({ type: 'log', log }));
-			console.log('Sent log via WebSocket:', log);
 		}
 	}
 
@@ -426,6 +425,7 @@
 				fileContent = [];
 				prevLineCount = 0;
 				await handleFile(file);
+
 				handleInitialiseWatch(file);
 			}
 		} catch (error) {}
@@ -445,10 +445,13 @@
 
 		check().then(async (update: any) => {
 			if (update?.available) {
-				const answer = await ask('A new update is available. Would you like to download and install it now?', {
-					title: 'Update available',
-					kind: 'info'
-				});
+				const answer = await ask(
+					'A new update is available. Would you like to download and install it now?',
+					{
+						title: 'Update available',
+						kind: 'info'
+					}
+				);
 				if (answer) {
 					update.downloadAndInstall().catch((error: any) => {
 						console.error('Error downloading and installing update:', error);
@@ -464,9 +467,13 @@
 		if (endWatch) {
 			endWatch();
 		}
-		endWatch = await watchImmediate(filePath, (event) => {
-			handleFile(filePath);
-		}, {recursive: false});
+		endWatch = await watchImmediate(
+			filePath,
+			(event) => {
+				handleFile(filePath);
+			},
+			{ recursive: false }
+		);
 	}
 
 	function parseLogTimestamp(raw: string): string {
@@ -523,7 +530,10 @@
 							timestamp = parseLogTimestamp(raw);
 						}
 					}
-					if (onlyProcessLogsAfterThisDateTimeStamp && new Date(timestamp).getTime() < onlyProcessLogsAfterThisDateTimeStamp) {
+					if (
+						onlyProcessLogsAfterThisDateTimeStamp &&
+						new Date(timestamp).getTime() < onlyProcessLogsAfterThisDateTimeStamp
+					) {
 						return null;
 					}
 					let logEntry: Log | null = null;
@@ -673,14 +683,16 @@
 					log.userId ? log : { ...log, userId: playerId! }
 				);
 				fileContent = dedupeAndSortLogs([...fileContent, ...newContentWithUserId]);
-				setTimeout(() => {
-					fileContentContainer?.scrollTo({
-						top: fileContentContainer.scrollHeight,
-						behavior: 'smooth'
-					});
-				}, 0);
 			}
+			scrollToBottom();
 		} catch (error) {}
+	}
+
+	function scrollToBottom() {
+		fileContentContainer?.scrollTo({
+			top: fileContentContainer.scrollHeight,
+			behavior: 'smooth'
+		});
 	}
 
 	async function selectFile() {
@@ -967,43 +979,9 @@
 				<AddFriend addFriend={handleAddFriend} />
 			</div>
 		</div>
-		<div class="file-content" bind:this={fileContentContainer}>
-			{#if file}
-				{#each fileContent as item, index (item.id)}
-					{#if index === 0 || fileContent[index - 1]?.line !== item.line || fileContent[index - 1]?.timestamp !== item.timestamp}
-						<Item {...item} bind:open={item.open} />
-					{/if}
-				{:else}
-					<div class="item">
-						<div class="line-container">
-							<div class="line">No new logs yet. Waiting for game activity...</div>
-						</div>
-					</div>
-				{/each}
-			{:else}
-				<div class="welcome">
-					<h2>🚀 Getting started</h2>
-					<ol class="welcome-list">
-						<li>
-							Select your <code>Game.log</code>
-							file. Usually found at the default path:
-							<code>C:\Program Files\Roberts Space Industries\StarCitizen\LIVE\Game.log</code>
-							<br />
-							(Or the equivalent path on your system if installed elsewhere.)
-						</li>
-						<li>
-							Once a log file is selected and you go <strong>Online</strong>
-							(using the top-right button), Picologs automatically connects you with other friends for
-							real-time log sharing.
-						</li>
-						<li>
-							To add friends use your <strong>Friend Code</strong>
-							displayed at the top. Share this with friends to connect with them.
-						</li>
-					</ol>
-				</div>
-			{/if}
-		</div>
+
+		<Timeline {fileContent} {file} />
+
 		{#if file}
 			<div class="line-count">
 				Log lines processed: {Number(lineCount).toLocaleString()}
@@ -1031,48 +1009,8 @@
 		overflow: hidden;
 	}
 
-	.file-content {
-		grid-column: 2 / 3;
-		grid-row: 1 / 2;
-		overflow-y: auto;
-		display: flex;
-		flex-direction: column;
-		scrollbar-width: thin;
-		scrollbar-color: rgba(255, 255, 255, 0.3) rgba(0, 0, 0, 0.2);
-		background: rgba(0, 0, 0, 0.1);
-	}
-
-	.item {
-		display: flex;
-		align-items: flex-start;
-		gap: 1rem;
-		padding: 0.75rem 1rem;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-	}
-
-	.item:last-child {
-		border-bottom: none;
-	}
-
-	.line-container {
-		display: flex;
-		flex-direction: column;
-		gap: 0.3rem;
-	}
-
-	.line {
-		font-size: 0.95rem;
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		line-height: 1.4;
-	}
-
-	:global(.item:nth-child(2n)) {
-		background-color: rgba(255, 255, 255, 0.05);
-	}
-
 	.line-count {
+		height: 40px;
 		grid-column: 2 / 3;
 		grid-row: 2 / 3;
 		display: flex;
@@ -1084,76 +1022,6 @@
 		border-top: 1px solid rgba(255, 255, 255, 0.2);
 		font-size: 0.8rem;
 		color: rgba(255, 255, 255, 0.7);
-	}
-
-	.welcome {
-		display: flex;
-		flex-direction: column;
-		align-items: flex-start;
-		gap: 1rem;
-		margin: 2rem auto;
-		padding: 2rem;
-		border-radius: 8px;
-		background: rgba(255, 255, 255, 0.03);
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		max-width: 600px;
-	}
-
-	.welcome h2 {
-		margin: 0 0 0.5rem 0;
-		font-size: 1.6rem;
-		font-weight: 500;
-	}
-
-	.welcome ol,
-	.welcome li {
-		margin: 0;
-		font-size: 1rem;
-		font-weight: 300;
-		line-height: 1.6;
-	}
-
-	.welcome .welcome-list {
-		list-style: none;
-		padding-left: 0;
-		counter-reset: welcome-counter;
-		display: flex;
-		flex-direction: column;
-		gap: 0.5rem;
-	}
-
-	.welcome .welcome-list li {
-		display: inline-block;
-
-		position: relative;
-		padding-left: 34px;
-	}
-
-	.welcome .welcome-list li::before {
-		counter-increment: welcome-counter;
-		content: counter(welcome-counter);
-		position: absolute;
-		left: 0;
-		top: 0;
-
-		width: 24px;
-		height: 24px;
-		background-color: #4caf50;
-		color: white;
-		border-radius: 50%;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		font-size: 0.85em;
-		font-weight: bold;
-		line-height: 24px;
-	}
-
-	.welcome code {
-		background: rgba(255, 255, 255, 0.1);
-		padding: 0.1rem 0.3rem;
-		border-radius: 3px;
-		font-family: monospace;
 	}
 
 	.friends-sidebar {
@@ -1169,39 +1037,5 @@
 	.add-friend-container {
 		margin-top: auto;
 		padding-top: 1rem;
-	}
-
-	.welcome .welcome-list {
-		list-style: none;
-		padding-left: 0;
-		counter-reset: welcome-counter;
-		margin-top: 1em;
-	}
-
-	.welcome .welcome-list li::before {
-		counter-increment: welcome-counter;
-		content: counter(welcome-counter);
-		flex-shrink: 0;
-		width: 24px;
-		height: 24px;
-		background-color: #4caf50;
-		color: white;
-		border-radius: 50%;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		font-size: 0.85em;
-		font-weight: bold;
-		margin-right: 0.8em;
-		line-height: 24px;
-	}
-
-	.welcome code {
-		background: rgba(255, 255, 255, 0.1);
-		padding: 0.1rem 0.3rem;
-		border-radius: 3px;
-		font-family: monospace;
-		display: inline;
-		font-size: 1em;
 	}
 </style>
