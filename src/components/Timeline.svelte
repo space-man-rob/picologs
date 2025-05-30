@@ -12,6 +12,15 @@
 			hasScrollbar = element.scrollTop + element.clientHeight < element.scrollHeight;
 		});
 
+		element.addEventListener('resize', () => {
+			if (fileContentContainer) {
+				fileContentContainer.scrollTo({
+					top: fileContentContainer.scrollHeight,
+					behavior: 'smooth'
+				});
+			}
+		});
+
 		return () => {
 			console.log('cleaning up');
 		};
