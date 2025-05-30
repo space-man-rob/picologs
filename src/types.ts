@@ -22,6 +22,7 @@ export type Log = {
 		weaponClass?: string;
 		damageType?: string;
 		direction?: { x: string; y: string; z: string };
+		location?: string;
 	};
 };
 

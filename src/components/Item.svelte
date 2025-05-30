@@ -40,6 +40,8 @@
             <div class="line">{metadata.victimName} was killed by {metadata.killerName || "unknown"} {#if weapon != 'unknown'}using {weapon}{/if}  {#if zone != 'Unknown'} in {zone}{/if}</div>
         {:else if eventType === 'vehicle_control_flow'}
             <div class="line">{player} took control of {metadata.vehicleName.split('_').slice(0, -1).join(' ')} ({metadata.vehicleId})</div>
+        {:else if eventType === 'location_change'}
+            <div class="line">{player} requested inventory in {metadata.location.split('_').join(' ')}</div>
         {:else}
             <div class="line">{line}</div>
         {/if}

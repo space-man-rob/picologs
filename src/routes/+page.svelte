@@ -617,7 +617,10 @@
 								timestamp,
 								original: line,
 								open: false,
-								eventType: 'location_change'
+								eventType: 'location_change',
+								metadata: {
+									location: locationMatch
+								}
 							};
 						}
 					} else if (
