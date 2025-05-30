@@ -526,6 +526,8 @@
 
 			let latestProcessedTimestamp = onlyProcessLogsAfterThisDateTimeStamp || 0;
 
+			const prevInventoryLocations: { [key: string]: { timestamp: string; location: string } } = {};
+
 			const processedNewContent: Log[] = linesToProcess
 				.map((line) => {
 					if (!line.trim()) return null;
@@ -584,7 +586,28 @@
 					} else if (line.match(/<RequestLocationInventory>/)) {
 						const playerMatch = line.split('Player[')[1]?.split(']')[0];
 						const locationMatch = line.split('Location[')[1]?.split(']')[0];
-						if (playerMatch === playerName && locationMatch) {
+						const checkLocationsOverLastFiveMinutes = () => {
+							const prevLocation = prevInventoryLocations[playerMatch];
+							if (!prevLocation) return true;
+							const date = new Date(timestamp);
+							const prevDate = new Date(prevLocation.timestamp);
+							const diffMs = date.getTime() - prevDate.getTime();
+							// Check if the difference is at least 5 minutes (300000 ms)
+							const isAtLeastFiveMinutesApart = diffMs >= 5 * 60 * 1000;
+							if (prevLocation && isAtLeastFiveMinutesApart) {
+								return true;
+							}
+							if (prevLocation.location !== locationMatch) {
+								return true;
+							}
+							return false;
+						};
+						if (
+							playerMatch === playerName &&
+							locationMatch &&
+							checkLocationsOverLastFiveMinutes()
+						) {
+							prevInventoryLocations[playerMatch] = { timestamp, location: locationMatch };
 							logEntry = {
 								id: generateId(),
 								userId: playerId!,
@@ -593,7 +616,8 @@
 								line: `${playerName} requested inventory in ${locationMatch}`,
 								timestamp,
 								original: line,
-								open: false
+								open: false,
+								eventType: 'location_change'
 							};
 						}
 					} else if (
@@ -641,7 +665,6 @@
 									direction: { x: dirX, y: dirY, z: dirZ }
 								}
 							};
-							console.log(logEntry);
 						}
 					} else if (
 						playerName &&
@@ -712,7 +735,6 @@
 					const regex = /<Vehicle Control Flow> CVehicle::Initialize/;
 					// and doesn't include "Default_"
 					if (regex.test(line) && !line.includes('Default_')) {
-						console.log(line);
 						const regex =
 							/Local client node \[(\d+)\] granted control token for '([^']+)' \[(\d+)\] \[([^\]]+)\]\[([^\]]+)\]/;
 
@@ -814,22 +836,6 @@
 				connectWebSocket();
 			}
 		}
-	}
-
-	function getShipType(shipName: string) {
-		console.log(shipName);
-		if (!shipName) return 'Unknown Ship';
-		return (
-			shipTypes.find((type) => shipName.toLowerCase().includes(type.toLowerCase())) || shipName
-		);
-	}
-
-	function getName(line: string) {
-		if (!line) return 'Unknown';
-		if (line.includes('unknown')) {
-			return '🤷‍♂️ Unknown';
-		}
-		return line.includes('PU_') ? '🤖 NPC' : line;
 	}
 
 	async function saveFriendsListToStore() {
