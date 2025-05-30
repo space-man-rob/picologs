@@ -28,6 +28,22 @@
 			});
 		}
 	});
+
+	const isScrolledToBottom = () => {
+		if (!fileContentContainer) return false;
+		return fileContentContainer.scrollTop + fileContentContainer.clientHeight >= fileContentContainer.scrollHeight;
+	};
+
+	// keep stuck to bottom until user scrolls up
+	$effect(() => {
+		if (fileContent && !isScrolledToBottom()) {
+			fileContentContainer?.scrollTo({
+				top: fileContentContainer.scrollHeight,
+				behavior: 'smooth'
+			});
+		}
+	});
+	
 </script>
 
 <div class="file-content" {@attach scrollbarDetector} bind:this={fileContentContainer}>
@@ -85,38 +101,6 @@
 <style>
 	.file-content {
 		position: relative;
-	}
-	.item {
-		display: flex;
-		align-items: flex-start;
-		gap: 1rem;
-		padding: 0.75rem 1rem;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-	}
-
-	.item:last-child {
-		border-bottom: none;
-	}
-
-	.line-container {
-		display: flex;
-		flex-direction: column;
-		gap: 0.3rem;
-	}
-
-	.line {
-		font-size: 0.95rem;
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		line-height: 1.4;
-	}
-
-	:global(.item:nth-child(2n)) {
-		background-color: rgba(255, 255, 255, 0.05);
-	}
-
-	.file-content {
 		grid-column: 2 / 3;
 		grid-row: 1 / 2;
 		overflow-y: auto;
@@ -249,4 +233,33 @@
 		transform: translateX(-50%);
 	}
 
+	.item {
+		display: flex;
+		align-items: flex-start;
+		gap: 1rem;
+		padding: 0.75rem 1rem;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+	}
+
+	.item:last-child {
+		border-bottom: none;
+	}
+
+	.line-container {
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+	}
+
+	.line {
+		font-size: 0.95rem;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		line-height: 1.4;
+	}
+
+	:global(.item:nth-child(2n)) {
+		background-color: rgba(255, 255, 255, 0.05);
+	}
 </style>

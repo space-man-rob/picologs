@@ -7,6 +7,22 @@ export type Log = {
 	timestamp: string;
 	original: string;
 	open: boolean;
+	eventType?: string;
+	metadata?: {
+		vehicleName?: string;
+		vehicleId?: string;
+		team?: string;
+		entityType?: string;
+		victimName?: string;
+		victimId?: string;
+		zone?: string;
+		killerName?: string;
+		killerId?: string;
+		weaponInstance?: string;
+		weaponClass?: string;
+		damageType?: string;
+		direction?: { x: string; y: string; z: string };
+	};
 };
 
 export type LogLine = {

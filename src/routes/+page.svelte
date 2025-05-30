@@ -13,6 +13,7 @@
 	import { ask } from '@tauri-apps/plugin-dialog';
 	import { check } from '@tauri-apps/plugin-updater';
 	import Timeline from '../components/Timeline.svelte';
+	import { shipTypes } from '../libs/ships';
 
 	let ws = $state<WebSocket | null>(null);
 	let file = $state<string | null>(null);
@@ -37,13 +38,111 @@
 	} | null>(null);
 	let currentUserDisplayData = $state<FriendType | null>(null);
 	let lastPendingRequestId = $state<string | null>(null);
+	let onlyProcessLogsAfterThisDateTimeStamp = $state<number | null>(null);
+	let fileContentContainer = $state<HTMLDivElement | null>(null);
+	let endWatch: () => void;
+
+	let hasInitialised = $state(false);
+
+	onMount(async () => {
+		const store = await load('store.json', { autoSave: false });
+		const savedFile = await store.get<string>('lastFile');
+		const savedFriendCode = await store.get<string>('friendCode');
+		const savedFriendsList = await store.get<FriendType[]>('friendsList');
+		const savedPlayerName = await store.get<string>('playerName');
+		const savedPendingFriendRequests =
+			await store.get<{ friendCode: string }[]>('pendingFriendRequests');
+
+		if (savedPlayerName) {
+			playerName = savedPlayerName;
+		}
+
+		if (savedFriendsList) {
+			friendsList = savedFriendsList.map((friend) => ({ ...friend, isOnline: false }));
+		}
+
+		if (savedPendingFriendRequests) {
+			pendingFriendRequests = savedPendingFriendRequests;
+		}
+
+		let storedPlayerId = await store.get<string>('id');
+
+		if (!savedFriendCode) {
+			friendCode = generateId(6);
+			await store.set('friendCode', friendCode);
+		} else {
+			friendCode = savedFriendCode;
+		}
+
+		if (storedPlayerId) {
+			playerId = storedPlayerId;
+		} else if (savedFile) {
+			const pathPartsForId = savedFile.split('/');
+			playerId = pathPartsForId.length > 1 ? pathPartsForId.slice(-2, -1)[0] : generateId();
+			await store.set('id', playerId);
+		} else {
+			playerId = generateId();
+			await store.set('id', playerId);
+		}
+
+		await store.save();
+
+		// Load logs from disk first
+		const storedLogs = await loadLogsFromDisk();
+		if (storedLogs && Array.isArray(storedLogs) && storedLogs.length > 0) {
+			fileContent = dedupeAndSortLogs(storedLogs);
+			// Set the timestamp filter to the newest log in logs.json
+			const newestLog = storedLogs.reduce((latest, current) => {
+				return new Date(current.timestamp).getTime() > new Date(latest.timestamp).getTime()
+					? current
+					: latest;
+			});
+			onlyProcessLogsAfterThisDateTimeStamp = new Date(newestLog.timestamp).getTime();
+		} else {
+			fileContent = []; // Initialize if no logs or empty
+		}
+
+		try {
+			logLocation = savedFile?.split('/').slice(-2, -1)[0] || null;
+
+			if (savedFile) {
+				file = savedFile;
+				// prevLineCount = 0; // Resetting prevLineCount here can cause issues if logs.json already has content
+				await handleFile(file); // Process game log, respecting onlyProcessLogsAfterThisDateTimeStamp
+				handleInitialiseWatch(file);
+			}
+		} catch (error) {}
+
+		if (playerId && friendCode && file && (!ws || ws.readyState !== WebSocket.OPEN)) {
+			connectWebSocket();
+		}
+
+		// Check for updates
+		check().then(async (update: any) => {
+			if (update?.available) {
+				const answer = await ask(
+					'A new update is available. Would you like to download and install it now?',
+					{
+						title: 'Update available',
+						kind: 'info'
+					}
+				);
+				if (answer) {
+					update.downloadAndInstall().catch((error: any) => {
+						console.error('Error downloading and installing update:', error);
+					});
+				}
+			}
+		});
+
+		hasInitialised = true;
+	});
 
 	async function getLogFilePath(): Promise<string> {
 		const dir = await appDataDir();
 		return dir.endsWith('/') ? `${dir}logs.json` : `${dir}/logs.json`;
 	}
 
-	// Utility to deduplicate and sort logs by id and timestamp
 	function dedupeAndSortLogs(logs: Log[]): Log[] {
 		const seen = new Set<string>();
 		const deduped = [];
@@ -82,21 +181,16 @@
 		await saveLogsToDisk(logsToSave);
 	}
 
-	let onlyProcessLogsAfterThisDateTimeStamp = $state<number | null>(null);
 	async function clearLogs() {
 		await saveLogsToDisk([]);
 		fileContent = [];
 		prevLineCount = 0;
 		lineCount = 0;
 		onlyProcessLogsAfterThisDateTimeStamp = new Date().getTime();
+		const store = await load('store.json', { autoSave: false });
+		await store.set('lastFile', null);
+		await store.save();
 	}
-
-	setInterval(() => {
-		tick += 1;
-		if (tick > 5 && file) {
-			handleFile(file);
-		}
-	}, 1000);
 
 	function generateId(length: number = 10) {
 		return crypto.randomUUID().slice(0, length);
@@ -374,95 +468,6 @@
 		} catch (error) {}
 	}
 
-	onMount(async () => {
-		const store = await load('store.json', { autoSave: false });
-		const savedFile = await store.get<string>('lastFile');
-		const savedFriendCode = await store.get<string>('friendCode');
-		const savedFriendsList = await store.get<FriendType[]>('friendsList');
-		const savedPlayerName = await store.get<string>('playerName');
-		const savedPendingFriendRequests =
-			await store.get<{ friendCode: string }[]>('pendingFriendRequests');
-
-		if (savedPlayerName) {
-			playerName = savedPlayerName;
-		}
-
-		if (savedFriendsList) {
-			friendsList = savedFriendsList.map((friend) => ({ ...friend, isOnline: false }));
-		}
-
-		if (savedPendingFriendRequests) {
-			pendingFriendRequests = savedPendingFriendRequests;
-		}
-
-		let storedPlayerId = await store.get<string>('id');
-
-		if (!savedFriendCode) {
-			friendCode = generateId(6);
-			await store.set('friendCode', friendCode);
-		} else {
-			friendCode = savedFriendCode;
-		}
-
-		if (storedPlayerId) {
-			playerId = storedPlayerId;
-		} else if (savedFile) {
-			const pathPartsForId = savedFile.split('/');
-			playerId = pathPartsForId.length > 1 ? pathPartsForId.slice(-2, -1)[0] : generateId();
-			await store.set('id', playerId);
-		} else {
-			playerId = generateId();
-			await store.set('id', playerId);
-		}
-
-		await store.save();
-
-		try {
-			logLocation = savedFile?.split('/').slice(-2, -1)[0] || null;
-
-			if (savedFile) {
-				file = savedFile;
-				fileContent = [];
-				prevLineCount = 0;
-				await handleFile(file);
-
-				handleInitialiseWatch(file);
-			}
-		} catch (error) {}
-
-		if (playerId && friendCode && file && (!ws || ws.readyState !== WebSocket.OPEN)) {
-			connectWebSocket();
-		}
-
-		if (!playerId) {
-		}
-
-		// Load logs from disk and display them
-		const storedLogs = await loadLogsFromDisk();
-		if (storedLogs && Array.isArray(storedLogs)) {
-			fileContent = dedupeAndSortLogs(storedLogs);
-		}
-
-		check().then(async (update: any) => {
-			if (update?.available) {
-				const answer = await ask(
-					'A new update is available. Would you like to download and install it now?',
-					{
-						title: 'Update available',
-						kind: 'info'
-					}
-				);
-				if (answer) {
-					update.downloadAndInstall().catch((error: any) => {
-						console.error('Error downloading and installing update:', error);
-					});
-				}
-			}
-		});
-	});
-
-	let endWatch: () => void;
-
 	async function handleInitialiseWatch(filePath: string) {
 		if (endWatch) {
 			endWatch();
@@ -502,40 +507,51 @@
 			const lineBreak = linesText.split('\n');
 			const currentLineCount = lineBreak.length;
 
-			if (currentLineCount < prevLineCount) {
-				prevLineCount = 0;
-				fileContent = [];
-			}
-
-			if (currentLineCount <= prevLineCount) {
+			if (currentLineCount <= prevLineCount && !onlyProcessLogsAfterThisDateTimeStamp) {
+				// If the file hasn't grown and we don't have a specific start time, nothing new to process.
+				// This check might need refinement if game log resets but we still want to process from a certain point.
 				return;
 			}
 
-			const newLines = lineBreak.slice(prevLineCount, currentLineCount);
-			prevLineCount = currentLineCount;
+			// If we have a timestamp filter, we might re-process the whole file to catch up if prevLineCount was reset.
+			// Otherwise, just process new lines. This logic could be refined further.
+			// For now, if onlyProcessLogsAfterThisDateTimeStamp is set, we will process all lines from the game log file
+			// that are newer than this timestamp, regardless of prevLineCount.
+			const linesToProcess = onlyProcessLogsAfterThisDateTimeStamp
+				? lineBreak
+				: lineBreak.slice(prevLineCount, currentLineCount);
+
+			prevLineCount = currentLineCount; // Update prevLineCount after slicing/deciding linesToProcess
 			lineCount = currentLineCount;
 
-			const newContent = newLines
+			let latestProcessedTimestamp = onlyProcessLogsAfterThisDateTimeStamp || 0;
+
+			const processedNewContent: Log[] = linesToProcess
 				.map((line) => {
 					if (!line.trim()) return null;
 
 					const timestampMatch = line.match(/<([^>]+)>/);
-					let timestamp = new Date().toISOString();
+					let timestamp = new Date().toISOString(); // Default, should be replaced
+					let rawTimestampFromLog: string | undefined;
+
 					if (timestampMatch) {
-						const raw = timestampMatch[1];
-						// If it's a valid ISO string, use it directly
-						if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(raw)) {
-							timestamp = raw;
+						rawTimestampFromLog = timestampMatch[1];
+						if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(rawTimestampFromLog)) {
+							timestamp = rawTimestampFromLog;
 						} else {
-							timestamp = parseLogTimestamp(raw);
+							timestamp = parseLogTimestamp(rawTimestampFromLog);
 						}
 					}
+
+					const currentLogTime = new Date(timestamp).getTime();
+
 					if (
 						onlyProcessLogsAfterThisDateTimeStamp &&
-						new Date(timestamp).getTime() < onlyProcessLogsAfterThisDateTimeStamp
+						currentLogTime <= onlyProcessLogsAfterThisDateTimeStamp
 					) {
-						return null;
+						return null; // Skip logs that are not newer than what we already have
 					}
+
 					let logEntry: Log | null = null;
 
 					if (line.match(/AccountLoginCharacterStatus_Character/)) {
@@ -585,16 +601,48 @@
 						line.match(/<Actor Death>/) &&
 						line.match(`CActor::Kill: '${playerName}'`)
 					) {
-						logEntry = {
-							id: generateId(),
-							userId: playerId!,
-							player: playerName,
-							emoji: '😵',
-							line: `${playerName} died`,
-							timestamp,
-							original: line,
-							open: false
-						};
+						const regex =
+							/'([^']+)' \[(\d+)\] in zone '([^']+)' killed by '([^']+)' \[(\d+)\] using '([^']+)' \[Class ([^\]]+)\] with damage type '([^']+)' from direction x: ([\d\.\-]+), y: ([\d\.\-]+), z: ([\d\.\-]+)/;
+						const match = line.match(regex);
+
+						if (match) {
+							const victimName = match[1];
+							const victimId = match[2];
+							const zone = match[3];
+							const killerName = match[4];
+							const killerId = match[5];
+							const weaponInstance = match[6];
+							const weaponClass = match[7];
+							const damageType = match[8];
+							const dirX = match[9];
+							const dirY = match[10];
+							const dirZ = match[11];
+
+							//    "original": "<2025-05-29T21:16:49.545Z> [Notice] <Actor Death> CActor::Kill: 'space-man-rob' [600682182829] in zone 'AEGS_Idris_P_602567901387' killed by 'OvRuin' [602076272105] using 'behr_lmg_ballistic_01_602567887316' [Class behr_lmg_ballistic_01] with damage type 'Bullet' from direction x: 0.811733, y: 0.533934, z: -0.236652 [Team_ActorTech][Actor]\r",
+							logEntry = {
+								id: generateId(),
+								userId: playerId!,
+								player: playerName,
+								emoji: '😵',
+								line: `${playerName} was `,
+								timestamp,
+								original: line,
+								open: false,
+								eventType: 'actor_death',
+								metadata: {
+									victimName,
+									victimId,
+									zone,
+									killerName,
+									killerId,
+									weaponInstance,
+									weaponClass,
+									damageType,
+									direction: { x: dirX, y: dirY, z: dirZ }
+								}
+							};
+							console.log(logEntry);
+						}
 					} else if (
 						playerName &&
 						line.match(/<Actor Death>/) &&
@@ -614,19 +662,30 @@
 							};
 						}
 					} else if (line.match(/<Vehicle Destruction>/)) {
-						const vehicle = line.match(/Vehicle '(.*?)' \[.*?\]/)?.[1];
-						const shipType = getShipType(vehicle || '');
-						const destroyer = getName(line.match(/caused by '(.*?)' \[.*?\]/)?.[1] || '');
-						logEntry = {
-							id: generateId(),
-							userId: playerId!,
-							player: playerName,
-							emoji: '💥',
-							line: `${shipType} destroyed by ${destroyer}`,
-							timestamp,
-							original: line,
-							open: false
-						};
+						//"original": "<2025-05-29T21:10:28.425Z> [Notice] <Vehicle Destruction> CVehicle::OnAdvanceDestroyLevel: Vehicle 'MRAI_Guardian_MX_602567996805' [602567996805] in zone 'pyro1' [pos x: -140667.891402, y: 313131.061752, z: 229132.608634 vel x: -22.312147, y: 0.408933, z: 14.170518] driven by 'unknown' [0] advanced from destroy level 1 to 2 caused by 'AIModule_Unmanned_PU_PDC_602567901611' [602567901611] with 'Combat' [Team_CGP4][Vehicle]\r",
+						const regex =
+							/Vehicle '([^']+)' \[(\d+)\].*?from destroy level (\d+) to (\d+).*?caused by '([^']+)' \[(\d+)\]/;
+						const match = line.match(regex);
+
+						if (match) {
+							const vehicleName = match[1];
+							const vehicleId = match[2];
+							const destroyLevel = match[3];
+							const destroyLevelTo = match[4];
+							const causeName = match[5];
+							const causeId = match[6];
+
+							logEntry = {
+								id: generateId(),
+								userId: playerId!,
+								player: playerName,
+								emoji: '💥',
+								line: `${vehicleName.split('_').slice(0, -1).join(' ')} (${vehicleId}) destroyed (${destroyLevelTo === '1' ? 'soft' : 'hard'}) by ${causeName.split('_').slice(0, -1).join(' ') || causeName} (${causeId})`,
+								timestamp,
+								original: line,
+								open: false
+							};
+						}
 					} else if (line.match(/<Ship Destruction>/)) {
 						logEntry = {
 							id: generateId(),
@@ -649,43 +708,72 @@
 							original: line,
 							open: false
 						};
-					} else if (line.match(/<Vehicle Control Flow>/)) {
-						const shipNameMatch = line.match(/'([A-Za-z0-9_]+)_\d+'/);
-						const shipIdMatch = line
-							.match(/\[(\d+)\]/g)
-							?.pop()
-							?.match(/\d+/)?.[0];
-						const shipName = shipNameMatch?.[1];
-						if (shipName) {
+					}
+					const regex = /<Vehicle Control Flow> CVehicle::Initialize/;
+					// and doesn't include "Default_"
+					if (regex.test(line) && !line.includes('Default_')) {
+						console.log(line);
+						const regex =
+							/Local client node \[(\d+)\] granted control token for '([^']+)' \[(\d+)\] \[([^\]]+)\]\[([^\]]+)\]/;
+
+						const match = line.match(regex);
+						if (match) {
+							//  "original": "<2025-05-30T02:57:14.890Z> [Notice] <Vehicle Control Flow> CVehicle::Initialize::<lambda_1>::operator (): Local client node [201990707292] granted control token for 'MISC_Prospector_4006139647963' [4006139647963] [Team_VehicleFeatures][Vehicle]\r",
+							const vehicleName = match[2];
+							const vehicleId = match[3];
+							const team = match[4];
+							const entityType = match[5];
+
 							logEntry = {
 								id: generateId(),
 								userId: playerId!,
 								player: playerName,
 								emoji: '🚀',
-								line: `${playerName || 'Player'} boarded ${shipName}${shipIdMatch ? ` [${shipIdMatch}]` : ''}`,
+								line: ``,
 								timestamp,
 								original: line,
-								open: false
+								open: false,
+								eventType: 'vehicle_control_flow',
+								metadata: {
+									vehicleName,
+									vehicleId,
+									team,
+									entityType
+								}
 							};
 						}
 					}
+
 					if (logEntry) {
 						if (connectionStatus === 'connected') sendLogViaWebSocket(logEntry);
-						appendLogToDisk(logEntry); // Save to disk
+						// Don't append to disk one by one here. Collect and save later.
+						if (currentLogTime > latestProcessedTimestamp) {
+							latestProcessedTimestamp = currentLogTime;
+						}
 					}
 					return logEntry;
 				})
 				.filter((item): item is Log => item !== null);
 
-			if (newContent.length > 0) {
-				// Ensure all logs have userId (for backward compatibility or future-proofing)
-				const newContentWithUserId = newContent.map((log) =>
+			if (processedNewContent.length > 0) {
+				const newContentWithUserId = processedNewContent.map((log) =>
 					log.userId ? log : { ...log, userId: playerId! }
 				);
-				fileContent = dedupeAndSortLogs([...fileContent, ...newContentWithUserId]);
+
+				// Combine with existing content, dedupe, sort, and save
+				const combinedLogs = dedupeAndSortLogs([...fileContent, ...newContentWithUserId]);
+				await saveLogsToDisk(combinedLogs);
+				fileContent = combinedLogs; // Update in-memory state
+
+				// Update the timestamp filter to the latest processed log
+				if (latestProcessedTimestamp > (onlyProcessLogsAfterThisDateTimeStamp || 0)) {
+					onlyProcessLogsAfterThisDateTimeStamp = latestProcessedTimestamp;
+				}
 			}
 			scrollToBottom();
-		} catch (error) {}
+		} catch (error) {
+			console.error(error);
+		}
 	}
 
 	function scrollToBottom() {
@@ -728,108 +816,8 @@
 		}
 	}
 
-	async function clearSettings() {
-		const store = await load('store.json', { autoSave: false });
-		await store.clear();
-		await store.delete('friendsList');
-		await store.delete('lastFile');
-		await store.delete('friendCode');
-		await store.delete('id');
-		await store.delete('playerName');
-		await store.save();
-
-		file = null;
-		fileContent = [];
-		playerName = null;
-		logLocation = null;
-		prevLineCount = 0;
-		lineCount = 0;
-		playerId = null;
-		friendCode = null;
-		friendsList = [];
-		pendingFriendRequest = null;
-		currentUserDisplayData = null;
-		autoConnectionAttempted = false;
-
-		friendCode = generateId(6);
-		playerId = generateId();
-		await store.set('friendCode', friendCode);
-		await store.set('id', playerId);
-		await store.save();
-
-		if (ws && ws.readyState === WebSocket.OPEN) {
-			ws.close();
-		}
-		connectionStatus = 'disconnected';
-	}
-
-	let fileContentContainer = $state<HTMLDivElement | null>(null);
-
-	const shipTypes = [
-		'325a',
-		'c1',
-		'a2',
-		'warlock',
-		'eclipse',
-		'inferno',
-		'85x',
-		'mantis',
-		'hornet',
-		'fury',
-		'spirit_a1',
-		'spirit_c1',
-		'400i',
-		'c2',
-		'firebird',
-		'reclaimer',
-		'polaris',
-		'comet',
-		'gladius',
-		'lightning',
-		'scorpius',
-		'arrow',
-		'c8r',
-		'c8x',
-		'hull_c',
-		'ursa_medivac',
-		'starlancer_max',
-		'mole',
-		'starfighter',
-		'ballista',
-		'starfarer',
-		'carrack',
-		'taurus',
-		'atls',
-		'm50',
-		'sabre',
-		'dragonfly_yellow',
-		'corsair',
-		'cutlass_red',
-		'prospector',
-		'srv',
-		'constellation',
-		'freelancer',
-		'archimedes',
-		'avenger',
-		'vulture',
-		'cutter',
-		'nomad',
-		'cutlass',
-		'350r',
-		'razor',
-		'890jump',
-		'starlifter',
-		'caterpillar',
-		'vanguard',
-		'reliant',
-		'buccaneer',
-		'glaive',
-		'scythe',
-		'600i',
-		'talon'
-	];
-
 	function getShipType(shipName: string) {
+		console.log(shipName);
 		if (!shipName) return 'Unknown Ship';
 		return (
 			shipTypes.find((type) => shipName.toLowerCase().includes(type.toLowerCase())) || shipName
@@ -945,6 +933,13 @@
 		await store.set('pendingFriendRequests', pendingFriendRequests);
 		await store.save();
 	}
+
+	setInterval(() => {
+		tick += 1;
+		if (tick > 5 && file) {
+			handleFile(file);
+		}
+	}, 1000);
 </script>
 
 <main class="container">
@@ -980,7 +975,9 @@
 			</div>
 		</div>
 
-		<Timeline {fileContent} {file} />
+		{#if hasInitialised}
+			<Timeline {fileContent} {file} />
+		{/if}
 
 		{#if file}
 			<div class="line-count">
