@@ -14,11 +14,11 @@
 		currentUserDisplayData,
 		copiedStatusVisible,
 		selectFile,
-		logLocation,
-		file,
+		logLocation = $bindable(),
 		playerName,
-        clearLogs
+		clearLogs
 	} = $props();
+
 
 	function toggleOnlineStatus() {
 		if (connectionStatus === 'connected' || connectionStatus === 'connecting') {
@@ -44,6 +44,7 @@
 			kind: 'warning'
 		});
 		if (answer) {
+			logLocation = null;
 			clearLogs();
 		}
 	}
@@ -65,6 +66,19 @@
 			}
 		}
 	});
+
+	type LogVersion = 'LIVE' | 'PTU';
+	let getLogVersion = () => {
+		if (logLocation?.includes('PTU')) {
+			return 'PTU';
+		}
+		return 'LIVE';
+	};
+	let logVersionSelect = $state<LogVersion>(getLogVersion()); // LIVE, PTU
+	let logVersionSelectOptions = $state<LogVersion[]>(['LIVE', 'PTU']);
+	let selectVersion = (e: Event) => {
+		logLocation = (e.target as HTMLSelectElement).value;
+	};
 </script>
 
 <header>
@@ -90,22 +104,26 @@
 				Copied Friend Code!
 			</span>
 		</button>
-		<button onclick={selectFile} title="Select Game.log file">
-			<FileText size={18} />
-			{#if logLocation}
-				/{logLocation}/Game.log
-			{:else if file}
-				{file.split('/').pop()}
-			{:else}
-				Select log file
-			{/if}
+		{#if logLocation}
+		<select class="log-version-select" value={logLocation} onchange={selectVersion} title="Select Game.log file">
+			{#each logVersionSelectOptions as option}
+				<option value={option} selected={logVersionSelect === option}>
+					{option}
+					</option>
+				{/each}
+			</select>
+		{:else}
+			<button class="log-version-choose-button" onclick={selectFile} title="Select Game.log file">
+				<FileText size={18} />Select Game.log file
+			</button>
+		{/if}
+
+		<button onclick={handleClearLogs} title="Clear all logs">
+			<BrushCleaning size={18} /> Clear Logs
 		</button>
-		<button onclick={handleClearLogs} title="Clear all logs"><BrushCleaning size={18} /> Clear Logs</button>
 		<!-- <button onclick={clearSettings} title="Clear all settings and log file">Clear Settings</button> -->
 
-		<button
-			class="online-status-button"
-			onclick={toggleOnlineStatus}>
+		<button class="online-status-button" onclick={toggleOnlineStatus}>
 			{#if connectionStatus === 'connecting'}
 				<div class="spinner"></div>
 			{:else}
@@ -249,5 +267,45 @@
 		to {
 			transform: rotate(360deg);
 		}
+	}
+
+	.log-version-select {
+		background-color: rgba(255, 255, 255, 0.1);
+		color: #fff;
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		padding: 0.5rem 1rem;
+		font-weight: 500;
+		border-radius: 4px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
+		transition: background-color 0.2s ease-in-out;
+
+		&,
+		&::picker(select) {
+			appearance: base-select;
+			background-color: rgba(255, 255, 255, 0.1);
+			width: 100px;
+			overflow: hidden;
+			border: 1px solid rgba(255, 255, 255, 0.2);
+			border-radius: 4px;
+		}
+	}
+
+	.log-version-select:hover {
+		background-color: rgba(255, 255, 255, 0.2);
+	}
+
+	.log-version-select option {
+		background-color: rgb(10, 30, 42);
+		color: #fff;
+		padding: 0.25rem 0.5rem;
+		font-weight: 500;
+		display: flex;
+		align-items: flex-start;
+		justify-content: flex-start;
+		gap: 0.5rem;
+		width: 100px;
 	}
 </style>

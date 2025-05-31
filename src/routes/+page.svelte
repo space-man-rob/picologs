@@ -13,7 +13,6 @@
 	import { ask } from '@tauri-apps/plugin-dialog';
 	import { check } from '@tauri-apps/plugin-updater';
 	import Timeline from '../components/Timeline.svelte';
-	import { shipTypes } from '../libs/ships';
 
 	let ws = $state<WebSocket | null>(null);
 	let file = $state<string | null>(null);
@@ -490,18 +489,42 @@
 		return `${year}-${month}-${day}T${hour}:${min}:${sec}.${msStr}Z`;
 	}
 
+	$effect(() => {
+		if (logLocation && logLocation !== null) {
+			load('store.json', { autoSave: false }).then((store) => {
+				store.get('lastFile').then((location) => {
+					const originalPath = location as string;
+					const updatedPath = originalPath.replace(
+						/(\\StarCitizen\\)[^\\]+(\\Game\.log)/i,
+						`$1${logLocation}$2`
+					);
+					fileContent = [];
+					prevLineCount = 0;
+					onlyProcessLogsAfterThisDateTimeStamp = null;
+					file = updatedPath;
+					store.set('lastFile', updatedPath).then(() => {
+						handleFile(updatedPath);
+					});
+				}).catch((error) => {
+					console.error('Error loading store', error);
+				});
+			});
+		}
+	});
+
 	async function handleFile(filePath: string | null) {
 		if (!filePath) return;
-
 		try {
 			tick = 0;
 			const pathParts = filePath.split('\\');
-			logLocation =
-				pathParts.length > 1
-					? pathParts[pathParts.length - 2]
-					: filePath.split('/').length > 1
-						? filePath.split('/').slice(-2, -1)[0]
-						: null;
+			if (!logLocation) {
+				logLocation =
+					pathParts.length > 1
+						? pathParts[pathParts.length - 2]
+						: filePath.split('/').length > 1
+							? filePath.split('/').slice(-2, -1)[0]
+							: null;
+			}
 
 			const linesText = await readTextFile(filePath);
 			const lineBreak = linesText.split('\n');
@@ -814,7 +837,7 @@
 			multiple: false,
 			directory: false,
 			filters: [{ name: 'Game.log', extensions: ['log'] }],
-			defaultPath: 'C:\\Program Files\\Roberts Space Industries\\StarCitizen\\LIVE\\'
+			defaultPath: 'C:\\Program Files\\Roberts Space Industries\\StarCitizen'
 		});
 
 		if (typeof selectedPath === 'string' && selectedPath) {
@@ -963,10 +986,9 @@
 		{currentUserDisplayData}
 		{copiedStatusVisible}
 		{selectFile}
-		{logLocation}
-		{file}
 		{playerName}
-		{clearLogs} />
+		{clearLogs}
+		bind:logLocation />
 
 	<div class="content">
 		<div class="friends-sidebar">
