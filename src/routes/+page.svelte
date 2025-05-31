@@ -1,18 +1,17 @@
 <script lang="ts">
+	import { appDataDir } from '@tauri-apps/api/path';
+	import { ask, open } from '@tauri-apps/plugin-dialog';
 	import { readTextFile, watchImmediate, writeFile } from '@tauri-apps/plugin-fs';
 	import { load } from '@tauri-apps/plugin-store';
-	import { open } from '@tauri-apps/plugin-dialog';
+	import { check } from '@tauri-apps/plugin-updater';
 	import { onMount } from 'svelte';
-	import Friends from '../components/Friends.svelte';
-	import User from '../components/User.svelte';
 	import AddFriend from '../components/AddFriend.svelte';
-	import type { Log, Friend as FriendType } from '../types';
-	import { appDataDir } from '@tauri-apps/api/path';
+	import Friends from '../components/Friends.svelte';
 	import Header from '../components/Header.svelte';
 	import PendingFriendRequests from '../components/PendingFriendRequests.svelte';
-	import { ask } from '@tauri-apps/plugin-dialog';
-	import { check } from '@tauri-apps/plugin-updater';
 	import Timeline from '../components/Timeline.svelte';
+	import User from '../components/User.svelte';
+	import type { Friend as FriendType, Log } from '../types';
 
 	let ws = $state<WebSocket | null>(null);
 	let file = $state<string | null>(null);
@@ -492,22 +491,25 @@
 	$effect(() => {
 		if (logLocation && logLocation !== null) {
 			load('store.json', { autoSave: false }).then((store) => {
-				store.get('lastFile').then((location) => {
-					const originalPath = location as string;
-					const updatedPath = originalPath.replace(
-						/(\\StarCitizen\\)[^\\]+(\\Game\.log)/i,
-						`$1${logLocation}$2`
-					);
-					fileContent = [];
-					prevLineCount = 0;
-					onlyProcessLogsAfterThisDateTimeStamp = null;
-					file = updatedPath;
-					store.set('lastFile', updatedPath).then(() => {
-						handleFile(updatedPath);
+				store
+					.get('lastFile')
+					.then((location) => {
+						const originalPath = location as string;
+						const updatedPath = originalPath.replace(
+							/(\\StarCitizen\\)[^\\]+(\\Game\.log)/i,
+							`$1${logLocation}$2`
+						);
+						fileContent = [];
+						prevLineCount = 0;
+						onlyProcessLogsAfterThisDateTimeStamp = null;
+						file = updatedPath;
+						store.set('lastFile', updatedPath).then(() => {
+							handleFile(updatedPath);
+						});
+					})
+					.catch((error) => {
+						console.error('Error loading store', error);
 					});
-				}).catch((error) => {
-					console.error('Error loading store', error);
-				});
 			});
 		}
 	});

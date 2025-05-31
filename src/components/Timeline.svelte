@@ -21,9 +21,7 @@
 			}
 		});
 
-		return () => {
-			console.log('cleaning up');
-		};
+		return () => {};
 	};
 
 	let fileContentContainer = $state<HTMLDivElement>();
