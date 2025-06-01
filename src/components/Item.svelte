@@ -58,7 +58,33 @@
         return null;
     }
 
-    let shipImage = $state(getShipImage(metadata));
+    function getShipData(metadata: any) {
+        if (metadata?.vehicleName) {
+            const vehicleName = metadata.vehicleName.split('_').join('_').toLowerCase();
+            const ship = false; // allFleetyardsShips[vehicleName];
+
+            if (!ship) {
+                const options = ['name', 'slug', 'short', 'manufacturerCode'];
+
+                const shipName = vehicleName.split('_')[1];
+                if (!shipName) {
+                    return null;
+                }
+                const myIndex = Fuse.createIndex(options, fleet)
+                const fuse = new Fuse(fleet, {
+                    includeScore: true,
+                    threshold: 0.01
+                }, myIndex);
+                const fuzzyShip = fuse.search(shipName);
+                return fuzzyShip[0]?.item;
+            }
+        }
+        return null;
+    }
+
+    let shipData = $state(getShipData(metadata));
+    let shipImage = $derived(shipData ? `https://fleetviewer.link/fleetpics%2F${shipData.slug}__iso_l_${shipData.variants[0].iso_l.hash}.png?alt=media` : null);
+    let shipName = $derived(shipData ? shipData.name : null);
 </script>
 
 <button class="item" onclick={() => open = !open}>
@@ -78,7 +104,7 @@
             {@const zone = metadata.zone.split('_').slice(0, -1).join(' ')}
             <div class="line">{metadata.victimName} was killed {#if zone != 'Unknown'} while in {zone}{/if} by {metadata.killerName || "unknown"} ({metadata.killerId}) {#if weapon != 'unknown'}using {weapon}{/if} {#if metadata.damageType != 'unknown'} caused by {convertCamelCaseToWords(metadata.damageType)}{/if}</div>
         {:else if eventType === 'vehicle_control_flow'}
-            <div class="line">{player} took control of {metadata.vehicleName.split('_').slice(0, -1).join(' ')} ({metadata.vehicleId})</div>
+            <div class="line">{player} controls a {shipName} ({metadata.vehicleId})</div>
         {:else if eventType === 'location_change'}
             <div class="line">{player} requested inventory in {metadata.location.split('_').join(' ')}</div>
         {:else}
