@@ -9,5 +9,4 @@ node_modules
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 /secrets
-/lib/ships.ts
-/lib/ships copy.ts
+
