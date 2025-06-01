@@ -150,11 +150,7 @@
     }
 
     .item .ship-image img {
-        filter:
-        drop-shadow(0 1px 0 rgba(0, 0, 0, 0.5))  /* top */
-        drop-shadow(0 0 0 rgba(0, 0, 0, 0.5))   /* bottom */
-        drop-shadow(1.5px 0 0 rgba(0, 0, 0, 0.5))  /* left */
-        drop-shadow(-.5px 0 0 rgba(0, 0, 0, 0.5));  /* right */
+        filter: drop-shadow(1px 1px 12px rgba(0, 187, 255, 0.2));
 
         transform: scale(1.3);
     }
