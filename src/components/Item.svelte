@@ -31,37 +31,10 @@
         if (intervalId) clearInterval(intervalId);
     });
 
-    function getShipImage(metadata: any) {
-        if (metadata?.vehicleName) {
-            const vehicleName = metadata.vehicleName.split('_').join('_').toLowerCase();
-            const ship = false; // allFleetyardsShips[vehicleName];
-
-            if (!ship) {
-                const options = ['name', 'slug', 'short', 'manufacturerCode'];
-
-                const shipName = vehicleName.split('_')[1];
-                if (!shipName) {
-                    return null;
-                }
-                const myIndex = Fuse.createIndex(options, fleet)
-                const fuse = new Fuse(fleet, {
-                    includeScore: true,
-                    threshold: 0.01
-                }, myIndex);
-                const fuzzyShip = fuse.search(shipName);
-                const fuzzyShipName = fuzzyShip[0]?.item?.slug;
-                const fuzzyShipHash = fuzzyShip[0]?.item?.variants[0]?.iso_l.hash;
-                return fuzzyShipName ? `https://fleetviewer.link/fleetpics%2F${fuzzyShipName}__iso_l_${fuzzyShipHash}.png?alt=media` : null;
-            }
-            //return ship?.angledViewXlarge;
-        }
-        return null;
-    }
-
     function getShipData(metadata: any) {
         if (metadata?.vehicleName) {
             const vehicleName = metadata.vehicleName.split('_').join('_').toLowerCase();
-            const ship = false; // allFleetyardsShips[vehicleName];
+            const ship = false;
 
             if (!ship) {
                 const options = ['name', 'slug', 'short', 'manufacturerCode'];
