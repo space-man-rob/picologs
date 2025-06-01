@@ -4,6 +4,7 @@
 	import type { Attachment } from 'svelte/attachments';
 	import { ArrowDown } from '@lucide/svelte';
 	import { fade } from 'svelte/transition';
+	import { elasticOut } from 'svelte/easing';
 
 	let { fileContent, file }: { fileContent: any[]; file: string | null } = $props();
 
@@ -50,14 +51,30 @@
 			});
 		}
 	});
-	
+
+	function stagger(node: HTMLElement, { duration, delay }: { duration: number, delay: number }) {
+		return {
+			duration,
+			delay,
+			easing: elasticOut,
+			css: (t: number) => {
+				return `
+					transition: transform ${duration}ms ease-out, opacity ${duration}ms ease-out;
+					transform: translateX(${(1 - t) * 100}px);
+				`
+			}
+		};
+	}
+
 </script>
 
 <div class="file-content" {@attach scrollbarDetector} bind:this={fileContentContainer}>
 	{#if file}
 		{#each fileContent as item, index (item.id)}
 			{#if index === 0 || fileContent[index - 1]?.line !== item.line || fileContent[index - 1]?.timestamp !== item.timestamp}
-				<Item {...item} bind:open={item.open} />
+				<div transition:stagger={{duration:8000 + index * 300, delay: index * 300 }}>
+					<Item {...item} bind:open={item.open} />
+				</div>
 			{/if}
 		{:else}
 			<div class="item">
@@ -266,7 +283,12 @@
 		line-height: 1.4;
 	}
 
-	:global(.item:nth-child(2n)) {
+	.file-content div {
+		display: flex;
+		flex-direction: column;
+	}
+
+	:global(.file-content div:nth-child(2n) .item) {
 		background-color: rgba(255, 255, 255, 0.05);
 	}
 </style>

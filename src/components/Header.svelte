@@ -2,6 +2,8 @@
 	import { BrushCleaning, Copy, FileText } from '@lucide/svelte';
 	import type { Friend as FriendType } from '../types';
 	import { ask } from '@tauri-apps/plugin-dialog';
+	import { load } from '@tauri-apps/plugin-store';
+
 
 	let {
 		playerId,
@@ -20,20 +22,24 @@
 	} = $props();
 
 
-	function toggleOnlineStatus() {
+	async function toggleOnlineStatus() {
+		const store = await load('store.json', { autoSave: false });
+
 		if (connectionStatus === 'connected' || connectionStatus === 'connecting') {
 			if (ws) {
 				ws.close();
 			}
 			connectionStatus = 'disconnected';
+			store.set('wouldGoOnline', false);
 
 			friendsList = friendsList.map((friend: FriendType) => ({ ...friend, isOnline: false }));
 			saveFriendsListToStore();
 		} else {
 			if (playerId) {
+				store.set('wouldGoOnline', true);
 				connectWebSocket();
 			} else {
-				alert('Please select a log file first to establish your User ID and be able to go online.');
+				alert('Please select a log file first to establish your Player ID and be able to go online.');
 			}
 		}
 	}

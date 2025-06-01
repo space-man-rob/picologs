@@ -201,6 +201,11 @@
 	}
 
 	async function connectWebSocket() {
+		const store = await load('store.json', { autoSave: false });
+		const wouldGoOnline = await store.get<boolean>('wouldGoOnline');
+		if (!wouldGoOnline) {
+			return;
+		}
 		if (ws && ws.readyState === WebSocket.OPEN) {
 			return;
 		}
@@ -495,6 +500,9 @@
 					.get('lastFile')
 					.then((location) => {
 						const originalPath = location as string;
+						if (!originalPath) {
+							return;
+						}
 						const updatedPath = originalPath.replace(
 							/(\\StarCitizen\\)[^\\]+(\\Game\.log)/i,
 							`$1${logLocation}$2`
@@ -611,15 +619,14 @@
 					} else if (line.match(/<RequestLocationInventory>/)) {
 						const playerMatch = line.split('Player[')[1]?.split(']')[0];
 						const locationMatch = line.split('Location[')[1]?.split(']')[0];
-						const checkLocationsOverLastFiveMinutes = () => {
+						const checkLocationsOverLastMinutes = (minutes: number) => {
 							const prevLocation = prevInventoryLocations[playerMatch];
 							if (!prevLocation) return true;
 							const date = new Date(timestamp);
 							const prevDate = new Date(prevLocation.timestamp);
 							const diffMs = date.getTime() - prevDate.getTime();
-							// Check if the difference is at least 5 minutes (300000 ms)
-							const isAtLeastFiveMinutesApart = diffMs >= 5 * 60 * 1000;
-							if (prevLocation && isAtLeastFiveMinutesApart) {
+							const isAtLeastMinutesApart = diffMs >= minutes * 60 * 1000;
+							if (prevLocation && isAtLeastMinutesApart) {
 								return true;
 							}
 							if (prevLocation.location !== locationMatch) {
@@ -630,7 +637,7 @@
 						if (
 							playerMatch === playerName &&
 							locationMatch &&
-							checkLocationsOverLastFiveMinutes()
+							checkLocationsOverLastMinutes(15)
 						) {
 							prevInventoryLocations[playerMatch] = { timestamp, location: locationMatch };
 							logEntry = {
