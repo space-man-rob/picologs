@@ -150,18 +150,7 @@
     }
 
     .item .ship-image img {
-        filter: drop-shadow(1px 1px 12px rgba(0, 187, 255, 0.2));
-
-        transform: scale(1.3);
-    }
-
-    /* fade in from top left to bottom right */
-    .item .ship-image img {
-        animation: fadeIn 1s ease-in-out;
-    }
-
-    @keyframes fadeIn {
-        from { opacity: 0; scale: 0.8; transform: translate(100px, -40px); }
-        to { opacity: 1; scale: 1.3; transform: translate(0, 0); }
+        filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, .4));
+        transform: scale(1.2);
     }
 </style>

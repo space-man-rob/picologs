@@ -1,10 +1,9 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import Item from './Item.svelte';
 	import type { Attachment } from 'svelte/attachments';
 	import { ArrowDown } from '@lucide/svelte';
 	import { fade } from 'svelte/transition';
-	import { elasticOut } from 'svelte/easing';
 
 	let { fileContent, file }: { fileContent: any[]; file: string | null } = $props();
 
@@ -28,61 +27,148 @@
 	let fileContentContainer = $state<HTMLDivElement>();
 	let hasScrollbar = $state(false);
 
+	let displayedFileContent = $state<any[]>([]);
+	let dynamicStyleElement = $state<HTMLStyleElement | null>(null);
+	let prevPropFileContentWatcher = fileContent; // Used to detect prop changes in $effect
+
 	onMount(() => {
-		if (fileContentContainer) {
-			fileContentContainer.scrollTo({
-				top: fileContentContainer.scrollHeight,
-				behavior: 'smooth'
-			});
+		// Initial population
+		displayedFileContent = [...fileContent];
+		prevPropFileContentWatcher = fileContent;
+
+		if (typeof document !== 'undefined') {
+			const styleEl = document.createElement('style');
+			styleEl.id = 'timeline-dynamic-styles';
+			document.head.appendChild(styleEl);
+			dynamicStyleElement = styleEl;
+			updateDynamicStyles(getVisibleItems(displayedFileContent), []);
+
+			// Initial scroll to bottom if needed
+			if (fileContentContainer) {
+				fileContentContainer.scrollTo({
+					top: fileContentContainer.scrollHeight,
+					behavior: 'auto' // auto for initial, smooth for subsequent
+				});
+			}
+		}
+
+		return () => {
+			if (dynamicStyleElement) {
+				dynamicStyleElement.remove();
+				dynamicStyleElement = null;
+			}
+		};
+	});
+
+	function getVisibleItems(items: any[]) {
+		return items.filter((item, index, arr) => {
+			return (
+				index === 0 ||
+				arr[index - 1]?.line !== item.line ||
+				arr[index - 1]?.timestamp !== item.timestamp
+			);
+		});
+	}
+
+	function updateDynamicStyles(currentVisibleItems: { id: any }[], previouslyVisibleItems: { id: any }[]) {
+		if (!dynamicStyleElement || typeof document === 'undefined') return;
+
+		const previouslyVisibleItemIds = new Set(previouslyVisibleItems.map(item => item.id));
+		let newItemsStaggerIndex = 0;
+
+		let cssText = `
+@keyframes timeline-item-appear {
+  from {
+    opacity: 0;
+    transform: translateX(120px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+		`;
+
+		currentVisibleItems.forEach((item) => {
+			const safeId = String(item.id).replace(/[^a-zA-Z0-9-_]/g, '_');
+			const transitionName = `timeline-item-${safeId}`;
+
+			// Only apply the appear animation to items that were not previously visible
+			if (!previouslyVisibleItemIds.has(item.id)) {
+				cssText += `
+::view-transition-new(${transitionName}) {
+  animation: timeline-item-appear 0.4s ease-out both;
+  animation-delay: ${newItemsStaggerIndex * 35}ms;
+}
+`;
+				newItemsStaggerIndex++;
+			}
+		});
+
+		dynamicStyleElement.textContent = cssText;
+	}
+
+	$effect(() => {
+		if (JSON.stringify(fileContent) !== JSON.stringify(prevPropFileContentWatcher)) {
+			const previouslyRenderedVisibleItems = getVisibleItems(displayedFileContent); // Capture before update
+
+			const transitionLogic = async () => {
+				displayedFileContent = [...fileContent]; // Update state from NEW prop
+				await tick(); 
+				const currentlyRenderedVisibleItems = getVisibleItems(displayedFileContent);
+				updateDynamicStyles(currentlyRenderedVisibleItems, previouslyRenderedVisibleItems);
+			};
+
+			if (typeof document !== 'undefined' && document.startViewTransition) {
+				document.startViewTransition(transitionLogic);
+			} else {
+				// Fallback for browsers without View Transitions or in SSR
+				transitionLogic();
+			}
+			prevPropFileContentWatcher = fileContent; // Update watcher *after* processing
 		}
 	});
 
 	const isScrolledToBottom = () => {
 		if (!fileContentContainer) return false;
-		return fileContentContainer.scrollTop + fileContentContainer.clientHeight >= fileContentContainer.scrollHeight;
+		return (
+			fileContentContainer.scrollTop + fileContentContainer.clientHeight >=
+			fileContentContainer.scrollHeight - 5
+		);
 	};
 
-	// keep stuck to bottom until user scrolls up
 	$effect(() => {
-		if (fileContent && !isScrolledToBottom()) {
-			fileContentContainer?.scrollTo({
-				top: fileContentContainer.scrollHeight,
-				behavior: 'smooth'
-			});
+		if (displayedFileContent && fileContentContainer) {
+			const userHasScrolledUp = !isScrolledToBottom();
+
+			if (!userHasScrolledUp) {
+				fileContentContainer.scrollTo({
+					top: fileContentContainer.scrollHeight,
+					behavior: 'smooth'
+				});
+			}
 		}
 	});
-
-	function stagger(node: HTMLElement, { duration, delay }: { duration: number, delay: number }) {
-		return {
-			duration,
-			delay,
-			easing: elasticOut,
-			css: (t: number) => {
-				return `
-					transition: transform ${duration}ms ease-out, opacity ${duration}ms ease-out;
-					transform: translateX(${(1 - t) * 100}px);
-				`
-			}
-		};
-	}
-
 </script>
 
 <div class="file-content" {@attach scrollbarDetector} bind:this={fileContentContainer}>
 	{#if file}
-		{#each fileContent as item, index (item.id)}
-			{#if index === 0 || fileContent[index - 1]?.line !== item.line || fileContent[index - 1]?.timestamp !== item.timestamp}
-				<div transition:stagger={{duration:8000 + index * 300, delay: index * 300 }}>
-					<Item {...item} bind:open={item.open} />
-				</div>
-			{/if}
+		{#if displayedFileContent && displayedFileContent.length > 0}
+			{#each displayedFileContent as item, index (item.id)}
+				{#if index === 0 || displayedFileContent[index - 1]?.line !== item.line || displayedFileContent[index - 1]?.timestamp !== item.timestamp}
+					{@const safeId = String(item.id).replace(/[^a-zA-Z0-9-_]/g, '_')}
+					<div style="view-transition-name: timeline-item-{safeId};">
+						<Item {...item} bind:open={item.open} />
+					</div>
+				{/if}
+			{/each}
 		{:else}
 			<div class="item">
 				<div class="line-container">
 					<div class="line">No new logs yet. Waiting for game activity...</div>
 				</div>
 			</div>
-		{/each}
+		{/if}
 	{:else}
 		<div class="welcome">
 			<h2>🚀 Getting started</h2>

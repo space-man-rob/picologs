@@ -85,6 +85,13 @@
 	let selectVersion = (e: Event) => {
 		logLocation = (e.target as HTMLSelectElement).value;
 	};
+
+	$effect(() => {
+		if (logLocation) {
+			logVersionSelect = getLogVersion();
+		}
+	});
+	
 </script>
 
 <header>
