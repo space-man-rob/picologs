@@ -23,6 +23,10 @@ export type Log = {
 		damageType?: string;
 		direction?: { x: string; y: string; z: string };
 		location?: string;
+		destroyLevel?: string;
+		destroyLevelTo?: string;
+		causeName?: string;
+		causeId?: string;
 	};
 };
 

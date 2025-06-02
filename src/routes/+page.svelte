@@ -601,7 +601,7 @@
 										userId: playerId,
 										friendCode: friendCode,
 										playerName: playerName,
-										timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+										timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
 									})
 								);
 							}
@@ -716,7 +716,12 @@
 								line: `${victimMatch} killed by ${playerName}`,
 								timestamp,
 								original: line,
-								open: false
+								open: false,
+								eventType: 'actor_death',
+								metadata: {
+									victimName: victimMatch,
+									killerName: playerName
+								}
 							};
 						}
 					} else if (line.match(/<Vehicle Destruction>/)) {
@@ -741,20 +746,18 @@
 								line: `${vehicleName.split('_').slice(0, -1).join(' ')} (${vehicleId}) destroyed (${destroyLevelTo === '1' ? 'soft' : 'hard'}) by ${causeName.split('_').slice(0, -1).join(' ') || causeName} (${causeId})`,
 								timestamp,
 								original: line,
-								open: false
+								open: false,
+								eventType: 'destruction',
+								metadata: {
+									vehicleName,
+									vehicleId,
+									destroyLevel,
+									destroyLevelTo,
+									causeName,
+									causeId
+								}
 							};
 						}
-					} else if (line.match(/<Ship Destruction>/)) {
-						logEntry = {
-							id: generateId(),
-							userId: playerId!,
-							player: playerName,
-							emoji: '💥',
-							line: `${playerName || 'Someone'} destroyed a ship`,
-							timestamp,
-							original: line,
-							open: false
-						};
 					} else if (line.match(/<SystemQuit>/)) {
 						logEntry = {
 							id: generateId(),
@@ -764,7 +767,8 @@
 							line: `${playerName || 'Player'} quit the game`,
 							timestamp,
 							original: line,
-							open: false
+							open: false,
+							eventType: 'system_quit'
 						};
 					}
 					const regex = /<Vehicle Control Flow> CVehicle::Initialize/;

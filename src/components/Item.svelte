@@ -47,14 +47,6 @@
 
 	type Fleet = typeof fleet;
 
-	type ShipData = {
-		name: string;
-		slug: string;
-		erkulIdentifier: string;
-		scIdentifier: string;
-		'manufacturer.code': string;
-	};
-
 	function getShipData(metadata: any) {
 		if (metadata?.vehicleName) {
 			const vehicleName = metadata.vehicleName.split('_').slice(0, -1).join('_').toLowerCase();
@@ -65,23 +57,20 @@
 			}
 
 			const options = [
-	{ name: 'name', weight: 0.5 },
-	{ name: 'slug', weight: 0.3 },
-	{ name: 'erkulIdentifier', weight: 0.1 },
-	{ name: 'scIdentifier', weight: 0.1 },
-	{ name: 'manufacturer.code', weight: 0.1 }
-];
+				{ name: 'name', weight: 0.5 },
+				{ name: 'slug', weight: 0.3 },
+				{ name: 'erkulIdentifier', weight: 0.1 },
+				{ name: 'scIdentifier', weight: 0.1 },
+				{ name: 'manufacturer.code', weight: 0.1 }
+			];
 
-const fuse = new Fuse(
-	Object.values(fleet),
-	{
-		includeScore: true,
-		threshold: 0.4,
-		keys: options
-	}
-);
+			const fuse = new Fuse(Object.values(fleet), {
+				includeScore: true,
+				threshold: 0.4,
+				keys: options
+			});
 
-const fuzzyShip = fuse.search(vehicleName.replace(/_/g, ' '));
+			const fuzzyShip = fuse.search(vehicleName.replace(/_/g, ' '));
 
 			console.log(vehicleName, fuzzyShip);
 			if (fuzzyShip[0]?.item?.fleetData?.variants[0]?.iso_l?.hash) {

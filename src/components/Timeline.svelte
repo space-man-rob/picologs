@@ -9,6 +9,60 @@
 	let { fileContent, file }: { fileContent: any[]; file: string | null } = $props();
 
 	let atTheBottom = $state(false);
+	let filters = $state({
+		eventTypes: {
+			vehicle_control_flow: true,
+			actor_death: true,
+			location_change: true,
+			other: true,
+			destruction: true
+		},
+		search: ''
+	});
+
+	function handleFilterChange(event: CustomEvent) {
+		filters = event.detail;
+	}
+
+	function filterContent(content: any[]) {
+		return content.filter((item) => {
+			// Filter by event type
+			if (item.eventType) {
+				const eventType = item.eventType as keyof typeof filters.eventTypes;
+				if (!filters.eventTypes[eventType]) {
+					return false;
+				}
+			} else if (!filters.eventTypes.other) {
+				return false;
+			}
+
+			// Filter by search term
+			if (filters.search) {
+				const searchTerm = filters.search.toLowerCase();
+				const searchableText = [
+					item.eventType,
+					item.line,
+					item.player,
+					item.original,
+					item.metadata?.location,
+					item.metadata?.vehicleName,
+					item.metadata?.victimName,
+					item.metadata?.killerName,
+					item.metadata?.damageType
+				]
+					.filter(Boolean)
+					.join(' ')
+					.toLowerCase();
+				return searchableText.includes(searchTerm);
+			}
+
+			return true;
+		});
+	}
+
+	$effect(() => {
+		displayedFileContent = filterContent(fileContent);
+	});
 
 	$inspect(atTheBottom);
 
@@ -27,7 +81,7 @@
 
 	let unlisten: () => void;
 	onMount(async () => {
-		displayedFileContent = [...fileContent];
+		displayedFileContent = filterContent(fileContent);
 		tick().then(() => {
 			fileContentContainer?.scrollTo({
 				top: fileContentContainer.scrollHeight,
@@ -54,7 +108,7 @@
 	let wasAtTheBottom = $state(false);
 	$effect(() => {
 		wasAtTheBottom = atTheBottom;
-		displayedFileContent = [...fileContent];
+		displayedFileContent = filterContent(fileContent);
 	});
 
 	$inspect('displayedFileContent', displayedFileContent);
@@ -74,7 +128,7 @@
 
 <div class="timeline-container">
 	<div class="timeline-filters">
-		<TimelineFilters />
+		<TimelineFilters on:filterChange={handleFilterChange} />
 	</div>
 
 	<div
@@ -94,7 +148,7 @@
 			{:else}
 				<div class="item">
 					<div class="line-container">
-						<div class="line">No new logs yet. Waiting for game activity...</div>
+						<div class="line">No logs match the current filters.</div>
 					</div>
 				</div>
 			{/if}
