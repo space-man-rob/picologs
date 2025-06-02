@@ -702,24 +702,49 @@
 						line.match(/<Actor Death>/) &&
 						!line.match(`CActor::Kill: '${playerName}'`)
 					) {
-						const victimMatch = line.split('CActor::Kill: ')[1]?.split(' ')[0].replaceAll("'", '');
-						if (victimMatch) {
+						const regex =
+							/'([^']+)' \[(\d+)\] in zone '([^']+)' killed by '([^']+)' \[(\d+)\] using '([^']+)' \[Class ([^\]]+)\] with damage type '([^']+)' from direction x: ([\d\.\-]+), y: ([\d\.\-]+), z: ([\d\.\-]+)/;
+						const match = line.match(regex);
+
+						if (match) {
+
+							const victimName = match[1];
+							const victimId = match[2];
+							const zone = match[3];
+							const killerName = match[4];
+							const killerId = match[5];
+							const weaponInstance = match[6];
+							const weaponClass = match[7];
+							const damageType = match[8];
+							const dirX = match[9];
+							const dirY = match[10];
+							const dirZ = match[11];
+
+						
 							logEntry = {
 								id: generateId(),
 								userId: playerId!,
 								player: playerName,
 								emoji: '🗡️',
-								line: `${victimMatch} killed by ${playerName}`,
+								line: `${victimName} killed by ${killerName}`,
 								timestamp,
 								original: line,
 								open: false,
 								eventType: 'actor_death',
 								metadata: {
-									victimName: victimMatch,
-									killerName: playerName
+									victimName,
+									victimId,
+									zone,
+									killerName,
+									killerId,
+									weaponInstance,
+									weaponClass,
+									damageType,
+									direction: { x: dirX, y: dirY, z: dirZ }
 								}
-							};
+							
 						}
+					}
 					} else if (line.match(/<Vehicle Destruction>/)) {
 						//"original": "<2025-05-29T21:10:28.425Z> [Notice] <Vehicle Destruction> CVehicle::OnAdvanceDestroyLevel: Vehicle 'MRAI_Guardian_MX_602567996805' [602567996805] in zone 'pyro1' [pos x: -140667.891402, y: 313131.061752, z: 229132.608634 vel x: -22.312147, y: 0.408933, z: 14.170518] driven by 'unknown' [0] advanced from destroy level 1 to 2 caused by 'AIModule_Unmanned_PU_PDC_602567901611' [602567901611] with 'Combat' [Team_CGP4][Vehicle]\r",
 						const regex =

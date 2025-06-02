@@ -98,7 +98,7 @@
 		{#if eventType === 'actor_death' && metadata.damageType === 'SelfDestruct'}
 			{@const zone = metadata.zone.split('_').slice(0, -1).join(' ')}
 			<div class="line">
-				{metadata.victimName} was killed when the {#if zone != 'Unknown'}{zone}{:else}ship{/if} was self
+				{metadata.victimName} ({metadata.victimId}) was killed when the {#if zone != 'Unknown'}{zone}{:else}ship{/if} was self
 				destructed {#if metadata.killerName != 'unknown'}by {metadata.killerName} ({metadata.killerId}){/if}
 			</div>
 		{:else if eventType === 'actor_death' && metadata.damageType === 'Suicide'}
@@ -107,7 +107,7 @@
 			{@const weapon = metadata?.weaponClass?.replace('_', ' ')}
 			{@const zone = metadata?.zone?.split('_')?.slice(0, -1)?.join(' ')}
 			<div class="line">
-				{metadata.victimName} was killed {#if zone != 'Unknown'}
+				{metadata.victimName} ({metadata.victimId}) was killed {#if zone && zone != 'Unknown'}
 					while in {zone}{/if} by {metadata.killerName || 'unknown'} ({metadata.killerId}) {#if weapon != 'unknown'}using
 					{weapon}{/if}
 				{#if metadata.damageType != 'unknown'}
