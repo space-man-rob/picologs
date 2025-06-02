@@ -79,7 +79,7 @@
 	});
 
 	let isPlayersOpen = $state(false);
-    let onlinePlayers = $derived(friendsList.filter((friend: any) => friend.isOnline));
+    let onlinePlayers = $derived(friendsList.filter((friend: any) => friend));
 
 	function togglePlayersDropdown() {
 		isPlayersOpen = !isPlayersOpen;
@@ -92,7 +92,6 @@
 	}
 
 	onMount(() => {
-		console.log('TimelineFilters mounted');
 		document.addEventListener('click', handleClickOutside);
 		return () => {
 			document.removeEventListener('click', handleClickOutside);

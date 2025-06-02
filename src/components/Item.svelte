@@ -72,7 +72,6 @@
 
 			const fuzzyShip = fuse.search(vehicleName.replace(/_/g, ' '));
 
-			console.log(vehicleName, fuzzyShip);
 			if (fuzzyShip[0]?.item?.fleetData?.variants[0]?.iso_l?.hash) {
 				return fuzzyShip[0]?.item;
 			}
