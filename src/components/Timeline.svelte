@@ -1,9 +1,10 @@
 <script lang="ts">
-	import { onMount, tick } from 'svelte';
+	import { onMount, onDestroy, tick } from 'svelte';
 	import Item from './Item.svelte';
 	import { ArrowDown } from '@lucide/svelte';
 	import { fade } from 'svelte/transition';
 	import TimelineFilters from './TimelineFilters.svelte';
+	import { getCurrentWindow } from '@tauri-apps/api/window';
 
 	let { fileContent, file }: { fileContent: any[]; file: string | null } = $props();
 
@@ -16,21 +17,38 @@
 			return;
 		}
 		hasScrollbar = event.target.scrollTop + event.target.clientHeight < event.target.scrollHeight;
-		atTheBottom = 	event.target.scrollTop + event.target.clientHeight >= event.target.scrollHeight - 5;
+		atTheBottom =
+			event.target.scrollTop + event.target.clientHeight >= event.target.scrollHeight - 5;
 	}
 
 	let fileContentContainer = $state<HTMLDivElement>();
 	let hasScrollbar = $state(false);
 	let displayedFileContent = $state<any[]>([]);
 
-	onMount(() => {
+	let unlisten: () => void;
+	onMount(async () => {
 		displayedFileContent = [...fileContent];
 		tick().then(() => {
-				fileContentContainer?.scrollTo({
-					top: fileContentContainer.scrollHeight,
-					behavior: 'smooth'
-				});
+			fileContentContainer?.scrollTo({
+				top: fileContentContainer.scrollHeight,
+				behavior: 'smooth'
 			});
+		});
+
+		unlisten = await getCurrentWindow().onResized(() => {
+			if (fileContentContainer) {
+				hasScrollbar =
+					fileContentContainer.scrollTop + fileContentContainer.clientHeight <
+					fileContentContainer.scrollHeight;
+				atTheBottom =
+					fileContentContainer.scrollTop + fileContentContainer.clientHeight >=
+					fileContentContainer.scrollHeight - 5;
+			}
+		});
+	});
+
+	onDestroy(() => {
+		unlisten?.();
 	});
 
 	let wasAtTheBottom = $state(false);
@@ -59,61 +77,65 @@
 		<TimelineFilters />
 	</div>
 
-<div class="file-content" onscroll={handleScroll} bind:this={fileContentContainer}>
-	{#if file}
-		{#if displayedFileContent && displayedFileContent.length > 0}
-			{#each displayedFileContent as item, index (item.id)}
-				{#if index === 0 || displayedFileContent[index - 1]?.line !== item.line || displayedFileContent[index - 1]?.timestamp !== item.timestamp}
-					<div>
-						<Item {...item} bind:open={item.open} />
+	<div
+		class="file-content"
+		onscroll={handleScroll}
+		onresize={handleScroll}
+		bind:this={fileContentContainer}>
+		{#if file}
+			{#if displayedFileContent && displayedFileContent.length > 0}
+				{#each displayedFileContent as item, index (item.id)}
+					{#if index === 0 || displayedFileContent[index - 1]?.line !== item.line || displayedFileContent[index - 1]?.timestamp !== item.timestamp}
+						<div>
+							<Item {...item} bind:open={item.open} />
+						</div>
+					{/if}
+				{/each}
+			{:else}
+				<div class="item">
+					<div class="line-container">
+						<div class="line">No new logs yet. Waiting for game activity...</div>
 					</div>
-				{/if}
-			{/each}
-		{:else}
-			<div class="item">
-				<div class="line-container">
-					<div class="line">No new logs yet. Waiting for game activity...</div>
 				</div>
+			{/if}
+		{:else}
+			<div class="welcome">
+				<h2>🚀 Getting started</h2>
+				<ol class="welcome-list">
+					<li>
+						Select your <code>Game.log</code>
+						file (sometimes just listed as Game). Usually found at the default path:
+						<code>C:\Program Files\Roberts Space Industries\StarCitizen\LIVE\Game.log</code>
+						<br />
+						(Or the equivalent path on your system if installed elsewhere.)
+					</li>
+					<li>
+						Once a log file is selected and you go <strong>Online</strong>
+						(using the top-right button), Picologs automatically connects you with other friends for
+						real-time log sharing.
+					</li>
+					<li>
+						To add friends use your <strong>Friend Code</strong>
+						displayed at the top. Share this with friends to connect with them.
+					</li>
+				</ol>
 			</div>
 		{/if}
-	{:else}
-		<div class="welcome">
-			<h2>🚀 Getting started</h2>
-			<ol class="welcome-list">
-				<li>
-					Select your <code>Game.log</code>
-					file (sometimes just listed as Game). Usually found at the default path:
-					<code>C:\Program Files\Roberts Space Industries\StarCitizen\LIVE\Game.log</code>
-					<br />
-					(Or the equivalent path on your system if installed elsewhere.)
-				</li>
-				<li>
-					Once a log file is selected and you go <strong>Online</strong>
-					(using the top-right button), Picologs automatically connects you with other friends for real-time
-					log sharing.
-				</li>
-				<li>
-					To add friends use your <strong>Friend Code</strong>
-					displayed at the top. Share this with friends to connect with them.
-				</li>
-			</ol>
-		</div>
-	{/if}
 
-	{#if !atTheBottom}
-		<button
-			in:fade={{ duration: 200, delay: 400 }}
-			out:fade={{ duration: 200 }}
-			class="scroll-to-bottom"
-			onclick={() =>
-				fileContentContainer?.scrollTo({
-					top: fileContentContainer.scrollHeight,
-					behavior: 'smooth'
-				})}>
-			<ArrowDown size={24} />
-		</button>
-	{/if}
-</div>
+		{#if hasScrollbar && !atTheBottom}
+			<button
+				in:fade={{ duration: 200, delay: 400 }}
+				out:fade={{ duration: 200 }}
+				class="scroll-to-bottom"
+				onclick={() =>
+					fileContentContainer?.scrollTo({
+						top: fileContentContainer.scrollHeight,
+						behavior: 'smooth'
+					})}>
+				<ArrowDown size={24} />
+			</button>
+		{/if}
+	</div>
 </div>
 
 <style>
