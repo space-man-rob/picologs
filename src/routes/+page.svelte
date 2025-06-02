@@ -1001,15 +1001,17 @@
 
 	<div class="content">
 		<div class="friends-sidebar">
-			{#if currentUserDisplayData}
-				<User user={currentUserDisplayData} />
-			{/if}
+			<div class="friends-sidebar-container">
+				{#if currentUserDisplayData}
+					<User user={currentUserDisplayData} />
+				{/if}
 			{#if pendingFriendRequests.length > 0}
 				<PendingFriendRequests
 					{pendingFriendRequests}
 					removeFriendRequest={handleRemoveFriendRequest} />
 			{/if}
 			<Friends {friendsList} removeFriend={handleRemoveFriend} />
+			</div>	
 			<div class="add-friend-container">
 				<AddFriend addFriend={handleAddFriend} />
 			</div>
@@ -1067,12 +1069,18 @@
 		border-right: 1px solid rgba(255, 255, 255, 0.2);
 		display: flex;
 		flex-direction: column;
+		overflow-y: auto;
+	}
+
+	.friends-sidebar-container {
+		display: flex;
+		flex-direction: column;
 		gap: 1rem;
 		overflow-y: auto;
+		flex-grow: 1;
 	}
 
 	.add-friend-container {
 		margin-top: auto;
-		padding-top: 1rem;
 	}
 </style>
