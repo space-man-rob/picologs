@@ -5,6 +5,7 @@
 	import { fade } from 'svelte/transition';
 	import TimelineFilters from './TimelineFilters.svelte';
 	import { getCurrentWindow } from '@tauri-apps/api/window';
+	import type { Log } from '../types';
 
 	let { fileContent, file, friendsList, playerName }: { fileContent: any[]; file: string | null; friendsList: any[]; playerName: string | null } = $props();
 
@@ -17,15 +18,20 @@
 			other: true,
 			destruction: true
 		},
-		search: ''
+		search: '',
+		players: {
+			all: true,
+			self: false,
+			online: [] as string[]
+		}
 	});
 
 	function handleFilterChange(event: CustomEvent) {
 		filters = event.detail;
 	}
 
-	function filterContent(content: any[]) {
-		return content.filter((item) => {
+	function filterContent(content: Log[]) {
+		return content.filter((item: Log) => {
 			// Filter by event type
 			if (item.eventType) {
 				const eventType = item.eventType as keyof typeof filters.eventTypes;
@@ -34,6 +40,20 @@
 				}
 			} else if (!filters.eventTypes.other) {
 				return false;
+			}
+
+			// Filter by player
+			if (!filters.players.all) {
+				let playerMatch = false;
+				if (filters.players.self && item.player === playerName) {
+					playerMatch = true;
+				}
+				if (filters.players.online.includes(String(item.userId))) {
+					playerMatch = true;
+				}
+				if (!playerMatch) {
+					return false;
+				}
 			}
 
 			// Filter by search term
@@ -115,7 +135,6 @@
 
 	$effect(() => {
 		if (fileContentContainer && displayedFileContent.length > 0 && wasAtTheBottom) {
-			console.log('scrolling to bottom');
 			tick().then(() => {
 				fileContentContainer?.scrollTo({
 					top: fileContentContainer.scrollHeight,

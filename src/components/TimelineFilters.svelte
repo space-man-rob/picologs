@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { createEventDispatcher } from 'svelte';
 	import { ChevronDown, Funnel, RotateCcw } from '@lucide/svelte';
+	import type { Friend } from '../types';
 
 	let {
 		friendsList,
@@ -31,7 +32,7 @@
 		filterChange: Filters;
 	}>();
 
-	let filters = $state<Filters>({
+	const initialFilters = Object.freeze<Filters>({
 		eventTypes: {
 			vehicle_control_flow: true,
 			actor_death: true,
@@ -47,9 +48,13 @@
 		}
 	});
 
+	let filters = $state<Filters>(JSON.parse(JSON.stringify(initialFilters)));
+
 	let isOpen = $state(false);
 
 	function handleFilterChange() {
+		filters.players.online = onlinePlayers.filter((p: Friend & { checked?: boolean }) => p.checked).map((p: Friend) => p.id);
+		filters.players.all = !filters.players.self && filters.players.online.length === 0;
 		dispatch('filterChange', filters);
 	}
 
@@ -62,11 +67,15 @@
 		const target = event.target as HTMLElement;
 		if (!target.closest('.filters-dropdown')) {
 			isOpen = false;
+			isPlayersOpen = false;
 		}
 	}
 
 	$effect(() => {
-		handleFilterChange();
+		// Ensure reactivity for playerName and friendsList if they are props that can change
+		// and if their changes need to implicitly update filters or onlinePlayers status.
+		// For now, direct calls to handleFilterChange from UI events should suffice.
+		// If onlinePlayers derivation needs to trigger filter updates directly, that's handled by its own $derived nature.
 	});
 
 	let isPlayersOpen = $state(false);
@@ -74,6 +83,12 @@
 
 	function togglePlayersDropdown() {
 		isPlayersOpen = !isPlayersOpen;
+	}
+
+	function resetFilters() {
+		filters = JSON.parse(JSON.stringify(initialFilters));
+		onlinePlayers.forEach((p: Friend & { checked?: boolean }) => p.checked = false);
+		handleFilterChange();
 	}
 
 	onMount(() => {
@@ -158,10 +173,10 @@
 				<div class="event-types">
 					<label>
                         <input type="checkbox" onchange={handleFilterChange} bind:checked={filters.players.self} />
-                        {playerName}
+                        {playerName} (Self)
                     </label>
 					
-                    {#each onlinePlayers as player}
+                    {#each onlinePlayers as player (player.id)}
 						<label>
 							<input type="checkbox" onchange={handleFilterChange} bind:checked={player.checked} />
 							{player.name}
@@ -172,7 +187,7 @@
 		{/if}
 	</div>
 
-	<button class="filter-button" onclick={handleFilterChange}>
+	<button class="filter-button" onclick={resetFilters}>
 		<RotateCcw size={16} />
 		<span>Reset</span>
 	</button>
