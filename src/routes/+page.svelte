@@ -601,7 +601,7 @@
 										userId: playerId,
 										friendCode: friendCode,
 										playerName: playerName,
-										timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+										timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
 									})
 								);
 							}
@@ -634,11 +634,7 @@
 							}
 							return false;
 						};
-						if (
-							playerMatch === playerName &&
-							locationMatch &&
-							checkLocationsOverLastMinutes(15)
-						) {
+						if (playerMatch === playerName && locationMatch && checkLocationsOverLastMinutes(15)) {
 							prevInventoryLocations[playerMatch] = { timestamp, location: locationMatch };
 							logEntry = {
 								id: generateId(),
@@ -1009,20 +1005,20 @@
 				{#if currentUserDisplayData}
 					<User user={currentUserDisplayData} />
 				{/if}
-			{#if pendingFriendRequests.length > 0}
-				<PendingFriendRequests
-					{pendingFriendRequests}
-					removeFriendRequest={handleRemoveFriendRequest} />
-			{/if}
-			<Friends {friendsList} removeFriend={handleRemoveFriend} />
-			</div>	
+				{#if pendingFriendRequests.length > 0}
+					<PendingFriendRequests
+						{pendingFriendRequests}
+						removeFriendRequest={handleRemoveFriendRequest} />
+				{/if}
+				<Friends {friendsList} removeFriend={handleRemoveFriend} />
+			</div>
 			<div class="add-friend-container">
 				<AddFriend addFriend={handleAddFriend} />
 			</div>
 		</div>
 
 		{#if hasInitialised}
-			<Timeline {fileContent} {file} />
+			<Timeline {fileContent} {file} {friendsList} {playerName} />
 		{/if}
 
 		{#if file}

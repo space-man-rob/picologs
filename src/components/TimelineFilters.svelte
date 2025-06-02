@@ -1,7 +1,14 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { createEventDispatcher } from 'svelte';
-	import { ChevronDown, Funnel } from '@lucide/svelte';
+	import { ChevronDown, Funnel, RotateCcw } from '@lucide/svelte';
+
+	let {
+		friendsList,
+		playerName
+	} = $props();
+
+    $inspect(friendsList);
 
 	type EventType =
 		| 'vehicle_control_flow'
@@ -13,6 +20,11 @@
 	type Filters = {
 		eventTypes: Record<EventType, boolean>;
 		search: string;
+		players: {
+			all: boolean;
+			self: boolean;
+			online: string[];
+		};
 	};
 
 	const dispatch = createEventDispatcher<{
@@ -27,7 +39,12 @@
 			location_change: true,
 			other: true
 		},
-		search: ''
+		search: '',
+		players: {
+			all: true,
+			self: false,
+			online: []
+		}
 	});
 
 	let isOpen = $state(false);
@@ -51,6 +68,13 @@
 	$effect(() => {
 		handleFilterChange();
 	});
+
+	let isPlayersOpen = $state(false);
+    let onlinePlayers = $derived(friendsList.filter((friend: any) => friend.isOnline));
+
+	function togglePlayersDropdown() {
+		isPlayersOpen = !isPlayersOpen;
+	}
 
 	onMount(() => {
 		console.log('TimelineFilters mounted');
@@ -119,6 +143,39 @@
 			</div>
 		{/if}
 	</div>
+
+    <!-- filter players -->
+	<div class="filters-dropdown">
+		<button class="filter-button" onclick={togglePlayersDropdown}>
+			<Funnel size={16} />
+			<span>Players</span>
+			<div class="chevron-container" class:rotated={isPlayersOpen}>
+				<ChevronDown />
+			</div>
+		</button>
+		{#if isPlayersOpen}
+			<div class="dropdown-content">
+				<div class="event-types">
+					<label>
+                        <input type="checkbox" onchange={handleFilterChange} bind:checked={filters.players.self} />
+                        {playerName}
+                    </label>
+					
+                    {#each onlinePlayers as player}
+						<label>
+							<input type="checkbox" onchange={handleFilterChange} bind:checked={player.checked} />
+							{player.name}
+						</label>
+					{/each}
+				</div>
+			</div>
+		{/if}
+	</div>
+
+	<button class="filter-button" onclick={handleFilterChange}>
+		<RotateCcw size={16} />
+		<span>Reset</span>
+	</button>
 </div>
 
 <style>
@@ -128,10 +185,12 @@
 		gap: 1rem;
 		padding: 0 1rem;
 		height: 100%;
+		justify-content: flex-start;
 	}
 
 	.search {
 		flex: 1;
+		max-width: 300px;
 	}
 
 	.search input {
@@ -190,7 +249,7 @@
 		border: 1px solid rgba(255, 255, 255, 0.2);
 		border-radius: 4px;
 		padding: 1rem;
-		min-width: 220px;
+		
 		box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 		z-index: 1000;
 	}
@@ -199,58 +258,46 @@
 		display: flex;
 		flex-direction: column;
 		gap: 0.75rem;
+		min-width: 220px;
 	}
 
 	.event-types label {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
-		font-size: 0.9rem;
 		color: rgba(255, 255, 255, 0.8);
+		cursor: pointer;
+		gap: 0.5rem;
+	}
+
+ input[type="checkbox"] {
+		flex-shrink: 0;
+		border: 1px solid rgba(255, 255, 255, 1);
+		width: 16px;
+		height: 16px;
+		color: white;
+		background: rgba(255, 255, 255, 0.1);
+		appearance: none;
+		-webkit-appearance: none;
+		position: relative;
 		cursor: pointer;
 	}
 
-	input[type='checkbox'] {
-		/* Add if not using autoprefixer */
-		-webkit-appearance: none;
-		/* Remove most all native input styles */
-		appearance: none;
-		/* For iOS < 15 */
-		background-color: transparent;
-		/* Not removed via appearance */
-		margin: 0;
-
-		font: inherit;
-		color: currentColor;
-		width: 1.15em;
-		height: 1.15em;
-		border: 0.15em solid currentColor;
-		border-radius: 0.15em;
-		transform: translateY(-0.075em);
-
-		display: grid;
-		place-content: center;
+	 input[type="checkbox"]:checked {
+		background: #2196f3;
+		border-color: #2196f3;
 	}
 
-	input[type='checkbox']::before {
+	 input[type="checkbox"]:checked::after {
 		content: '';
-		width: 0.65em;
-		height: 0.65em;
-		clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
-		transform: scale(0);
-		transform-origin: bottom left;
-		transition: 120ms transform ease-in-out;
-		box-shadow: inset 1em 1em white;
-		/* Windows High Contrast Mode */
-		background-color: CanvasText;
+		position: absolute;
+		left: 4px;
+		top: 1px;
+		width: 6px;
+		height: 10px;
+		border: solid white;
+		border-width: 0 2px 2px 0;
+		transform: rotate(45deg);
 	}
 
-	input[type='checkbox']:checked::before {
-		transform: scale(1);
-	}
-
-	input[type='checkbox']:focus {
-		outline: max(2px, 0.15em) solid currentColor;
-		outline-offset: max(2px, 0.15em);
-	}
+	
 </style>

@@ -6,7 +6,7 @@
 	import TimelineFilters from './TimelineFilters.svelte';
 	import { getCurrentWindow } from '@tauri-apps/api/window';
 
-	let { fileContent, file }: { fileContent: any[]; file: string | null } = $props();
+	let { fileContent, file, friendsList, playerName }: { fileContent: any[]; file: string | null; friendsList: any[]; playerName: string | null } = $props();
 
 	let atTheBottom = $state(false);
 	let filters = $state({
@@ -128,7 +128,7 @@
 
 <div class="timeline-container">
 	<div class="timeline-filters">
-		<TimelineFilters on:filterChange={handleFilterChange} />
+		<TimelineFilters on:filterChange={handleFilterChange} friendsList={friendsList} playerName={playerName} />
 	</div>
 
 	<div
@@ -193,17 +193,19 @@
 </div>
 
 <style>
+	.timeline-filters {
+		height: 50px;
+		background-color: transparent;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+		box-shadow: 0 4px 10px rgba(0, 0, 0, .4);
+	}
+
 	.timeline-container {
 		display: grid;
 		grid-template-columns: 1fr;
 		grid-template-rows: 50px 1fr;
 		grid-column-gap: 0px;
 		grid-row-gap: 0px;
-	}
-
-	.timeline-filters {
-		height: 50px;
-		background-color: rgba(255, 255, 255, 0.05);
 	}
 
 	.file-content {

@@ -34,11 +34,11 @@
 
 	function convertCamelCaseToWords(str: string) {
 		return str
-			.replace(/([A-Z])/g, ' $1')
-			.replace(/^./, function (str) {
+			?.replace(/([A-Z])/g, ' $1')
+			?.replace(/^./, function (str) {
 				return str.toUpperCase();
 			})
-			.toLowerCase();
+			?.toLowerCase();
 	}
 
 	onDestroy(() => {
@@ -105,8 +105,8 @@
 		{:else if eventType === 'actor_death' && metadata.damageType === 'Suicide'}
 			<div class="line">{metadata.victimName} committed suicide</div>
 		{:else if eventType === 'actor_death'}
-			{@const weapon = metadata.weaponClass.replace('_', ' ')}
-			{@const zone = metadata.zone.split('_').slice(0, -1).join(' ')}
+			{@const weapon = metadata?.weaponClass?.replace('_', ' ')}
+			{@const zone = metadata?.zone?.split('_')?.slice(0, -1)?.join(' ')}
 			<div class="line">
 				{metadata.victimName} was killed {#if zone != 'Unknown'}
 					while in {zone}{/if} by {metadata.killerName || 'unknown'} ({metadata.killerId}) {#if weapon != 'unknown'}using
