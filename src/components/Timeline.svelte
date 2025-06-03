@@ -100,15 +100,32 @@
 	let displayedFileContent = $state<any[]>([]);
 
 	let unlisten: () => void;
+	let scrollButtonLeft = $state('50%'); // Default to viewport center initially
+	let resizeObserver: ResizeObserver | null = null;
+
+	async function updateButtonPosition() {
+		await tick(); // Ensure DOM measurements are up-to-date
+		if (fileContentContainer) {
+			const rect = fileContentContainer.getBoundingClientRect();
+			const centerOfFileContent = rect.left + rect.width / 2;
+			scrollButtonLeft = `${centerOfFileContent}px`;
+		}
+	}
+
 	onMount(async () => {
 		displayedFileContent = filterContent(fileContent);
-		tick().then(() => {
-			fileContentContainer?.scrollTo({
-				top: fileContentContainer.scrollHeight,
-				behavior: 'smooth'
-			});
+		await tick(); // Ensure fileContentContainer is rendered
+
+		// Initial scroll to bottom
+		fileContentContainer?.scrollTo({
+			top: fileContentContainer.scrollHeight,
+			behavior: 'auto' // Use 'auto' for initial to avoid issues if content is small
 		});
 
+		// Initial button position
+		updateButtonPosition();
+
+		// Listen to window resize via Tauri API
 		unlisten = await getCurrentWindow().onResized(() => {
 			if (fileContentContainer) {
 				hasScrollbar =
@@ -118,11 +135,33 @@
 					fileContentContainer.scrollTop + fileContentContainer.clientHeight >=
 					fileContentContainer.scrollHeight - 5;
 			}
+			updateButtonPosition(); // Update button position on window resize
 		});
+
+		// Observe the fileContentContainer for size changes (e.g., due to Resizer)
+		if (fileContentContainer) {
+			resizeObserver = new ResizeObserver(() => {
+				updateButtonPosition();
+				// Also re-check scrollbar status as width changes can affect scrollHeight
+				if (fileContentContainer) {
+					hasScrollbar =
+						fileContentContainer.scrollTop + fileContentContainer.clientHeight <
+						fileContentContainer.scrollHeight;
+					atTheBottom =
+						fileContentContainer.scrollTop + fileContentContainer.clientHeight >=
+						fileContentContainer.scrollHeight - 5;
+				}
+			});
+			resizeObserver.observe(fileContentContainer);
+		}
 	});
 
 	onDestroy(() => {
 		unlisten?.();
+		if (resizeObserver && fileContentContainer) {
+			resizeObserver.unobserve(fileContentContainer);
+		}
+		resizeObserver?.disconnect();
 	});
 
 	let wasAtTheBottom = $state(false);
@@ -200,6 +239,7 @@
 				in:fade={{ duration: 200, delay: 400 }}
 				out:fade={{ duration: 200 }}
 				class="scroll-to-bottom"
+				style="left: {scrollButtonLeft};"
 				onclick={() =>
 					fileContentContainer?.scrollTo({
 						top: fileContentContainer.scrollHeight,
@@ -356,7 +396,7 @@
 		display: flex;
 		color: white;
 		cursor: pointer;
-		left: calc(290px + (100dvw - 290px) / 2); /* Center of the right panel */
+		/* left: calc(290px + (100vw - 290px) / 2); Removed, will be dynamic */
 		transform: translateX(-50%);
 	}
 
