@@ -1,6 +1,6 @@
 # Picologs Changelog
 
-## Wednesay 4th June 2025
+## Wednesday 4th June 2025
 
 ### 0.8.0
 
