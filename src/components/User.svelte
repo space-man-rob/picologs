@@ -1,7 +1,8 @@
 <script lang="ts">
-	import type { Friend as UserDisplayType } from '../types';
+	import { Trash, X } from '@lucide/svelte';
+	import type { Friend, Friend as UserDisplayType } from '../types';
 
-	let { user } = $props<{ user: UserDisplayType }>();
+	let { user, handleRemoveClick } = $props<{ user: UserDisplayType, handleRemoveClick?: (friend: Friend) => Promise<void> }>();
 
 	// Reactive state to force re-render every minute
 	let currentMinute = $state(new Date().getMinutes());
@@ -59,41 +60,13 @@
 		return location.replace(/_/g, ' ');
 	}
 
-	function getGMTOffset(timezone: string | undefined): string {
-		if (!timezone) return '';
-		try {
-			const now = new Date();
-
-			// Format the date in the target timezone to get the offset
-			const formatter = new Intl.DateTimeFormat('en-US', {
-				timeZone: timezone,
-				timeZoneName: 'shortOffset'
-			});
-
-			const parts = formatter.formatToParts(now);
-			const offsetPart = parts.find((part) => part.type === 'timeZoneName');
-
-			if (offsetPart && offsetPart.value) {
-				// This will be something like "GMT+11" or "GMT-5"
-				return offsetPart.value;
-			}
-
-			// Fallback: calculate offset manually
-			const utcDate = new Date(now.toLocaleString('en-US', { timeZone: 'UTC' }));
-			const tzDate = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
-			const offsetHours = Math.round((tzDate.getTime() - utcDate.getTime()) / (1000 * 60 * 60));
-
-			const sign = offsetHours >= 0 ? '+' : '';
-			return `GMT${sign}${offsetHours}`;
-		} catch (e) {
-			console.warn('Could not calculate GMT offset for timezone:', timezone, e);
-			return '';
-		}
-	}
+	let userModal: HTMLDialogElement | null = null;
 </script>
 
 {#if user}
-	<div class="user-display-container">
+	<button class="user-display-container" onclick={() => {
+		userModal?.showModal();
+	}}>
 		<div class="user-header">
 			<span
 				class={`status-indicator ${user.isOnline ? 'online' : 'offline'}`}
@@ -104,22 +77,59 @@
 			</span>
 		</div>
 		<div class="user-details">
-			<p class="user-fc">FC: {user.friendCode}</p>
+			<!-- <p class="user-fc">FC: {user.friendCode}</p> -->
 			{#if user.timezone}
 				<p class="user-timezone" title={user.timezone}>
 					{getLocalTime(user.timezone)} ({getCityFromTimezone(user.timezone)})
 				</p>
 			{/if}
 		</div>
-	</div>
+	</button>
 {/if}
+
+<dialog id="user-modal" bind:this={userModal}>
+		<header>
+			<h3>{user.name}</h3>
+			<button class="close-modal" onclick={() => userModal?.close()}>
+				<X size={16} />
+			</button>
+		</header>
+		<div class="user-modal-body">
+			<div class="user-modal-section">
+				<p>Timezone: {user.timezone}</p>
+				<p>Friend Code: {user.friendCode}</p>
+				{#if handleRemoveClick}
+					<button class="remove-friend-btn" onclick={() => {
+						handleRemoveClick(user);
+					}}>
+						<Trash size={16} /> Remove Friend
+					</button>
+				{/if}
+			</div>
+		</div>
+</dialog>
 
 <style>
 	.user-display-container {
-		padding: 0.75rem;
-		background-color: rgba(255, 255, 255, 0.03);
-		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-		margin-bottom: 0.5rem;
+		padding: .6rem 1rem;
+		background: rgba(255, 255, 255, 0.03);
+		border-radius: 0.25rem;
+		transition: all 0.4s ease;
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		flex-direction: column;
+		flex-grow: 1;
+		flex-shrink: 0;
+		cursor: pointer;
+		box-shadow: 0 0 4px rgba(0, 0, 0, 0);
+
+	}
+
+	.user-display-container:hover {
+		background: rgba(255, 255, 255, .1);
+		cursor: pointer;
+		box-shadow: 0 4px 4px rgba(0, 0, 0, .1);
 	}
 
 	.user-header {
@@ -130,8 +140,8 @@
 	}
 
 	.user-name {
-		font-weight: 600;
-		font-size: 1.1em;
+		font-weight: 400;
+		font-size: .9rem;
 		color: #fff;
 		white-space: nowrap;
 		overflow: hidden;
@@ -154,18 +164,66 @@
 		background-color: #757575;
 	}
 
-	.user-details p {
-		font-size: 0.85em;
-		color: rgba(255, 255, 255, 0.7);
-		margin: 0.2rem 0;
-	}
-
-	.user-fc {
-		font-family: monospace;
-	}
 	
 	.user-timezone {
-		font-size: 0.85em;
+		font-size: 0.6em;
 		color: rgba(255, 255, 255, 0.6);
+		padding-left: 1.2rem;
+	}
+
+	#user-modal {
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		box-shadow: 0 0 3px rgba(0, 0, 0, 0.4);
+		border-radius: 0.25rem;
+		padding: 1rem;
+		background-color: rgb(10, 30, 42);
+		color: #fff;
+	}
+
+	.user-modal-body {
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+	}
+
+	header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: 1rem;
+	}
+	
+	.user-modal-section {
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+	}
+
+	.user-modal-section p {
+		font-size: 0.9rem;
+		color: #fff;
+	}
+
+	.remove-friend-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
+		font-size: 0.9rem;
+		color: #fff;
+		cursor: pointer;
+		transition: all 0.3s ease-in;
+		background-color: rgba(255, 0, 0, 0.45);
+		border-radius: 0.25rem;
+		padding: 0.5rem 1rem;
+	}
+
+	.remove-friend-btn:hover {
+		background-color: rgba(255, 0, 0, .65);
+
+	}
+
+	.close-modal:hover {
+		cursor: pointer;
 	}
 </style>

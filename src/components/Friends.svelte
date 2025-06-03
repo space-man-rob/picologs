@@ -15,6 +15,13 @@
 			removeFriend(friend.id);
 		}
 	}
+
+	let orderByOnlineAlphabetically = $derived(
+		friendsList
+			.filter((f: Friend) => f.status === 'confirmed')
+			.sort((a: Friend, b: Friend) => a?.name?.localeCompare(b?.name || '') || 0)
+			.sort((a: Friend, b: Friend) => (a.isOnline ? -1 : 1) - (b.isOnline ? -1 : 1))
+	);
 </script>
 
 <div class="friends-list-container">
@@ -22,22 +29,16 @@
 	{#if friendsList.filter((f: Friend) => f.status === 'confirmed').length === 0}
 		<p class="no-friends-text">No friends yet. Add some!</p>
 	{:else}
-		{#each friendsList as friend (friend.id)}
+		<div class="friends-list">
+		{#each orderByOnlineAlphabetically as friend (friend.id)}
 			<div class="friend-card">
-				<div class="friend-info">
-					<User user={friend} />
+					<User user={friend} {handleRemoveClick} />
 					{#if friend.status !== 'confirmed'}
 						<span class="pending-label">Pending...</span>
 					{/if}
 				</div>
-				<button
-					class="remove-friend-btn"
-					title="Remove friend"
-					onclick={() => handleRemoveClick(friend)}>
-					<X size={16} />
-				</button>
-			</div>
-		{/each}
+			{/each}
+		</div>
 	{/if}
 </div>
 
@@ -70,11 +71,9 @@
 		position: relative;
 		border-radius: 0.5rem;
 		transition: background-color 0.2s ease;
-	}
-
-	.friend-info {
-		flex: 1 1 auto;
-		min-width: 0;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
 	}
 
 	.remove-friend-btn {
@@ -109,5 +108,11 @@
 		font-weight: 500;
 		vertical-align: middle;
 		letter-spacing: 0.01em;
+	}
+
+	.friends-list {
+		display: flex;
+		flex-direction: column;
+		gap: .5rem;
 	}
 </style>

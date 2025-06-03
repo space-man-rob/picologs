@@ -1067,7 +1067,7 @@
 
 	.content {
 		display: grid;
-		grid-template-columns: 290px 1fr;
+		grid-template-columns: 230px 1fr;
 		grid-template-rows: 1fr auto;
 		height: calc(100dvh - 70px);
 		overflow: hidden;
