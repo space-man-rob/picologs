@@ -1,5 +1,12 @@
 # Picologs Changelog
 
+## Wednesay 4th June 2025
+
+### 0.8.0
+
+* Resizable and collapsible left hand panel
+* Friend's list is now alphabetical and ordered by online status
+
 ## Tuesday 3rd June 2025
 
 ### 0.7.1
