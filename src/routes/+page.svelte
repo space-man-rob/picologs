@@ -12,6 +12,7 @@
 	import Timeline from '../components/Timeline.svelte';
 	import User from '../components/User.svelte';
 	import type { Friend as FriendType, Log } from '../types';
+	import Resizer from '../components/Resizer.svelte';
 
 	let ws = $state<WebSocket | null>(null);
 	let file = $state<string | null>(null);
@@ -707,7 +708,6 @@
 						const match = line.match(regex);
 
 						if (match) {
-
 							const victimName = match[1];
 							const victimId = match[2];
 							const zone = match[3];
@@ -720,7 +720,6 @@
 							const dirY = match[10];
 							const dirZ = match[11];
 
-						
 							logEntry = {
 								id: generateId(),
 								userId: playerId!,
@@ -742,9 +741,8 @@
 									damageType,
 									direction: { x: dirX, y: dirY, z: dirZ }
 								}
-							
+							};
 						}
-					}
 					} else if (line.match(/<Vehicle Destruction>/)) {
 						//"original": "<2025-05-29T21:10:28.425Z> [Notice] <Vehicle Destruction> CVehicle::OnAdvanceDestroyLevel: Vehicle 'MRAI_Guardian_MX_602567996805' [602567996805] in zone 'pyro1' [pos x: -140667.891402, y: 313131.061752, z: 229132.608634 vel x: -22.312147, y: 0.408933, z: 14.170518] driven by 'unknown' [0] advanced from destroy level 1 to 2 caused by 'AIModule_Unmanned_PU_PDC_602567901611' [602567901611] with 'Combat' [Team_CGP4][Vehicle]\r",
 						const regex =
@@ -1025,32 +1023,38 @@
 		bind:logLocation />
 
 	<div class="content">
-		<div class="friends-sidebar">
-			<div class="friends-sidebar-container">
-				{#if currentUserDisplayData}
-					<User user={currentUserDisplayData} />
-				{/if}
-				{#if pendingFriendRequests.length > 0}
-					<PendingFriendRequests
-						{pendingFriendRequests}
-						removeFriendRequest={handleRemoveFriendRequest} />
-				{/if}
-				<Friends {friendsList} removeFriend={handleRemoveFriend} />
-			</div>
-			<div class="add-friend-container">
-				<AddFriend addFriend={handleAddFriend} />
-			</div>
-		</div>
+		<Resizer>
+			{#snippet leftPanel()}
+				<div class="friends-sidebar">
+					<div class="friends-sidebar-container">
+						{#if currentUserDisplayData}
+							<User user={currentUserDisplayData} />
+						{/if}
+						{#if pendingFriendRequests.length > 0}
+							<PendingFriendRequests
+								{pendingFriendRequests}
+								removeFriendRequest={handleRemoveFriendRequest} />
+						{/if}
+						<Friends {friendsList} removeFriend={handleRemoveFriend} />
+					</div>
+					<div class="add-friend-container">
+						<AddFriend addFriend={handleAddFriend} />
+					</div>
+				</div>
+			{/snippet}
 
-		{#if hasInitialised}
-			<Timeline {fileContent} {file} {friendsList} {playerName} />
-		{/if}
+			{#snippet rightPanel()}
+				{#if hasInitialised}
+					<Timeline {fileContent} {file} {friendsList} {playerName} />
+				{/if}
 
-		{#if file}
-			<div class="line-count">
-				Log lines processed: {Number(lineCount).toLocaleString()}
-			</div>
-		{/if}
+				{#if file}
+					<div class="line-count">
+						Log lines processed: {Number(lineCount).toLocaleString()}
+					</div>
+				{/if}
+			{/snippet}
+		</Resizer>
 	</div>
 </main>
 
@@ -1066,10 +1070,8 @@
 	}
 
 	.content {
-		display: grid;
-		grid-template-columns: 230px 1fr;
-		grid-template-rows: 1fr auto;
-		height: calc(100dvh - 70px);
+		display: flex;
+		flex-direction: column;
 		overflow: hidden;
 	}
 
@@ -1089,23 +1091,25 @@
 	}
 
 	.friends-sidebar {
-		grid-column: 1 / 2;
-		grid-row: 1 / 3;
-		border-right: 1px solid rgba(255, 255, 255, 0.2);
+		/* grid-column: 1 / 2; */ /* Handled by Resizer */
+		/* grid-row: 1 / 3; */ /* Handled by Resizer's grid item */
+		/* border-right: 1px solid rgba(255, 255, 255, 0.2); */ /* Resizer itself will have a border */
 		display: flex;
 		flex-direction: column;
-		overflow-y: auto;
+		overflow-y: hidden;
+		height: 100%; /* Ensure it fills the resizer panel */
 	}
 
 	.friends-sidebar-container {
 		display: flex;
 		flex-direction: column;
 		gap: 1rem;
-		overflow-y: auto;
+		overflow-y: hidden;
 		flex-grow: 1;
 	}
 
 	.add-friend-container {
 		margin-top: auto;
+		min-width: 200px;
 	}
 </style>

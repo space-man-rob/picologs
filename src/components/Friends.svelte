@@ -46,11 +46,12 @@
 	.friends-list-container {
 		display: flex;
 		flex-direction: column;
-		padding: 0 0.5rem;
+		padding: 0 0.5rem 0.5rem 0.5rem;
 		flex-grow: 1;
 		overflow-y: auto;
 		scrollbar-width: thin;
 		scrollbar-color: rgba(255, 255, 255, 0.3) rgba(0, 0, 0, 0.2);
+		min-width: 200px;
 	}
 	h4 {
 		margin: 0.5rem 0;

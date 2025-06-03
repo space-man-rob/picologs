@@ -27,6 +27,7 @@
 		gap: 0.5rem; /* Space between input and button */
 		padding: 1rem;
 		border-top: 1px solid rgba(255, 255, 255, 0.1); /* Adjusted from original style */
+		overflow: hidden;
 	}
 
 	input[type="text"] {
@@ -53,6 +54,7 @@
 		cursor: pointer;
 		transition: background-color 0.2s ease-in-out;
 	}
+	
 	button:hover {
 		background: rgba(255,255,255,0.2);
 	}
