@@ -1,7 +1,8 @@
 <!-- ResizableGrid.svelte -->
 <script lang="ts">
-	import { onDestroy } from 'svelte'; // Still used for window event listener cleanup
+	import { onDestroy, onMount } from 'svelte'; // Still used for window event listener cleanup
 	import type { Snippet } from 'svelte'; // Import the Snippet type
+	import { Store, load as loadStore } from '@tauri-apps/plugin-store'; // Renamed load to avoid conflict with any Svelte load
 
 	// --- Props ---
 	let { leftPanel, rightPanel, initialLeftWidth = 230, initialRightWidth = 500 }: { leftPanel: Snippet, rightPanel: Snippet, initialLeftWidth?: number, initialRightWidth?: number } = $props();
@@ -32,6 +33,12 @@
 	let isDragging = $state<boolean>(false);
 
 	let gridContainerRef: HTMLDivElement; // To get total width of the grid
+
+	// --- Tauri Store ---
+	let store: Store | null = $state(null); // Store will be loaded in onMount
+	const STORE_FILE_NAME = 'store.json';
+	const LEFT_WIDTH_KEY = 'resizerLeftPanelWidth';
+	const RIGHT_WIDTH_KEY = 'resizerRightPanelWidth';
 
 	// --- Svelte 5 Rune for Derived State ---
 	const gridTemplateColumnsStyle = $derived(
@@ -97,11 +104,57 @@
 		currentResizerIndex = -1;
 		window.removeEventListener('mousemove', handleWindowMouseMove);
 		window.removeEventListener('mouseup', handleWindowMouseUp);
+
+		// Persist to store on mouse up
+		saveLayout();
+	}
+
+	async function saveLayout() {
+		if (!store) return;
+		await store.set(LEFT_WIDTH_KEY, columns[0].width);
+		await store.set(RIGHT_WIDTH_KEY, columns[1].width);
+		await store.save(); // Explicitly save the store
 	}
 
 	onDestroy(() => {
 		window.removeEventListener('mousemove', handleWindowMouseMove);
 		window.removeEventListener('mouseup', handleWindowMouseUp);
+	});
+
+	onMount(async () => {
+		try {
+			store = await loadStore(STORE_FILE_NAME);
+			const loadedLeftWidth = await store.get<number>(LEFT_WIDTH_KEY);
+			const loadedRightWidth = await store.get<number>(RIGHT_WIDTH_KEY);
+
+			// Use loaded values if they exist and are valid numbers, otherwise use initial props
+			const newLeftWidth = (loadedLeftWidth !== null && typeof loadedLeftWidth === 'number') ? loadedLeftWidth : initialLeftWidth;
+			const newRightWidth = (loadedRightWidth !== null && typeof loadedRightWidth === 'number') ? loadedRightWidth : initialRightWidth;
+
+			columns[0].width = newLeftWidth;
+			columns[1].width = newRightWidth;
+
+			// Recalculate collapsed state based on loaded/defaulted widths
+			columns[0].collapsed = newLeftWidth === 0;
+			columns[1].collapsed = newRightWidth < minColumnWidth;
+
+		} catch (error) {
+			console.error("Failed to load layout from store:", error);
+			// Fallback to initial props if store interaction fails or store is new
+			columns[0].width = initialLeftWidth;
+			columns[1].width = initialRightWidth;
+			columns[0].collapsed = initialLeftWidth === 0;
+			columns[1].collapsed = initialRightWidth < minColumnWidth;
+
+			// If the store didn't exist, it might have been created now, try to assign it
+			if (!store) {
+				try {
+					store = await loadStore(STORE_FILE_NAME);
+				} catch (e) {
+					console.error("Failed to initialize store after error:", e);
+				}
+			}
+		}
 	});
 </script>
 
