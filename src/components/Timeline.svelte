@@ -5,9 +5,15 @@
 	import { fade } from 'svelte/transition';
 	import TimelineFilters from './TimelineFilters.svelte';
 	import { getCurrentWindow } from '@tauri-apps/api/window';
-	import type { Log } from '../types';
+	import type { Log, RecentEvent } from '../types';
 
-	let { fileContent, file, friendsList, playerName }: { fileContent: any[]; file: string | null; friendsList: any[]; playerName: string | null } = $props();
+	let {
+		fileContent,
+		file,
+		friendsList,
+		playerName
+	}: { fileContent: any[]; file: string | null; friendsList: any[]; playerName: string | null } =
+		$props();
 
 	let atTheBottom = $state(false);
 	let filters = $state({
@@ -83,8 +89,6 @@
 	$effect(() => {
 		displayedFileContent = filterContent(fileContent);
 	});
-
-	$inspect(atTheBottom);
 
 	function handleScroll(event: Event) {
 		if (!(event.target instanceof HTMLDivElement)) {
@@ -170,8 +174,6 @@
 		displayedFileContent = filterContent(fileContent);
 	});
 
-	$inspect('displayedFileContent', displayedFileContent);
-
 	$effect(() => {
 		if (fileContentContainer && displayedFileContent.length > 0 && wasAtTheBottom) {
 			tick().then(() => {
@@ -182,11 +184,49 @@
 			});
 		}
 	});
+
+	//check location change, and that it hasn't been logged in the last 15minutes
+	function checkLocationChange(recentEvents: Log[], item: Log) {
+		if (item.eventType === 'location_change') {
+			const lastLocationChange = recentEvents[0];
+			if (
+				lastLocationChange &&
+				lastLocationChange.player === item.player &&
+				lastLocationChange.metadata?.location === item.metadata?.location &&
+				lastLocationChange.timestamp > item.timestamp
+			) {
+				recentEvents.push(item);
+				return false;
+			}
+			recentEvents.push(item);
+		}
+		return true;
+	}
+
+	let computedEvents = $derived.by(() => {
+		let recentEvents = {
+			vehicle_control_flow: [] as Log[],
+			actor_death: [] as Log[],
+			location_change: [] as Log[],
+			other: [] as Log[],
+			destruction: [] as Log[]
+		};
+
+		const filteredEvents = displayedFileContent.filter((item) => {
+			if (item.eventType === 'location_change') {
+				return checkLocationChange(recentEvents['location_change'], item);
+			}
+			return true;
+		});
+		return filteredEvents;
+	});
+
+	$inspect(computedEvents);
 </script>
 
 <div class="timeline-container">
 	<div class="timeline-filters">
-		<TimelineFilters on:filterChange={handleFilterChange} friendsList={friendsList} playerName={playerName} />
+		<TimelineFilters on:filterChange={handleFilterChange} {friendsList} {playerName} />
 	</div>
 
 	<div
@@ -196,12 +236,10 @@
 		bind:this={fileContentContainer}>
 		{#if file}
 			{#if displayedFileContent && displayedFileContent.length > 0}
-				{#each displayedFileContent as item, index (item.id)}
-					{#if index === 0 || displayedFileContent[index - 1]?.line !== item.line || displayedFileContent[index - 1]?.timestamp !== item.timestamp}
-						<div>
-							<Item {...item} bind:open={item.open} />
-						</div>
-					{/if}
+				{#each displayedFileContent as item (item.id)}
+					<div>
+						<Item {...item} bind:open={item.open} />
+					</div>
 				{/each}
 			{:else}
 				<div class="item">
@@ -256,7 +294,7 @@
 		height: 50px;
 		background-color: transparent;
 		border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-		box-shadow: 0 4px 10px rgba(0, 0, 0, .4);
+		box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
 	}
 
 	.timeline-container {

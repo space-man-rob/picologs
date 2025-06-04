@@ -7,7 +7,7 @@ export type Log = {
 	timestamp: string;
 	original: string;
 	open: boolean;
-	eventType?: string;
+	eventType?: 'vehicle_control_flow' | 'actor_death' | 'location_change' | 'actor_spawn' | 'destruction' | 'system_quit';
 	metadata?: {
 		vehicleName?: string;
 		vehicleId?: string;
@@ -28,6 +28,14 @@ export type Log = {
 		causeName?: string;
 		causeId?: string;
 	};
+};
+
+export type RecentEvent = {
+	eventType: string;
+	timestamp: string;
+	player: string;
+	emoji: string;
+	metadata: {};
 };
 
 export type LogLine = {

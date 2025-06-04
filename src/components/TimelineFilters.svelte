@@ -9,8 +9,6 @@
 		playerName
 	} = $props();
 
-    $inspect(friendsList);
-
 	type EventType =
 		| 'vehicle_control_flow'
 		| 'actor_death'
