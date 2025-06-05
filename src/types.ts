@@ -7,6 +7,7 @@ export type Log = {
 	timestamp: string;
 	original: string;
 	open: boolean;
+	reportedBy?: string[];
 	eventType?: 'vehicle_control_flow' | 'actor_death' | 'location_change' | 'actor_spawn' | 'destruction' | 'system_quit';
 	metadata?: {
 		vehicleName?: string;
@@ -27,6 +28,13 @@ export type Log = {
 		destroyLevelTo?: string;
 		causeName?: string;
 		causeId?: string;
+	};
+	ship?: {
+		vehicleId: string;
+		vehicleName: string;
+		team: string;
+		location: string;
+		events: Log[];
 	};
 };
 
