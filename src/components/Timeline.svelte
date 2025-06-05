@@ -189,11 +189,13 @@
 	function checkLocationChange(recentEvents: Log[], item: Log) {
 		if (item.eventType === 'location_change') {
 			const lastLocationChange = recentEvents[0];
+			const timeDiff = new Date(item.timestamp).getTime() - new Date(lastLocationChange?.timestamp).getTime();
+			const oneHourAgo = 15 * 60 * 1000;
+			console.log(timeDiff > oneHourAgo);
 			if (
 				lastLocationChange &&
 				lastLocationChange.player === item.player &&
-				lastLocationChange.metadata?.location === item.metadata?.location &&
-				lastLocationChange.timestamp > item.timestamp
+				timeDiff < oneHourAgo
 			) {
 				recentEvents.push(item);
 				return false;
@@ -205,23 +207,31 @@
 
 	let computedEvents = $derived.by(() => {
 		let recentEvents = {
-			vehicle_control_flow: [] as Log[],
-			actor_death: [] as Log[],
-			location_change: [] as Log[],
-			other: [] as Log[],
-			destruction: [] as Log[]
+			player: {
+				[playerName as string]: {
+					location_change: [] as Log[],
+					vehicle_control_flow: [] as Log[],
+					actor_death: [] as Log[],
+					other: [] as Log[],
+					destruction: [] as Log[]
+				}
+			}
 		};
+
+		let ship = {} as Record<string, Log[]>;
 
 		const filteredEvents = displayedFileContent.filter((item) => {
 			if (item.eventType === 'location_change') {
-				return checkLocationChange(recentEvents['location_change'], item);
+				return checkLocationChange(recentEvents.player[item.player].location_change, item);
 			}
-			return true;
+			// if (item.eventType === 'destruction') {
+			// 	ship[item.metadata?.vehicleId] = [...(ship[item.metadata?.vehicleId] || []), item];
+			// }
+			return false;
 		});
 		return filteredEvents;
 	});
 
-	$inspect(computedEvents);
 </script>
 
 <div class="timeline-container">
@@ -236,7 +246,7 @@
 		bind:this={fileContentContainer}>
 		{#if file}
 			{#if displayedFileContent && displayedFileContent.length > 0}
-				{#each displayedFileContent as item (item.id)}
+				{#each computedEvents as item (item.id)}
 					<div>
 						<Item {...item} bind:open={item.open} />
 					</div>

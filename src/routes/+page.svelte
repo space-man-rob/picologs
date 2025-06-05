@@ -98,7 +98,7 @@
 			});
 			onlyProcessLogsAfterThisDateTimeStamp = new Date(newestLog.timestamp).getTime();
 		} else {
-			fileContent = []; // Initialize if no logs or empty
+			fileContent = storedLogs || []; // Initialize if no logs or empty
 		}
 
 		try {
@@ -106,7 +106,6 @@
 
 			if (savedFile) {
 				file = savedFile;
-				// prevLineCount = 0; // Resetting prevLineCount here can cause issues if logs.json already has content
 				await handleFile(file); // Process game log, respecting onlyProcessLogsAfterThisDateTimeStamp
 				handleInitialiseWatch(file);
 			}
@@ -115,24 +114,6 @@
 		if (playerId && friendCode && file && (!ws || ws.readyState !== WebSocket.OPEN)) {
 			connectWebSocket();
 		}
-
-		// Check for updates
-		check().then(async (update: any) => {
-			if (update?.available) {
-				const answer = await ask(
-					'A new update is available. Would you like to download and install it now?',
-					{
-						title: 'Update available',
-						kind: 'info'
-					}
-				);
-				if (answer) {
-					update.downloadAndInstall().catch((error: any) => {
-						console.error('Error downloading and installing update:', error);
-					});
-				}
-			}
-		});
 
 		hasInitialised = true;
 	});
@@ -997,6 +978,28 @@
 		await store.set('pendingFriendRequests', pendingFriendRequests);
 		await store.save();
 	}
+
+	async function checkForUpdates() {
+		const update = await check();
+		if (update) {
+				const answer = await ask(
+					'A new update is available. Would you like to download and install it now?',
+					{
+						title: 'Update available',
+						kind: 'info'
+					}
+				);
+				if (answer) {
+					update.downloadAndInstall().catch((error: any) => {
+						console.error('Error downloading and installing update:', error);
+					});
+			}
+		}
+	}
+
+	setInterval(() => {
+		checkForUpdates();
+	}, 1000 * 60 * 10); // 10 minutes
 
 	setInterval(() => {
 		tick += 1;
