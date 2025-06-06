@@ -40,8 +40,61 @@
 	let onlyProcessLogsAfterThisDateTimeStamp = $state<number | null>(null);
 	let fileContentContainer = $state<HTMLDivElement | null>(null);
 	let endWatch: () => void;
+	let destroyedShips = $state<Record<string, number>>({});
 
 	let hasInitialised = $state(false);
+
+	function groupDestructionEvents(logs: Log[]): Log[] {
+		const destructionMap = new Map<string, Log>(); // vehicleId -> parent log
+		const childLogIds = new Set<string>();
+
+		// Reset children to avoid duplicates on re-processing
+		for (const log of logs) {
+			log.children = [];
+		}
+
+		for (const log of logs) {
+			let parentLog: Log | undefined;
+
+			if (log.eventType === 'destruction' && log.metadata?.vehicleId) {
+				const vehicleId = log.metadata.vehicleId;
+				parentLog = destructionMap.get(vehicleId);
+				if (parentLog) {
+					const timeDiff = new Date(log.timestamp).getTime() - new Date(parentLog.timestamp).getTime();
+					if (timeDiff < 10000) {
+						if (!parentLog.children) parentLog.children = [];
+						parentLog.children.push(log);
+						childLogIds.add(log.id);
+					} else {
+						destructionMap.set(vehicleId, log); // New parent event
+					}
+				} else {
+					destructionMap.set(vehicleId, log); // New parent event
+				}
+			} else if (
+				log.eventType === 'actor_death' &&
+				log.metadata?.damageType === 'VehicleDestruction' &&
+				log.metadata?.zone
+			) {
+				const vehicleIdMatch = log.metadata.zone.match(/_(\d+)$/);
+				if (vehicleIdMatch) {
+					const vehicleId = vehicleIdMatch[1];
+					parentLog = destructionMap.get(vehicleId);
+					if (parentLog) {
+						const timeDiff =
+							new Date(log.timestamp).getTime() - new Date(parentLog.timestamp).getTime();
+						if (timeDiff < 10000) {
+							if (!parentLog.children) parentLog.children = [];
+							parentLog.children.push(log);
+							childLogIds.add(log.id);
+						}
+					}
+				}
+			}
+		}
+
+		return logs.filter((log) => !childLogIds.has(log.id));
+	}
 
 	onMount(async () => {
 		const store = await load('store.json', { autoSave: false });
@@ -742,8 +795,8 @@
 								id: generateId(),
 								userId: playerId!,
 								player: playerName,
-								emoji: destroyLevelTo === '1' ? '💀' : '💥',
-								line: `${vehicleName.split('_').slice(0, -1).join(' ')} (${vehicleId}) destroyed (${destroyLevelTo === '1' ? 'soft' : 'hard'}) by ${causeName.split('_').slice(0, -1).join(' ') || causeName} (${causeId})`,
+								emoji: '💥',
+								line: `${vehicleName.split('_').slice(0, -1).join(' ')} destroyed (${destroyLevelTo === '1' ? 'soft' : 'hard'}) by ${causeName.split('_').slice(0, -1).join(' ') || causeName}`,
 								timestamp,
 								original: line,
 								open: false,
@@ -823,8 +876,9 @@
 
 				// Combine with existing content, dedupe, sort, and save
 				const combinedLogs = dedupeAndSortLogs([...fileContent, ...newContentWithUserId]);
-				await saveLogsToDisk(combinedLogs);
-				fileContent = combinedLogs; // Update in-memory state
+				const groupedLogs = groupDestructionEvents(combinedLogs);
+				await saveLogsToDisk(groupedLogs);
+				fileContent = groupedLogs; // Update in-memory state
 
 				// Update the timestamp filter to the latest processed log
 				if (latestProcessedTimestamp > (onlyProcessLogsAfterThisDateTimeStamp || 0)) {

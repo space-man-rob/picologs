@@ -36,6 +36,7 @@ export type Log = {
 		location: string;
 		events: Log[];
 	};
+	children?: Log[];
 };
 
 export type RecentEvent = {

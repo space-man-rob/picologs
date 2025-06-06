@@ -336,6 +336,13 @@
 				{#each computedEvents as item (item.id)}
 					<div>
 						<Item {...item} open={item.open} />
+						{#if item.children && item.children.length > 0}
+							<div class="children">
+								{#each item.children as childItem (childItem.id)}
+									<Item {...childItem} child />
+								{/each}
+							</div>
+						{/if}
 					</div>
 				{/each}
 			{:else}
@@ -566,7 +573,13 @@
 		flex-direction: column;
 	}
 
-	:global(.file-content div:nth-child(2n) .item) {
+	:global(.file-content > div:nth-child(2n)) {
 		background-color: rgba(255, 255, 255, 0.05);
+	}
+
+	.children {
+		margin-left: 3rem;
+		border-left: 1px solid #205d84;
+		border-image: linear-gradient(to bottom, #205d84, transparent) 1;
 	}
 </style>
