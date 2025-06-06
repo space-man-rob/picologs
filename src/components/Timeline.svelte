@@ -166,14 +166,13 @@
 		resizeObserver?.disconnect();
 	});
 
-	let wasAtTheBottom = $state(false);
 	$effect(() => {
-		const _ = displayedFileContent; // depend on content change
-		wasAtTheBottom = atTheBottom;
-	});
+		// By depending on displayedFileContent, this effect runs when new logs appear.
+		const _ = displayedFileContent;
 
-	$effect(() => {
-		if (wasAtTheBottom && fileContentContainer) {
+		// atTheBottom is only updated on scroll events, so it correctly reflects
+		// the scroll position before the new content was added.
+		if (atTheBottom && fileContentContainer) {
 			tick().then(() => {
 				if (fileContentContainer) {
 					fileContentContainer.scrollTo({
