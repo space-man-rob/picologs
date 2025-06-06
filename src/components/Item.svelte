@@ -13,7 +13,8 @@
 		player,
 		metadata = undefined,
 		eventType = undefined,
-		reportedBy = undefined
+		reportedBy = undefined,
+		child = false
 	} = $props();
 
 	const formatDate = (date: string) => {
@@ -101,9 +102,19 @@
 			: null
 	);
 	let shipName = $derived(shipData ? shipData.name : null);
+
+	function checkVictimName(victimName: string) {
+		if (victimName.includes('_') && victimName.includes('kopion')) {
+			return 'Kopion';
+		}
+		if (victimName.includes('_')) {
+			return 'NPC';
+		}
+		return victimName;
+	}
 </script>
 
-<button class="item" onclick={() => (open = !open)}>
+<button class="item" onclick={() => (open = !open)} class:child>
 	{#if (eventType === 'vehicle_control_flow' || eventType === 'destruction') && shipImage}
 		{@const isSoftDeath = eventType === 'destruction' && metadata?.destroyLevelTo === '1'}
 		{@const isHardDeath = eventType === 'destruction' && metadata?.destroyLevelTo === '2'}
@@ -125,17 +136,17 @@
 		{#if eventType === 'actor_death' && metadata.damageType === 'SelfDestruct'}
 			{@const zone = metadata.zone.split('_').slice(0, -1).join(' ')}
 			<div class="line">
-				{metadata.victimName} ({metadata.victimId}) was killed when the {#if zone != 'Unknown'}{zone}{:else}ship{/if} was self
-				destructed {#if metadata.killerName != 'unknown'}by {metadata.killerName} ({metadata.killerId}){/if}
+				{checkVictimName(metadata.victimName)} ({metadata.victimId}) was killed when the {#if zone != 'Unknown'}{zone}{:else}ship{/if} was self
+				destructed {#if metadata.killerName != 'unknown'}by {checkVictimName(metadata.killerName)} ({metadata.killerId}){/if}
 			</div>
 		{:else if eventType === 'actor_death' && metadata.damageType === 'Suicide'}
-			<div class="line">{metadata.victimName} committed suicide</div>
+			<div class="line">{checkVictimName(metadata.victimName)} committed suicide</div>
 		{:else if eventType === 'actor_death'}
 			{@const weapon = metadata?.weaponClass?.replace('_', ' ')}
 			{@const zone = metadata?.zone?.split('_')?.slice(0, -1)?.join(' ')}
 			<div class="line">
-				{metadata.victimName} ({metadata.victimId}) was killed {#if zone && zone != 'Unknown'}
-					while in {zone}{/if} by {metadata.killerName || 'unknown'} ({metadata.killerId}) {#if weapon != 'unknown'}using
+				{checkVictimName(metadata.victimName)} ({metadata.victimId}) was killed {#if zone && zone != 'Unknown'}
+					while in {zone}{/if} by {checkVictimName(metadata.killerName) || 'unknown'} ({metadata.killerId}) {#if weapon != 'unknown'}using
 					{weapon}{/if}
 				{#if metadata.damageType != 'unknown'}
 					caused by {convertCamelCaseToWords(metadata.damageType)}{/if}
@@ -148,6 +159,8 @@
 			<div class="line">
 				{player} requested inventory in {metadata.location.split('_').join(' ')}
 			</div>
+		{:else if eventType === 'system_quit'}
+			<div class="line">{player} left the game</div>
 		{:else}
 			<div class="line">{line}</div>
 		{/if}
@@ -234,11 +247,35 @@
 
 	.item .ship-image img.hard-left {
 		clip-path: polygon(0 0, 50% 0, 50% 100%, 0% 100%);
-		transform: scale(1) rotate(-15deg) translateX(-0.5rem);
+		transform: scale(1) rotate(-25deg) translateX(-1rem);
 	}
 
 	.item .ship-image img.hard-right {
 		clip-path: polygon(50% 0, 100% 0, 100% 100%, 50% 100%);
-		transform: scale(1) rotate(15deg) translateX(0.5rem);
+		transform: scale(1) rotate(25deg) translateX(1rem);
+	}
+
+	.item.child {
+		padding-left: 1.4rem;
+		grid-template-columns: 1rem 1fr;
+		gap: 0.5rem;
+	
+	}
+
+	.item.child .emoji {
+		font-size: 0.8rem;
+	}
+
+	.item.child .ship-image img {
+		display: none;
+	}
+
+	.item.child .line {
+		gap: 0.2rem;
+		font-size: 0.8rem;
+	}
+
+	.item.child .timestamp {
+		display: none;
 	}
 </style>
