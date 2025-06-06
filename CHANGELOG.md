@@ -1,5 +1,13 @@
 # Picologs Changelog
 
+## Saturday 7th June 2025
+
+### 0.9.0
+
+* Nested events
+* Group duplicate events
+* Fix some event types
+
 ## Wednesday 4th June 2025
 
 ### 0.8.0
