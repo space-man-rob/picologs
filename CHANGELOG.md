@@ -2,6 +2,10 @@
 
 ## Saturday 7th June 2025
 
+### 0.9.1
+
+* Auto scroll fix
+
 ### 0.9.0
 
 * Nested events
