@@ -185,44 +185,53 @@
 		}
 	});
 
-	//check location change, and that it hasn't been logged in the last 15minutes
+	//check location change, and that it hasn't been logged in the last 60minutes
 	function checkLocationChange(recentEvents: Log[], item: Log) {
-		if (item.eventType === 'location_change') {
-			const lastLocationChange = recentEvents[0];
-			const timeDiff = new Date(item.timestamp).getTime() - new Date(lastLocationChange?.timestamp).getTime();
-			const oneHourAgo = 15 * 60 * 1000;
-			console.log(timeDiff > oneHourAgo);
+		const lastLocationChange = recentEvents[recentEvents.length - 1];
+
+		if (lastLocationChange) {
+			const timeDiff =
+				new Date(item.timestamp).getTime() - new Date(lastLocationChange.timestamp).getTime();
+			const oneHour = 60 * 60 * 1000;
+
 			if (
-				lastLocationChange &&
-				lastLocationChange.player === item.player &&
-				timeDiff < oneHourAgo
+				timeDiff < oneHour &&
+				lastLocationChange.metadata?.location === item.metadata?.location &&
+				lastLocationChange.metadata?.location !== 'Unknown'
 			) {
-				recentEvents.push(item);
 				return false;
 			}
-			recentEvents.push(item);
 		}
+		recentEvents.push(item);
 		return true;
 	}
 
 	let computedEvents = $derived.by(() => {
-		let recentEvents = {
-			player: {
-				[playerName as string]: {
-					location_change: [] as Log[],
-					vehicle_control_flow: [] as Log[],
-					actor_death: [] as Log[],
-					other: [] as Log[],
-					destruction: [] as Log[]
-				}
+		const playerEvents: Record<
+			string,
+			{
+				location_change: Log[];
+				vehicle_control_flow: Log[];
+				actor_death: Log[];
+				other: Log[];
+				destruction: Log[];
 			}
-		};
+		> = {};
 
 		let ship = {} as Record<string, Log[]>;
 
 		const filteredEvents = displayedFileContent.filter((item) => {
-			if (item.eventType === 'location_change') {
-				return checkLocationChange(recentEvents.player[item.player].location_change, item);
+			if (item.player && !playerEvents[item.player]) {
+				playerEvents[item.player] = {
+					location_change: [],
+					vehicle_control_flow: [],
+					actor_death: [],
+					other: [],
+					destruction: []
+				};
+			}
+			if (item.eventType === 'location_change' && item.player) {
+				return checkLocationChange(playerEvents[item.player].location_change, item);
 			}
 			// if (item.eventType === 'destruction') {
 			// 	ship[item.metadata?.vehicleId] = [...(ship[item.metadata?.vehicleId] || []), item];
