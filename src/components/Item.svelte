@@ -104,8 +104,15 @@
 </script>
 
 <button class="item" onclick={() => (open = !open)}>
-	{#if eventType === 'vehicle_control_flow' && shipImage}
-		<div class="ship-image"><img src={shipImage} alt={metadata.vehicleName} /></div>
+	{#if (eventType === 'vehicle_control_flow' || eventType === 'destruction') && shipImage}
+		{@const isSoftDeath = eventType === 'destruction' && metadata?.destroyLevelTo === '1'}
+		{@const isHardDeath = eventType === 'destruction' && metadata?.destroyLevelTo === '2'}
+		<div class="ship-image">
+			<img src={shipImage} alt={metadata.vehicleName} class:soft={isSoftDeath} class:hard={isHardDeath} />
+			{#if eventType === 'destruction'}
+				<div class="emoji">{emoji}</div>
+			{/if}
+		</div>
 	{:else}
 		<div class="emoji">{emoji}</div>
 	{/if}
@@ -136,8 +143,6 @@
 			<div class="line">
 				{player} requested inventory in {metadata.location.split('_').join(' ')}
 			</div>
-		{:else if eventType === 'destruction'}
-			<div class="line">{line}</div>
 		{:else}
 			<div class="line">{line}</div>
 		{/if}
@@ -160,7 +165,7 @@
 	.emoji {
 		font-size: 1.5rem;
 		display: flex;
-		align-items: top;
+		align-items: center;
 		justify-content: center;
 	}
 
@@ -170,8 +175,6 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-
-		/* background glow */
 	}
 
 	.ship-image img {
@@ -180,6 +183,11 @@
 		height: 4rem;
 		object-fit: contain;
 		object-position: center;
+	}
+
+	.ship-image .emoji {
+		position: relative;
+		z-index: 1;
 	}
 
 	.line {
@@ -207,5 +215,14 @@
 	.item .ship-image img {
 		filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.4));
 		transform: scale(1.2);
+	}
+
+	.item .ship-image img.soft {
+		filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.4)) brightness(0.5) saturate(0.5);
+	}
+
+	.item .ship-image img.hard {
+		filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.4)) brightness(0.5) saturate(0.5);
+		opacity: 0.5;
 	}
 </style>
