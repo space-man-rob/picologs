@@ -108,7 +108,12 @@
 		{@const isSoftDeath = eventType === 'destruction' && metadata?.destroyLevelTo === '1'}
 		{@const isHardDeath = eventType === 'destruction' && metadata?.destroyLevelTo === '2'}
 		<div class="ship-image">
-			<img src={shipImage} alt={metadata.vehicleName} class:soft={isSoftDeath} class:hard={isHardDeath} />
+			{#if isHardDeath}
+				<img src={shipImage} alt={metadata.vehicleName} class="hard-left" />
+				<img src={shipImage} alt={metadata.vehicleName} class="hard-right" />
+			{:else}
+				<img src={shipImage} alt={metadata.vehicleName} class:soft={isSoftDeath} />
+			{/if}
 			{#if eventType === 'destruction'}
 				<div class="emoji">{emoji}</div>
 			{/if}
@@ -221,8 +226,19 @@
 		filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.4)) brightness(0.5) saturate(0.5);
 	}
 
-	.item .ship-image img.hard {
+	.item .ship-image img.hard-left,
+	.item .ship-image img.hard-right {
 		filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.4)) brightness(0.5) saturate(0.5);
-		opacity: 0.5;
+		opacity: 0.9;
+	}
+
+	.item .ship-image img.hard-left {
+		clip-path: polygon(0 0, 50% 0, 50% 100%, 0% 100%);
+		transform: scale(1) rotate(-15deg) translateX(-0.5rem);
+	}
+
+	.item .ship-image img.hard-right {
+		clip-path: polygon(50% 0, 100% 0, 100% 100%, 50% 100%);
+		transform: scale(1) rotate(15deg) translateX(0.5rem);
 	}
 </style>
