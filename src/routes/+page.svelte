@@ -97,6 +97,8 @@
 	}
 
 	onMount(async () => {
+		await checkForUpdates();
+
 		const store = await load('store.json', { autoSave: false });
 		const savedFile = await store.get<string>('lastFile');
 		const savedFriendCode = await store.get<string>('friendCode');
