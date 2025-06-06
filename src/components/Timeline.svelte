@@ -12,7 +12,7 @@
 		file,
 		friendsList,
 		playerName
-	}: { fileContent: any[]; file: string | null; friendsList: any[]; playerName: string | null } =
+	}: { fileContent: Log[]; file: string | null; friendsList: any[]; playerName: string | null } =
 		$props();
 
 	let atTheBottom = $state(false);
@@ -32,8 +32,8 @@
 		}
 	});
 
-	function handleFilterChange(event: CustomEvent) {
-		filters = event.detail;
+	function handleFilterChange(newFilters: typeof filters) {
+		filters = newFilters;
 	}
 
 	function filterContent(content: Log[]) {
@@ -86,9 +86,7 @@
 		});
 	}
 
-	$effect(() => {
-		displayedFileContent = filterContent(fileContent);
-	});
+	let displayedFileContent = $derived(filterContent(fileContent));
 
 	function handleScroll(event: Event) {
 		if (!(event.target instanceof HTMLDivElement)) {
@@ -101,7 +99,6 @@
 
 	let fileContentContainer = $state<HTMLDivElement>();
 	let hasScrollbar = $state(false);
-	let displayedFileContent = $state<any[]>([]);
 
 	let unlisten: () => void;
 	let scrollButtonLeft = $state('50%'); // Default to viewport center initially
@@ -117,14 +114,15 @@
 	}
 
 	onMount(async () => {
-		displayedFileContent = filterContent(fileContent);
 		await tick(); // Ensure fileContentContainer is rendered
 
 		// Initial scroll to bottom
-		fileContentContainer?.scrollTo({
-			top: fileContentContainer.scrollHeight,
-			behavior: 'auto' // Use 'auto' for initial to avoid issues if content is small
-		});
+		if (fileContentContainer) {
+			fileContentContainer.scrollTo({
+				top: fileContentContainer.scrollHeight,
+				behavior: 'auto' // Use 'auto' for initial to avoid issues if content is small
+			});
+		}
 
 		// Initial button position
 		updateButtonPosition();
@@ -170,22 +168,23 @@
 
 	let wasAtTheBottom = $state(false);
 	$effect(() => {
+		const _ = displayedFileContent; // depend on content change
 		wasAtTheBottom = atTheBottom;
-		displayedFileContent = filterContent(fileContent);
 	});
 
 	$effect(() => {
-		if (fileContentContainer && displayedFileContent.length > 0 && wasAtTheBottom) {
+		if (wasAtTheBottom && fileContentContainer) {
 			tick().then(() => {
-				fileContentContainer?.scrollTo({
-					top: fileContentContainer.scrollHeight,
-					behavior: 'smooth'
-				});
+				if (fileContentContainer) {
+					fileContentContainer.scrollTo({
+						top: fileContentContainer.scrollHeight,
+						behavior: 'smooth'
+					});
+				}
 			});
 		}
 	});
 
-	//check location change, and that it hasn't been logged in the last 60minutes
 	function checkLocationChange(recentEvents: Log[], item: Log) {
 		const lastLocationChange = recentEvents[recentEvents.length - 1];
 
@@ -206,46 +205,125 @@
 		return true;
 	}
 
+	//check for duplicate destruction events
+	function checkDestruction(processedDestructions: Record<string, Log>, item: Log) {
+		const vehicleId = item.metadata?.vehicleId;
+		if (!vehicleId) return true; // Not a vehicle destruction event we can track
+
+		const existingEvent = processedDestructions[vehicleId];
+		if (existingEvent) {
+			const timeDiff =
+				new Date(item.timestamp).getTime() - new Date(existingEvent.timestamp).getTime();
+			const fiveSeconds = 5 * 1000;
+
+			if (timeDiff < fiveSeconds && item.player) {
+				// It's a duplicate.
+				if (!existingEvent.reportedBy) {
+					existingEvent.reportedBy = [existingEvent.player as string];
+				}
+				if (!existingEvent.reportedBy.includes(item.player)) {
+					existingEvent.reportedBy.push(item.player);
+				}
+				return false; // Don't include this item in the final list.
+			}
+		}
+
+		// It's a new destruction event. Store it for checking subsequent events.
+		processedDestructions[vehicleId] = item;
+		return true;
+	}
+
+	function checkActorDeath(processedActorDeaths: Record<string, Log>, item: Log) {
+		const victimId = item.metadata?.victimId;
+		if (!victimId) return true;
+
+		const existingEvent = processedActorDeaths[victimId];
+		if (existingEvent) {
+			const timeDiff =
+				new Date(item.timestamp).getTime() - new Date(existingEvent.timestamp).getTime();
+			const fiveSeconds = 5 * 1000;
+
+			if (timeDiff < fiveSeconds && item.player) {
+				if (!existingEvent.reportedBy) {
+					existingEvent.reportedBy = [existingEvent.player as string];
+				}
+				if (!existingEvent.reportedBy.includes(item.player)) {
+					existingEvent.reportedBy.push(item.player);
+				}
+				return false;
+			}
+		}
+		processedActorDeaths[victimId] = item;
+		return true;
+	}
+
+	function checkVehicleControlFlow(processedVehicleControls: Record<string, Log>, item: Log) {
+		const vehicleId = item.metadata?.vehicleId;
+		if (!vehicleId) return true;
+
+		const existingEvent = processedVehicleControls[vehicleId];
+		if (existingEvent) {
+			const timeDiff =
+				new Date(item.timestamp).getTime() - new Date(existingEvent.timestamp).getTime();
+			const fiveSeconds = 5 * 1000;
+
+			if (timeDiff < fiveSeconds && item.player) {
+				if (!existingEvent.reportedBy) {
+					existingEvent.reportedBy = [existingEvent.player as string];
+				}
+				if (!existingEvent.reportedBy.includes(item.player)) {
+					existingEvent.reportedBy.push(item.player);
+				}
+				return false;
+			}
+		}
+		processedVehicleControls[vehicleId] = item;
+		return true;
+	}
+
 	let computedEvents = $derived.by(() => {
 		const playerEvents: Record<
 			string,
 			{
 				location_change: Log[];
-				vehicle_control_flow: Log[];
-				actor_death: Log[];
-				other: Log[];
-				destruction: Log[];
 			}
 		> = {};
+		const processedDestructions: Record<string, Log> = {};
+		const processedActorDeaths: Record<string, Log> = {};
+		const processedVehicleControls: Record<string, Log> = {};
 
-		let ship = {} as Record<string, Log[]>;
+		const consolidatedEvents = displayedFileContent
+			.map((item) => ({ ...item })) // Create shallow copies to prevent mutation of original state
+			.filter((item) => {
+				if (item.player && !playerEvents[item.player]) {
+					playerEvents[item.player] = {
+						location_change: []
+					};
+				}
 
-		const filteredEvents = displayedFileContent.filter((item) => {
-			if (item.player && !playerEvents[item.player]) {
-				playerEvents[item.player] = {
-					location_change: [],
-					vehicle_control_flow: [],
-					actor_death: [],
-					other: [],
-					destruction: []
-				};
-			}
-			if (item.eventType === 'location_change' && item.player) {
-				return checkLocationChange(playerEvents[item.player].location_change, item);
-			}
-			// if (item.eventType === 'destruction') {
-			// 	ship[item.metadata?.vehicleId] = [...(ship[item.metadata?.vehicleId] || []), item];
-			// }
-			return false;
-		});
-		return filteredEvents;
+				switch (item.eventType) {
+					case 'location_change':
+						return item.player
+							? checkLocationChange(playerEvents[item.player].location_change, item)
+							: true;
+					case 'destruction':
+						return checkDestruction(processedDestructions, item);
+					case 'actor_death':
+						return checkActorDeath(processedActorDeaths, item);
+					case 'vehicle_control_flow':
+						return checkVehicleControlFlow(processedVehicleControls, item);
+					default:
+						return true;
+				}
+			});
+		return consolidatedEvents;
 	});
 
 </script>
 
 <div class="timeline-container">
 	<div class="timeline-filters">
-		<TimelineFilters on:filterChange={handleFilterChange} {friendsList} {playerName} />
+		<TimelineFilters onfilterchange={handleFilterChange} {friendsList} {playerName} />
 	</div>
 
 	<div
@@ -257,7 +335,7 @@
 			{#if displayedFileContent && displayedFileContent.length > 0}
 				{#each computedEvents as item (item.id)}
 					<div>
-						<Item {...item} bind:open={item.open} />
+						<Item {...item} open={item.open} />
 					</div>
 				{/each}
 			{:else}

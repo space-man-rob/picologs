@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { createEventDispatcher } from 'svelte';
 	import { ChevronDown, Funnel, RotateCcw } from '@lucide/svelte';
 	import type { Friend } from '../types';
 
 	let {
 		friendsList,
-		playerName
+		playerName,
+		onfilterchange
 	} = $props();
 
 	type EventType =
@@ -25,10 +25,6 @@
 			online: string[];
 		};
 	};
-
-	const dispatch = createEventDispatcher<{
-		filterChange: Filters;
-	}>();
 
 	const initialFilters = Object.freeze<Filters>({
 		eventTypes: {
@@ -53,7 +49,7 @@
 	function handleFilterChange() {
 		filters.players.online = onlinePlayers.filter((p: Friend & { checked?: boolean }) => p.checked).map((p: Friend) => p.id);
 		filters.players.all = !filters.players.self && filters.players.online.length === 0;
-		dispatch('filterChange', filters);
+		onfilterchange(filters);
 	}
 
 	function toggleDropdown(event: MouseEvent) {

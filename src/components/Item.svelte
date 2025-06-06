@@ -11,8 +11,9 @@
 		timestamp,
 		original,
 		player,
-		metadata,
-		eventType
+		metadata = undefined,
+		eventType = undefined,
+		reportedBy = undefined
 	} = $props();
 
 	const formatDate = (date: string) => {
@@ -49,31 +50,45 @@
 
 	function getShipData(metadata: any) {
 		if (metadata?.vehicleName) {
-			const vehicleName = metadata.vehicleName.split('_').slice(0, -1).join('_').toLowerCase();
-			const ship = fleet[vehicleName as keyof Fleet];
-
-			if (ship) {
-				return ship;
+			const vehicleNameParts = metadata.vehicleName.split('_');
+			// Only pop if the last part is numeric, to avoid removing parts of the name
+			if (vehicleNameParts.length > 1 && !isNaN(parseInt(vehicleNameParts[vehicleNameParts.length - 1], 10))) {
+				vehicleNameParts.pop();
 			}
 
+			// 1. Try direct match with progressive shortening
+			let tempParts = [...vehicleNameParts];
+			while (tempParts.length > 0) {
+				const vehicleNameKey = tempParts.join('_').toLowerCase();
+				const ship = fleet[vehicleNameKey as keyof Fleet];
+				if (ship) {
+					return ship;
+				}
+				tempParts.pop();
+			}
+
+			// 2. If no direct match, fallback to fuzzy search
 			const options = [
-				{ name: 'name', weight: 0.5 },
-				{ name: 'slug', weight: 0.3 },
-				{ name: 'erkulIdentifier', weight: 0.1 },
-				{ name: 'scIdentifier', weight: 0.1 },
-				{ name: 'manufacturer.code', weight: 0.1 }
+				{ name: 'name', weight: 0.7 },
+				{ name: 'slug', weight: 0.2 },
+				{ name: 'erkulIdentifier', weight: 0.1 }
 			];
 
 			const fuse = new Fuse(Object.values(fleet), {
 				includeScore: true,
-				threshold: 0.4,
+				threshold: 0.2,
 				keys: options
 			});
 
-			const fuzzyShip = fuse.search(vehicleName.replace(/_/g, ' '));
+			tempParts = [...vehicleNameParts];
+			while (tempParts.length > 0) {
+				const fuzzySearchTerm = tempParts.join(' ');
+				const fuzzyShip = fuse.search(fuzzySearchTerm);
 
-			if (fuzzyShip[0]?.item?.fleetData?.variants[0]?.iso_l?.hash) {
-				return fuzzyShip[0]?.item;
+				if (fuzzyShip[0]?.item?.fleetData?.variants[0]?.iso_l?.hash) {
+					return fuzzyShip[0]?.item;
+				}
+				tempParts.pop();
 			}
 		}
 		return null;
@@ -121,10 +136,12 @@
 			<div class="line">
 				{player} requested inventory in {metadata.location.split('_').join(' ')}
 			</div>
+		{:else if eventType === 'destruction'}
+			<div class="line">{line}</div>
 		{:else}
 			<div class="line">{line}</div>
 		{/if}
-		<div class="timestamp">{formattedTimestamp}, {player}</div>
+		<div class="timestamp">{formattedTimestamp}, {reportedBy ? reportedBy.join(', ') : player}</div>
 		{#if open}
 			<div class="original">{original}</div>
 		{/if}
