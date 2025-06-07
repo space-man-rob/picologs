@@ -136,8 +136,8 @@
 		{#if eventType === 'actor_death' && metadata.damageType === 'SelfDestruct'}
 			{@const zone = metadata.zone.split('_').slice(0, -1).join(' ')}
 			<div class="line">
-				{checkVictimName(metadata.victimName)} ({metadata.victimId}) was killed when the {#if zone != 'Unknown'}{zone}{:else}ship{/if} was self
-				destructed {#if metadata.killerName != 'unknown'}by {checkVictimName(metadata.killerName)} ({metadata.killerId}){/if}
+				{checkVictimName(metadata.victimName)} was killed when the {#if zone != 'Unknown'}{zone}{:else}ship{/if} was self
+				destructed {#if metadata.killerName != 'unknown'}by {checkVictimName(metadata.killerName)}{/if}
 			</div>
 		{:else if eventType === 'actor_death' && metadata.damageType === 'Suicide'}
 			<div class="line">{checkVictimName(metadata.victimName)} committed suicide</div>
@@ -145,15 +145,15 @@
 			{@const weapon = metadata?.weaponClass?.replace('_', ' ')}
 			{@const zone = metadata?.zone?.split('_')?.slice(0, -1)?.join(' ')}
 			<div class="line">
-				{checkVictimName(metadata.victimName)} ({metadata.victimId}) was killed {#if zone && zone != 'Unknown'}
-					while in {zone}{/if} by {checkVictimName(metadata.killerName) || 'unknown'} ({metadata.killerId}) {#if weapon != 'unknown'}using
+				{checkVictimName(metadata.victimName)} was killed {#if zone && zone != 'Unknown'}
+					while in {zone}{/if} by {checkVictimName(metadata.killerName) || 'unknown'} {#if weapon != 'unknown'}using
 					{weapon}{/if}
 				{#if metadata.damageType != 'unknown'}
 					caused by {convertCamelCaseToWords(metadata.damageType)}{/if}
 			</div>
 		{:else if eventType === 'vehicle_control_flow'}
 			<div class="line">
-				{player} controls a {shipName || metadata.vehicleName.split('_').slice(0, -1).join(' ')} ({metadata.vehicleId})
+				{player} controls a {shipName || metadata.vehicleName.split('_').slice(0, -1).join(' ')}
 			</div>
 		{:else if eventType === 'location_change'}
 			<div class="line">
@@ -206,6 +206,7 @@
 	.ship-image .emoji {
 		position: relative;
 		z-index: 1;
+		transform: scale(.8);
 	}
 
 	.line {
@@ -232,7 +233,7 @@
 
 	.item .ship-image img {
 		filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.4));
-		transform: scale(1.2);
+		transform: scale(1);
 	}
 
 	.item .ship-image img.soft {
@@ -247,12 +248,12 @@
 
 	.item .ship-image img.hard-left {
 		clip-path: polygon(0 0, 50% 0, 50% 100%, 0% 100%);
-		transform: scale(1) rotate(-25deg) translateX(-1rem);
+		transform: scale(1) rotate(-15deg) translateX(-.5rem);
 	}
 
 	.item .ship-image img.hard-right {
 		clip-path: polygon(50% 0, 100% 0, 100% 100%, 50% 100%);
-		transform: scale(1) rotate(25deg) translateX(1rem);
+		transform: scale(1) rotate(15deg) translateX(.5rem);
 	}
 
 	.item.child {

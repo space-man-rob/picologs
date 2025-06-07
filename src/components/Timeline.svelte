@@ -580,5 +580,22 @@
 		margin-left: 3rem;
 		border-left: 1px solid #205d84;
 		border-image: linear-gradient(to bottom, #205d84, transparent) 1;
+		padding-bottom: 1rem;
+		display: flex;
+		flex-direction: column;
+		gap: .5rem;
+	}
+
+	:global(.children > .item) {
+		padding: 0;
+		& .emoji {
+			font-size: 1.5rem;
+		}
+		& .line {
+			font-size: 1rem;
+		}
+		& .timestamp {
+			font-size: .8rem;
+		}
 	}
 </style>

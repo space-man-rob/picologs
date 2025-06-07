@@ -786,7 +786,7 @@
 								id: generateId(),
 								userId: playerId!,
 								player: playerName,
-								emoji: '💥',
+								emoji: destroyLevelTo === '1' ? '❌' : '💥',
 								line: `${vehicleName.split('_').slice(0, -1).join(' ')} destroyed (${destroyLevelTo === '1' ? 'soft' : 'hard'}) by ${causeName.split('_').slice(0, -1).join(' ') || causeName}`,
 								timestamp,
 								original: line,

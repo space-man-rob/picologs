@@ -7,6 +7,9 @@
 * Minimum allowed window size reduced to 800x500
 * Friend requests now show in 'incoming requests' section instead of pop-up
 * Check for updates on launch or refresh
+* Remove IDs from event lines
+* Improve event line styling for children events
+* New emoji for soft destroy (❌)
 
 ## Saturday 7th June 2025
 
