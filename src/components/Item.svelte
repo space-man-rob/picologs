@@ -259,10 +259,9 @@
 	}
 
 	.item.child {
-		padding-left: 1.4rem;
+		padding-left: 1.6rem;
 		grid-template-columns: 1rem 1fr;
 		gap: 0.5rem;
-	
 	}
 
 	.item.child .emoji {
