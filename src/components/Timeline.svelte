@@ -22,7 +22,8 @@
 			actor_death: true,
 			location_change: true,
 			other: true,
-			destruction: true
+			destruction: true,
+			killing_spree: true
 		},
 		search: '',
 		players: {
@@ -311,6 +312,8 @@
 						return checkActorDeath(processedActorDeaths, item);
 					case 'vehicle_control_flow':
 						return checkVehicleControlFlow(processedVehicleControls, item);
+					case 'killing_spree':
+						return true;
 					default:
 						return true;
 				}
@@ -577,7 +580,7 @@
 	}
 
 	.children {
-		margin-left: 3rem;
+		margin-left: 2.8rem;
 		border-left: 1px solid #205d84;
 		border-image: linear-gradient(to bottom, #205d84, transparent) 1;
 		padding-bottom: 1rem;

@@ -10,6 +10,7 @@
 * Remove IDs from event lines
 * Improve event line styling for children events
 * New emoji for soft destroy (❌)
+* Event for killing spree with children events
 
 ## Saturday 7th June 2025
 

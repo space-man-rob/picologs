@@ -155,6 +155,8 @@
 			<div class="line">
 				{player} controls a {shipName || metadata.vehicleName.split('_').slice(0, -1).join(' ')}
 			</div>
+		{:else if eventType === 'killing_spree'}
+			<div class="line">{line}</div>
 		{:else if eventType === 'location_change'}
 			<div class="line">
 				{player} requested inventory in {metadata.location.split('_').join(' ')}
