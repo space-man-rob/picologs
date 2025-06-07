@@ -1,5 +1,13 @@
 # Picologs Changelog
 
+## Sunday 8th June 2025
+
+### unreleased
+
+* Minimum allowed window size reduced to 800x500
+* Friend requests now show in 'incoming requests' section instead of pop-up
+* Check for updates on launch or refresh
+
 ## Saturday 7th June 2025
 
 ### 0.9.1
