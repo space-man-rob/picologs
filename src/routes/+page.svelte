@@ -27,16 +27,17 @@
 	let connectionStatus = $state<'connected' | 'disconnected' | 'connecting'>('disconnected');
 	let copiedStatusVisible = $state(false);
 	let pendingFriendRequests = $state<{ friendCode: string }[]>([]);
+	let incomingFriendRequests = $state<
+		{
+			fromUserId: string;
+			fromFriendCode: string;
+			fromPlayerName?: string;
+			fromTimezone?: string;
+		}[]
+	>([]);
 	let autoConnectionAttempted = $state(false);
 	let friendsList = $state<FriendType[]>([]);
-	let pendingFriendRequest = $state<{
-		fromUserId: string;
-		fromFriendCode: string;
-		fromPlayerName?: string;
-		fromTimezone?: string;
-	} | null>(null);
 	let currentUserDisplayData = $state<FriendType | null>(null);
-	let lastPendingRequestId = $state<string | null>(null);
 	let onlyProcessLogsAfterThisDateTimeStamp = $state<number | null>(null);
 	let fileContentContainer = $state<HTMLDivElement | null>(null);
 	let endWatch: () => void;
@@ -304,28 +305,16 @@
 											responderTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone
 										})
 									);
-									const requestId = `${message.fromUserId}:${message.fromFriendCode}`;
-									if (
-										pendingFriendRequest?.fromUserId !== message.fromUserId ||
-										lastPendingRequestId !== requestId
-									) {
-										pendingFriendRequest = {
+
+									// Avoid duplicates
+									if (!incomingFriendRequests.some((req) => req.fromUserId === message.fromUserId)) {
+										const newRequest = {
 											fromUserId: message.fromUserId,
 											fromFriendCode: message.fromFriendCode,
 											fromPlayerName: message.fromPlayerName,
 											fromTimezone: message.fromTimezone
 										};
-										lastPendingRequestId = requestId;
-
-										const answer = await ask(
-											`Accept friend request from ${pendingFriendRequest?.fromPlayerName || pendingFriendRequest?.fromFriendCode}`,
-											{
-												title: 'Accept friend request',
-												kind: 'info'
-											}
-										);
-
-										handleFriendRequestResponse(answer);
+										incomingFriendRequests = [...incomingFriendRequests, newRequest];
 									}
 								}
 								break;
@@ -992,14 +981,22 @@
 		);
 	}
 
-	function handleFriendRequestResponse(accepted: boolean) {
-		if (!pendingFriendRequest || !ws || !playerId || !friendCode) {
+	function respondToFriendRequest(
+		accepted: boolean,
+		request: {
+			fromUserId: string;
+			fromFriendCode: string;
+			fromPlayerName?: string;
+			fromTimezone?: string;
+		}
+	) {
+		if (!request || !ws || !playerId || !friendCode) {
 			return;
 		}
 
 		const response = {
 			type: accepted ? 'friend_request_response_accept' : 'friend_request_response_deny',
-			requesterUserId: pendingFriendRequest.fromUserId,
+			requesterUserId: request.fromUserId,
 			responderUserId: playerId,
 			responderFriendCode: friendCode,
 			responderPlayerName: playerName,
@@ -1007,7 +1004,9 @@
 		};
 
 		ws.send(JSON.stringify(response));
-		pendingFriendRequest = null;
+		incomingFriendRequests = incomingFriendRequests.filter(
+			(req) => req.fromUserId !== request.fromUserId
+		);
 	}
 
 	function handleRemoveFriend(id: string) {
@@ -1089,10 +1088,13 @@
 						{#if currentUserDisplayData}
 							<User user={currentUserDisplayData} />
 						{/if}
-						{#if pendingFriendRequests.length > 0}
+						{#if pendingFriendRequests.length > 0 || incomingFriendRequests.length > 0}
 							<PendingFriendRequests
 								{pendingFriendRequests}
-								removeFriendRequest={handleRemoveFriendRequest} />
+								{incomingFriendRequests}
+								removeFriendRequest={handleRemoveFriendRequest}
+								respondToFriendRequest={respondToFriendRequest}
+							/>
 						{/if}
 						<Friends {friendsList} removeFriend={handleRemoveFriend} />
 					</div>
