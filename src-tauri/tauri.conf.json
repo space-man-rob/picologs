@@ -15,8 +15,8 @@
         "title": "Picologs 0.9.1",
         "width": 1000,
         "height": 600,
-        "minWidth": 1000,
-        "minHeight": 600
+        "minWidth": 800,
+        "minHeight": 500
       }
     ],
     "security": {
