@@ -2,7 +2,7 @@
 
 ## Sunday 8th June 2025
 
-### unreleased
+### 0.10.0
 
 * Minimum allowed window size reduced to 800x500
 * Friend requests now show in 'incoming requests' section instead of pop-up
