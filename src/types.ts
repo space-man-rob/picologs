@@ -8,7 +8,14 @@ export type Log = {
 	original: string;
 	open: boolean;
 	reportedBy?: string[];
-	eventType?: 'vehicle_control_flow' | 'actor_death' | 'location_change' | 'actor_spawn' | 'destruction' | 'system_quit';
+	eventType?:
+		| 'vehicle_control_flow'
+		| 'actor_death'
+		| 'location_change'
+		| 'actor_spawn'
+		| 'destruction'
+		| 'system_quit'
+		| 'killing_spree';
 	metadata?: {
 		vehicleName?: string;
 		vehicleId?: string;

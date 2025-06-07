@@ -97,6 +97,86 @@
 		return logs.filter((log) => !childLogIds.has(log.id));
 	}
 
+	function groupKillingSprees(logs: Log[]): Log[] {
+		const spreeTimeWindow = 2 * 60 * 1000; // 2 minutes
+		const minKillsForSpree = 2;
+		const childLogIds = new Set<string>();
+
+		const standaloneActorDeaths = logs.filter(
+			(log) =>
+				!log.children?.length &&
+				log.eventType === 'actor_death' &&
+				log.metadata?.killerId &&
+				log.metadata.killerId !== '0' &&
+				log.metadata.killerId !== log.metadata.victimId &&
+				log.metadata.damageType !== 'VehicleDestruction'
+		);
+
+		const killsByPlayer = new Map<string, Log[]>();
+		for (const death of standaloneActorDeaths) {
+			const killerId = death.metadata!.killerId!;
+			if (!killsByPlayer.has(killerId)) {
+				killsByPlayer.set(killerId, []);
+			}
+			killsByPlayer.get(killerId)!.push(death);
+		}
+
+		const spreeParents = new Map<string, Log>();
+
+		for (const kills of killsByPlayer.values()) {
+			if (kills.length < minKillsForSpree) continue;
+
+			let currentSpree: Log[] = [];
+			const processSpree = () => {
+				if (currentSpree.length >= minKillsForSpree) {
+					const firstKill = currentSpree[0];
+					const parentLog = {
+						...firstKill,
+						id: firstKill.id + '-spree',
+						eventType: 'killing_spree' as const,
+						line: `${firstKill.metadata!.killerName} is on a killing spree (${currentSpree.length} kills)`,
+						emoji: '🎯',
+						children: currentSpree.map((l) => ({ ...l, children: [] }))
+					};
+					spreeParents.set(firstKill.id, parentLog);
+					for (const kill of currentSpree) {
+						childLogIds.add(kill.id);
+					}
+				}
+			};
+
+			for (let i = 0; i < kills.length; i++) {
+				if (currentSpree.length === 0) {
+					currentSpree.push(kills[i]);
+				} else {
+					const lastKillTime = new Date(
+						currentSpree[currentSpree.length - 1].timestamp
+					).getTime();
+					const currentKillTime = new Date(kills[i].timestamp).getTime();
+
+					if (currentKillTime - lastKillTime < spreeTimeWindow) {
+						currentSpree.push(kills[i]);
+					} else {
+						processSpree();
+						currentSpree = [kills[i]];
+					}
+				}
+			}
+			processSpree();
+		}
+
+		const finalLogs: Log[] = [];
+		for (const log of logs) {
+			if (spreeParents.has(log.id)) {
+				finalLogs.push(spreeParents.get(log.id)!);
+			} else if (!childLogIds.has(log.id)) {
+				finalLogs.push(log);
+			}
+		}
+
+		return finalLogs;
+	}
+
 	onMount(async () => {
 		await checkForUpdates();
 
@@ -867,7 +947,8 @@
 
 				// Combine with existing content, dedupe, sort, and save
 				const combinedLogs = dedupeAndSortLogs([...fileContent, ...newContentWithUserId]);
-				const groupedLogs = groupDestructionEvents(combinedLogs);
+				let groupedLogs = groupDestructionEvents(combinedLogs);
+				groupedLogs = groupKillingSprees(groupedLogs);
 				await saveLogsToDisk(groupedLogs);
 				fileContent = groupedLogs; // Update in-memory state
 
