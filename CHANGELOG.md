@@ -1,5 +1,11 @@
 # Picologs Changelog
 
+## Monday 9th June 2025
+
+### 0.11.1
+
+* Fix missing player name and changing IDs
+
 ## Sunday 8th June 2025
 
 ### 0.11.0
