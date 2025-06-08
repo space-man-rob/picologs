@@ -2,7 +2,7 @@
 
 ## Sunday 8th June 2025
 
-### unreleased
+### 0.11.0
 
 * Scroll to bottom when new child logs are added
 * Don't show duplicate connection logs
