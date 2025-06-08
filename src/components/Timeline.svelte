@@ -87,7 +87,13 @@
 		});
 	}
 
-	let displayedFileContent = $derived(filterContent(fileContent));
+	const allChildren = $derived(fileContent.flatMap((item) => item.children ?? []));
+	let displayedFileContent = $derived(
+		(() => {
+			const _ = allChildren; // Establishes reactivity to child event updates
+			return filterContent(fileContent);
+		})()
+	);
 
 	function handleScroll(event: Event) {
 		if (!(event.target instanceof HTMLDivElement)) {
@@ -168,8 +174,10 @@
 	});
 
 	$effect(() => {
-		// By depending on displayedFileContent, this effect runs when new logs appear.
-		const _ = displayedFileContent;
+		// By depending on computedEvents and a derived value from its children,
+		// this effect runs when new logs appear, are consolidated, or child events are updated.
+		const _ = computedEvents;
+		const __ = computedEvents.flatMap((e) => e.children ?? []);
 
 		// atTheBottom is only updated on scroll events, so it correctly reflects
 		// the scroll position before the new content was added.
