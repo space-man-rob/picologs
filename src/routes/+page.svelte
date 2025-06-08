@@ -44,12 +44,9 @@
 	let fileContentContainer = $state<HTMLDivElement | null>(null);
 	let endWatch: () => void;
 	let already_connected = $state<Record<string, boolean>>({});
-
 	let hasInitialised = $state(false);
 	let updateInfo = $state<any>(null);
-
 	let saveLogsPromise: Promise<void> = Promise.resolve();
-
 	let connectionAttemptTimeout: ReturnType<typeof setTimeout> | null = null;
 
 	async function withLogFileLock<T>(fn: () => Promise<T>): Promise<T> {
@@ -797,9 +794,18 @@
 					if (line.match(/AccountLoginCharacterStatus_Character/)) {
 						const nameMatch = line.match(/- name (.*?) /);
 						const oldPlayerName = playerName;
-						playerName = nameMatch ? nameMatch[1] : playerName;
+						if (nameMatch && nameMatch[1]) {
+							playerName = nameMatch[1];
+						}
+
 						if (playerName && playerName !== oldPlayerName) {
-							already_connected[playerId!] = false;
+							already_connected[playerName] = false;
+
+							load('store.json', { autoSave: false }).then(async (store) => {
+								await store.set('playerName', playerName);
+								await store.save();
+							});
+
 							if (ws && ws.readyState === WebSocket.OPEN && playerId && friendCode) {
 								ws.send(
 									JSON.stringify({
@@ -812,7 +818,7 @@
 								);
 							}
 						}
-						if (!already_connected[playerId!]) {
+						if (playerName && !already_connected[playerName]) {
 						logEntry = {
 							id: generateLogId(line),
 							userId: playerId!,
@@ -823,7 +829,7 @@
 							original: line,
 								open: false
 							};
-							already_connected[playerId!] = true;
+							already_connected[playerName] = true;
 						}
 					} else if (line.match(/<RequestLocationInventory>/)) {
 						const playerMatch = line.split('Player[')[1]?.split(']')[0];
@@ -1006,7 +1012,6 @@
 
 						const match = line.match(regex);
 						if (match) {
-							//  "original": "<2025-05-30T02:57:14.890Z> [Notice] <Vehicle Control Flow> CVehicle::Initialize::<lambda_1>::operator (): Local client node [201990707292] granted control token for 'MISC_Prospector_4006139647963' [4006139647963] [Team_VehicleFeatures][Vehicle]\r",
 							const vehicleName = match[2];
 							const vehicleId = match[3];
 							const team = match[4];
