@@ -5,7 +5,7 @@
 	import { fade } from 'svelte/transition';
 	import TimelineFilters from './TimelineFilters.svelte';
 	import { getCurrentWindow } from '@tauri-apps/api/window';
-	import type { Log, RecentEvent } from '../types';
+	import type { Log } from '../types';
 
 	let {
 		fileContent,
@@ -184,82 +184,6 @@
 			});
 		}
 	});
-
-	//check for duplicate destruction events
-	function checkDestruction(processedDestructions: Record<string, Log>, item: Log) {
-		const vehicleId = item.metadata?.vehicleId;
-		if (!vehicleId) return true; // Not a vehicle destruction event we can track
-
-		const existingEvent = processedDestructions[vehicleId];
-		if (existingEvent) {
-			const timeDiff =
-				new Date(item.timestamp).getTime() - new Date(existingEvent.timestamp).getTime();
-			const fiveSeconds = 5 * 1000;
-
-			if (timeDiff < fiveSeconds && item.player) {
-				// It's a duplicate.
-				if (!existingEvent.reportedBy) {
-					existingEvent.reportedBy = [existingEvent.player as string];
-				}
-				if (!existingEvent.reportedBy.includes(item.player)) {
-					existingEvent.reportedBy.push(item.player);
-				}
-				return false; // Don't include this item in the final list.
-			}
-		}
-
-		// It's a new destruction event. Store it for checking subsequent events.
-		processedDestructions[vehicleId] = item;
-		return true;
-	}
-
-	function checkActorDeath(processedActorDeaths: Record<string, Log>, item: Log) {
-		const victimId = item.metadata?.victimId;
-		if (!victimId) return true;
-
-		const existingEvent = processedActorDeaths[victimId];
-		if (existingEvent) {
-			const timeDiff =
-				new Date(item.timestamp).getTime() - new Date(existingEvent.timestamp).getTime();
-			const fiveSeconds = 5 * 1000;
-
-			if (timeDiff < fiveSeconds && item.player) {
-				if (!existingEvent.reportedBy) {
-					existingEvent.reportedBy = [existingEvent.player as string];
-				}
-				if (!existingEvent.reportedBy.includes(item.player)) {
-					existingEvent.reportedBy.push(item.player);
-				}
-				return false;
-			}
-		}
-		processedActorDeaths[victimId] = item;
-		return true;
-	}
-
-	function checkVehicleControlFlow(processedVehicleControls: Record<string, Log>, item: Log) {
-		const vehicleId = item.metadata?.vehicleId;
-		if (!vehicleId) return true;
-
-		const existingEvent = processedVehicleControls[vehicleId];
-		if (existingEvent) {
-			const timeDiff =
-				new Date(item.timestamp).getTime() - new Date(existingEvent.timestamp).getTime();
-			const fiveSeconds = 5 * 1000;
-
-			if (timeDiff < fiveSeconds && item.player) {
-				if (!existingEvent.reportedBy) {
-					existingEvent.reportedBy = [existingEvent.player as string];
-				}
-				if (!existingEvent.reportedBy.includes(item.player)) {
-					existingEvent.reportedBy.push(item.player);
-				}
-				return false;
-			}
-		}
-		processedVehicleControls[vehicleId] = item;
-		return true;
-	}
 
 	let computedEvents = $derived.by(() => {
 		const events: Log[] = JSON.parse(JSON.stringify(displayedFileContent));
