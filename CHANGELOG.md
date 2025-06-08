@@ -7,6 +7,8 @@
 * Scroll to bottom when new child logs are added
 * Don't show duplicate connection logs
 * Save logs between sessions
+* Improve event line styling for children events
+* Ship images are now brighter and more saturated
 
 ### 0.10.0
 
