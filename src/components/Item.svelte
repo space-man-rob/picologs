@@ -236,26 +236,27 @@
 	.item .ship-image img {
 		filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.4));
 		transform: scale(1);
+		filter: brightness(2) saturate(1);
 	}
 
 	.item .ship-image img.soft {
-		filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.4)) brightness(0.5) saturate(0.5);
+		filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.4)) brightness(2) saturate(1);
 	}
 
 	.item .ship-image img.hard-left,
 	.item .ship-image img.hard-right {
-		filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.4)) brightness(0.5) saturate(0.5);
+		filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.4)) brightness(2) saturate(1);
 		opacity: 0.9;
 	}
 
 	.item .ship-image img.hard-left {
 		clip-path: polygon(0 0, 50% 0, 50% 100%, 0% 100%);
-		transform: scale(1) rotate(-15deg) translateX(-.5rem);
+		transform: scale(1) rotate(-15deg) translateX(-.2rem);
 	}
 
 	.item .ship-image img.hard-right {
 		clip-path: polygon(50% 0, 100% 0, 100% 100%, 50% 100%);
-		transform: scale(1) rotate(15deg) translateX(.5rem);
+		transform: scale(1) rotate(15deg) translateX(.2rem);
 	}
 
 	.item.child {

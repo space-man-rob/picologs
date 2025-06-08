@@ -178,16 +178,20 @@
 		// this effect runs when new logs appear, are consolidated, or child events are updated.
 		const _ = computedEvents;
 		const __ = computedEvents.flatMap((e) => e.children ?? []);
+		const ___ = allChildren;
 
 		// atTheBottom is only updated on scroll events, so it correctly reflects
 		// the scroll position before the new content was added.
 		if (atTheBottom && fileContentContainer) {
 			tick().then(() => {
 				if (fileContentContainer) {
-					fileContentContainer.scrollTo({
-						top: fileContentContainer.scrollHeight,
-						behavior: 'smooth'
-					});
+					console.log('scrolling to bottom');
+					setTimeout(() => {
+						fileContentContainer?.scrollTo({
+							top: fileContentContainer?.scrollHeight ?? 0,
+							behavior: 'smooth'
+						});
+					}, 1000);
 				}
 			});
 		}

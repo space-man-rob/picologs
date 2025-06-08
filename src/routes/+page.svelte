@@ -9,10 +9,10 @@
 	import Friends from '../components/Friends.svelte';
 	import Header from '../components/Header.svelte';
 	import PendingFriendRequests from '../components/PendingFriendRequests.svelte';
+	import Resizer from '../components/Resizer.svelte';
 	import Timeline from '../components/Timeline.svelte';
 	import User from '../components/User.svelte';
 	import type { Friend as FriendType, Log } from '../types';
-	import Resizer from '../components/Resizer.svelte';
 
 	let ws = $state<WebSocket | null>(null);
 	let file = $state<string | null>(null);
