@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { appDataDir } from '@tauri-apps/api/path';
-	import { ask, open } from '@tauri-apps/plugin-dialog';
+	import { open } from '@tauri-apps/plugin-dialog';
 	import { readTextFile, watchImmediate, writeFile } from '@tauri-apps/plugin-fs';
 	import { load } from '@tauri-apps/plugin-store';
 	import { check } from '@tauri-apps/plugin-updater';
@@ -46,6 +46,7 @@
 	let already_connected = $state<Record<string, boolean>>({});
 
 	let hasInitialised = $state(false);
+	let updateInfo = $state<any>(null);
 
 	let saveLogsPromise: Promise<void> = Promise.resolve();
 
@@ -1218,26 +1219,29 @@
 		await store.save();
 	}
 
+	async function installUpdate() {
+		if (!updateInfo) return;
+		await updateInfo.downloadAndInstall();
+		// The updater will relaunch the app automatically.
+		updateInfo = null;
+	}
+
 	async function checkForUpdates() {
-		const update = await check();
-		if (update) {
-				const answer = await ask(
-					'A new update is available. Would you like to download and install it now?',
-					{
-						title: 'Update available',
-						kind: 'info'
-					}
-				);
-				if (answer) {
-					update.downloadAndInstall().catch((error: any) => {
-						console.error('Error downloading and installing update:', error);
-					});
+		try {
+			const update = await check();
+			if (update?.available) {
+				updateInfo = update;
 			}
+		} catch (e) {
+			console.error('Update check failed:', e);
 		}
 	}
 
 	setInterval(() => {
-		checkForUpdates();
+		// Only check for updates if one isn't already pending
+		if (!updateInfo) {
+			checkForUpdates();
+		}
 	}, 1000 * 60 * 10); // 10 minutes
 
 	setInterval(() => {
@@ -1278,7 +1282,9 @@
 		{playerName}
 		{clearLogs}
 		{disconnectWebSocket}
-		bind:logLocation />
+		bind:logLocation
+		{updateInfo}
+		{installUpdate} />
 
 	<div class="content">
 		<Resizer>
