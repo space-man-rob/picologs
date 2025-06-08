@@ -2,6 +2,11 @@
 
 ## Sunday 8th June 2025
 
+### unreleased
+
+* Don't show duplicate connection logs
+* Save logs between sessions
+
 ### 0.10.0
 
 * Minimum allowed window size reduced to 800x500

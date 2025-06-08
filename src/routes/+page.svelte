@@ -530,8 +530,16 @@
 									);
 									const isFromMe = log.userId === playerId;
 									if (isFromFriend || isFromMe) {
-										fileContent = dedupeAndSortLogs([...fileContent, log]);
-										appendLogToDisk(log); // Save to disk
+										if (!isFromMe && log.emoji === '🛜' && already_connected[log.userId]) {
+											// Don't show duplicate connection logs
+										} else if (log.emoji === '🛜' && !already_connected[log.userId]) {
+											already_connected[log.userId] = true;
+											fileContent = dedupeAndSortLogs([...fileContent, log]);
+											appendLogToDisk(log); // Save to disk
+										} else {
+											fileContent = dedupeAndSortLogs([...fileContent, log]);
+											appendLogToDisk(log); // Save to disk
+										}
 									}
 								}
 								break;
