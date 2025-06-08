@@ -9,6 +9,7 @@
 * Save logs between sessions
 * Improve event line styling for children events
 * Ship images are now brighter and more saturated
+* Nicer update app flow
 
 ### 0.10.0
 

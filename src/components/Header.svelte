@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { BrushCleaning, Copy, FileText } from '@lucide/svelte';
+	import { BrushCleaning, Copy, FileText, Download } from '@lucide/svelte';
 	import type { Friend as FriendType } from '../types';
 	import { ask } from '@tauri-apps/plugin-dialog';
 	import { load } from '@tauri-apps/plugin-store';
@@ -19,7 +19,9 @@
 		selectFile,
 		logLocation = $bindable(),
 		playerName,
-		clearLogs
+		clearLogs,
+		updateInfo,
+		installUpdate
 	} = $props();
 
 
@@ -97,6 +99,11 @@
 	</div>
 
 	<aside>
+		{#if updateInfo}
+			<button class="update-button" onclick={installUpdate}>
+				<Download size={18} /> Update Available
+			</button>
+		{/if}
 		<button
 			class="friend-code-button"
 			onclick={() => {
@@ -316,5 +323,9 @@
 		justify-content: flex-start;
 		gap: 0.5rem;
 		width: 100px;
+	}
+
+	.update-button {
+		background-color: #4caf50;
 	}
 </style>
