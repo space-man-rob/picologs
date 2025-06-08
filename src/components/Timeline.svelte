@@ -185,26 +185,6 @@
 		}
 	});
 
-	function checkLocationChange(recentEvents: Log[], item: Log) {
-		const lastLocationChange = recentEvents[recentEvents.length - 1];
-
-		if (lastLocationChange) {
-			const timeDiff =
-				new Date(item.timestamp).getTime() - new Date(lastLocationChange.timestamp).getTime();
-			const oneHour = 60 * 60 * 1000;
-
-			if (
-				timeDiff < oneHour &&
-				lastLocationChange.metadata?.location === item.metadata?.location &&
-				lastLocationChange.metadata?.location !== 'Unknown'
-			) {
-				return false;
-			}
-		}
-		recentEvents.push(item);
-		return true;
-	}
-
 	//check for duplicate destruction events
 	function checkDestruction(processedDestructions: Record<string, Log>, item: Log) {
 		const vehicleId = item.metadata?.vehicleId;
@@ -282,42 +262,87 @@
 	}
 
 	let computedEvents = $derived.by(() => {
-		const playerEvents: Record<
-			string,
-			{
-				location_change: Log[];
+		const events: Log[] = JSON.parse(JSON.stringify(displayedFileContent));
+		const consolidatedEvents: Log[] = [];
+
+		const playerLocationEvents: Record<string, Log> = {};
+		const destructionEvents: Record<string, { index: number; event: Log }> = {};
+		const actorDeathEvents: Record<string, { index: number; event: Log }> = {};
+		const vehicleControlEvents: Record<string, { index: number; event: Log }> = {};
+
+		for (const item of events) {
+			let isDuplicate = false;
+
+			switch (item.eventType) {
+				case 'location_change':
+					if (item.player) {
+						const lastEvent = playerLocationEvents[item.player];
+						if (
+							lastEvent &&
+							new Date(item.timestamp).getTime() - new Date(lastEvent.timestamp).getTime() <
+								3600000 &&
+							lastEvent.metadata?.location === item.metadata?.location &&
+							lastEvent.metadata?.location !== 'Unknown'
+						) {
+							isDuplicate = true;
+						} else {
+							playerLocationEvents[item.player] = item;
+						}
+					}
+					break;
+
+				case 'destruction':
+				case 'actor_death':
+				case 'vehicle_control_flow':
+					{
+						let eventMap: Record<string, { index: number; event: Log }>;
+						let key: string | undefined;
+
+						if (item.eventType === 'destruction') {
+							eventMap = destructionEvents;
+							key = item.metadata?.vehicleId;
+						} else if (item.eventType === 'actor_death') {
+							eventMap = actorDeathEvents;
+							key = item.metadata?.victimId;
+						} else {
+							eventMap = vehicleControlEvents;
+							key = item.metadata?.vehicleId;
+						}
+
+						if (key) {
+							const existing = eventMap[key];
+							if (
+								existing &&
+								new Date(item.timestamp).getTime() - new Date(existing.event.timestamp).getTime() <
+									5000 &&
+								item.player
+							) {
+								isDuplicate = true;
+								const existingEventInConsolidated = consolidatedEvents[existing.index];
+								const reportedBy = [
+									...(existingEventInConsolidated.reportedBy || [
+										existingEventInConsolidated.player as string
+									])
+								];
+								if (!reportedBy.includes(item.player)) {
+									reportedBy.push(item.player);
+								}
+								const updatedEvent = { ...existingEventInConsolidated, reportedBy };
+								consolidatedEvents[existing.index] = updatedEvent;
+								existing.event = updatedEvent; // Keep map in sync
+							} else {
+								eventMap[key] = { index: consolidatedEvents.length, event: item };
+							}
+						}
+					}
+					break;
 			}
-		> = {};
-		const processedDestructions: Record<string, Log> = {};
-		const processedActorDeaths: Record<string, Log> = {};
-		const processedVehicleControls: Record<string, Log> = {};
 
-		const consolidatedEvents = displayedFileContent
-			.map((item) => ({ ...item })) // Create shallow copies to prevent mutation of original state
-			.filter((item) => {
-				if (item.player && !playerEvents[item.player]) {
-					playerEvents[item.player] = {
-						location_change: []
-					};
-				}
+			if (!isDuplicate) {
+				consolidatedEvents.push(item);
+			}
+		}
 
-				switch (item.eventType) {
-					case 'location_change':
-						return item.player
-							? checkLocationChange(playerEvents[item.player].location_change, item)
-							: true;
-					case 'destruction':
-						return checkDestruction(processedDestructions, item);
-					case 'actor_death':
-						return checkActorDeath(processedActorDeaths, item);
-					case 'vehicle_control_flow':
-						return checkVehicleControlFlow(processedVehicleControls, item);
-					case 'killing_spree':
-						return true;
-					default:
-						return true;
-				}
-			});
 		return consolidatedEvents;
 	});
 

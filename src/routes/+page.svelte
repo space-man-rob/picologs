@@ -17,6 +17,7 @@
 	let ws = $state<WebSocket | null>(null);
 	let file = $state<string | null>(null);
 	let fileContent = $state<Log[]>([]);
+	let groupedFileContent = $derived(groupKillingSprees(groupDestructionEvents(fileContent)));
 	let friendCode = $state<string | null>(null);
 	let playerName = $state<string | null>(null);
 	let playerId = $state<string | null>(null);
@@ -41,20 +42,21 @@
 	let onlyProcessLogsAfterThisDateTimeStamp = $state<number | null>(null);
 	let fileContentContainer = $state<HTMLDivElement | null>(null);
 	let endWatch: () => void;
-	let destroyedShips = $state<Record<string, number>>({});
+	let already_connected = $state<Record<string, boolean>>({});
 
 	let hasInitialised = $state(false);
 
 	function groupDestructionEvents(logs: Log[]): Log[] {
+		const workingLogs: Log[] = JSON.parse(JSON.stringify(logs));
 		const destructionMap = new Map<string, Log>(); // vehicleId -> parent log
 		const childLogIds = new Set<string>();
 
 		// Reset children to avoid duplicates on re-processing
-		for (const log of logs) {
+		for (const log of workingLogs) {
 			log.children = [];
 		}
 
-		for (const log of logs) {
+		for (const log of workingLogs) {
 			let parentLog: Log | undefined;
 
 			if (log.eventType === 'destruction' && log.metadata?.vehicleId) {
@@ -94,7 +96,7 @@
 			}
 		}
 
-		return logs.filter((log) => !childLogIds.has(log.id));
+		return workingLogs.filter((log) => !childLogIds.has(log.id));
 	}
 
 	function groupKillingSprees(logs: Log[]): Log[] {
@@ -306,6 +308,17 @@
 		const store = await load('store.json', { autoSave: false });
 		await store.set('lastFile', null);
 		await store.save();
+	}
+
+	function generateLogId(line: string): string {
+		let hash = 0;
+		if (line.length === 0) return '0';
+		for (let i = 0; i < line.length; i++) {
+			const char = line.charCodeAt(i);
+			hash = (hash << 5) - hash + char;
+			hash = hash & hash; // Convert to 32bit integer
+		}
+		return hash.toString();
 	}
 
 	function generateId(length: number = 10) {
@@ -600,7 +613,7 @@
 	}
 
 	$effect(() => {
-		if (logLocation && logLocation !== null) {
+		if (logLocation && logLocation !== null && hasInitialised) {
 			load('store.json', { autoSave: false }).then((store) => {
 				store
 					.get('lastFile')
@@ -609,6 +622,15 @@
 						if (!originalPath) {
 							return;
 						}
+
+						// Prevent running on init by checking if location actually changed
+						const pathParts = originalPath.replace(/\\/g, '/').split('/');
+						const currentStoredLocation =
+							pathParts.length > 1 ? pathParts[pathParts.length - 2] : null;
+						if (currentStoredLocation === logLocation) {
+							return;
+						}
+
 						const updatedPath = originalPath.replace(
 							/(\\StarCitizen\\)[^\\]+(\\Game\.log)/i,
 							`$1${logLocation}$2`
@@ -619,6 +641,7 @@
 						file = updatedPath;
 						store.set('lastFile', updatedPath).then(() => {
 							handleFile(updatedPath);
+							handleInitialiseWatch(updatedPath);
 						});
 					})
 					.catch((error) => {
@@ -700,6 +723,7 @@
 						const oldPlayerName = playerName;
 						playerName = nameMatch ? nameMatch[1] : playerName;
 						if (playerName && playerName !== oldPlayerName) {
+							already_connected[playerId!] = false;
 							if (ws && ws.readyState === WebSocket.OPEN && playerId && friendCode) {
 								ws.send(
 									JSON.stringify({
@@ -712,16 +736,19 @@
 								);
 							}
 						}
+						if (!already_connected[playerId!]) {
 						logEntry = {
-							id: generateId(),
+							id: generateLogId(line),
 							userId: playerId!,
 							player: playerName,
 							emoji: '🛜',
 							line: `${playerName || 'Player'} connected to the game`,
 							timestamp,
 							original: line,
-							open: false
-						};
+								open: false
+							};
+							already_connected[playerId!] = true;
+						}
 					} else if (line.match(/<RequestLocationInventory>/)) {
 						const playerMatch = line.split('Player[')[1]?.split(']')[0];
 						const locationMatch = line.split('Location[')[1]?.split(']')[0];
@@ -743,7 +770,7 @@
 						if (playerMatch === playerName && locationMatch && checkLocationsOverLastMinutes(15)) {
 							prevInventoryLocations[playerMatch] = { timestamp, location: locationMatch };
 							logEntry = {
-								id: generateId(),
+								id: generateLogId(line),
 								userId: playerId!,
 								player: playerName,
 								emoji: '🔍',
@@ -781,7 +808,7 @@
 
 							//    "original": "<2025-05-29T21:16:49.545Z> [Notice] <Actor Death> CActor::Kill: 'space-man-rob' [600682182829] in zone 'AEGS_Idris_P_602567901387' killed by 'OvRuin' [602076272105] using 'behr_lmg_ballistic_01_602567887316' [Class behr_lmg_ballistic_01] with damage type 'Bullet' from direction x: 0.811733, y: 0.533934, z: -0.236652 [Team_ActorTech][Actor]\r",
 							logEntry = {
-								id: generateId(),
+								id: generateLogId(line),
 								userId: playerId!,
 								player: playerName,
 								emoji: '😵',
@@ -826,7 +853,7 @@
 							const dirZ = match[11];
 
 							logEntry = {
-								id: generateId(),
+								id: generateLogId(line),
 								userId: playerId!,
 								player: playerName,
 								emoji: '🗡️',
@@ -863,7 +890,7 @@
 							const causeId = match[6];
 
 							logEntry = {
-								id: generateId(),
+								id: generateLogId(line),
 								userId: playerId!,
 								player: playerName,
 								emoji: destroyLevelTo === '1' ? '❌' : '💥',
@@ -884,7 +911,7 @@
 						}
 					} else if (line.match(/<SystemQuit>/)) {
 						logEntry = {
-							id: generateId(),
+							id: generateLogId(line),
 							userId: playerId!,
 							player: playerName,
 							emoji: '👋',
@@ -910,7 +937,7 @@
 							const entityType = match[5];
 
 							logEntry = {
-								id: generateId(),
+								id: generateLogId(line),
 								userId: playerId!,
 								player: playerName,
 								emoji: '🚀',
@@ -947,10 +974,8 @@
 
 				// Combine with existing content, dedupe, sort, and save
 				const combinedLogs = dedupeAndSortLogs([...fileContent, ...newContentWithUserId]);
-				let groupedLogs = groupDestructionEvents(combinedLogs);
-				groupedLogs = groupKillingSprees(groupedLogs);
-				await saveLogsToDisk(groupedLogs);
-				fileContent = groupedLogs; // Update in-memory state
+				await saveLogsToDisk(combinedLogs);
+				fileContent = combinedLogs; // Update in-memory state
 
 				// Update the timestamp filter to the latest processed log
 				if (latestProcessedTimestamp > (onlyProcessLogsAfterThisDateTimeStamp || 0)) {
@@ -1187,7 +1212,7 @@
 
 			{#snippet rightPanel()}
 				{#if hasInitialised}
-					<Timeline {fileContent} {file} {friendsList} {playerName} />
+					<Timeline fileContent={groupedFileContent} {file} {friendsList} {playerName} />
 				{/if}
 
 				{#if file}
