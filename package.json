@@ -1,6 +1,6 @@
 {
   "name": "picologs",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "description": "A tool for viewing and filtering the logs of a game",
   "type": "module",
   "scripts": {
