@@ -4,6 +4,7 @@
 
 ### unreleased
 
+* Scroll to bottom when new child logs are added
 * Don't show duplicate connection logs
 * Save logs between sessions
 
