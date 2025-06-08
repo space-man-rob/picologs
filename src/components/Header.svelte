@@ -11,6 +11,7 @@
 		friendsList,
 		saveFriendsListToStore,
 		connectWebSocket,
+		disconnectWebSocket,
 		connectionStatus,
 		ws,
 		currentUserDisplayData,
@@ -26,22 +27,17 @@
 		const store = await load('store.json', { autoSave: false });
 
 		if (connectionStatus === 'connected' || connectionStatus === 'connecting') {
-			if (ws) {
-				ws.close();
-			}
-			connectionStatus = 'disconnected';
-			store.set('wouldGoOnline', false);
-
-			friendsList = friendsList.map((friend: FriendType) => ({ ...friend, isOnline: false }));
-			saveFriendsListToStore();
+			await store.set('wouldGoOnline', false);
+			disconnectWebSocket();
 		} else {
 			if (playerId) {
-				store.set('wouldGoOnline', true);
+				await store.set('wouldGoOnline', true);
 				connectWebSocket();
 			} else {
 				alert('Please select a log file first to establish your Player ID and be able to go online.');
 			}
 		}
+		await store.save();
 	}
 
 	async function handleClearLogs() {

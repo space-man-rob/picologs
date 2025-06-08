@@ -185,13 +185,12 @@
 		if (atTheBottom && fileContentContainer) {
 			tick().then(() => {
 				if (fileContentContainer) {
-					console.log('scrolling to bottom');
 					setTimeout(() => {
 						fileContentContainer?.scrollTo({
 							top: fileContentContainer?.scrollHeight ?? 0,
 							behavior: 'smooth'
 						});
-					}, 1000);
+					}, 100);
 				}
 			});
 		}
