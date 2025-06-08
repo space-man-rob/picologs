@@ -235,9 +235,6 @@
 			const pathPartsForId = savedFile.replace(/\\/g, '/').split('/');
 			playerId = pathPartsForId.length > 1 ? pathPartsForId.slice(-2, -1)[0] : generateId();
 			await store.set('id', playerId);
-		} else {
-			playerId = generateId();
-			await store.set('id', playerId);
 		}
 
 		await store.save();
@@ -1095,8 +1092,7 @@
 			onlyProcessLogsAfterThisDateTimeStamp = null;
 			await store.set('lastFile', selectedPath);
 
-			let storedPlayerId = await store.get<string>('id');
-			if (!storedPlayerId) {
+			if (!playerId) {
 				const pathPartsForId = selectedPath.replace(/\\/g, '/').split('/');
 				playerId = pathPartsForId.length > 1 ? pathPartsForId.slice(-2, -1)[0] : generateId();
 				await store.set('id', playerId);
