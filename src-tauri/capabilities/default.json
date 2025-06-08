@@ -39,6 +39,7 @@
       ]
     },
     "websocket:default",
-    "updater:default"
+    "updater:default",
+    "process:default"
   ]
 }

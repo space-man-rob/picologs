@@ -4,6 +4,7 @@
 	import { readTextFile, watchImmediate, writeFile } from '@tauri-apps/plugin-fs';
 	import { load } from '@tauri-apps/plugin-store';
 	import { check } from '@tauri-apps/plugin-updater';
+	import { relaunch } from '@tauri-apps/plugin-process';
 	import { onMount } from 'svelte';
 	import AddFriend from '../components/AddFriend.svelte';
 	import Friends from '../components/Friends.svelte';
@@ -45,6 +46,25 @@
 	let already_connected = $state<Record<string, boolean>>({});
 
 	let hasInitialised = $state(false);
+
+	let saveLogsPromise: Promise<void> = Promise.resolve();
+
+	let connectionAttemptTimeout: ReturnType<typeof setTimeout> | null = null;
+
+	async function withLogFileLock<T>(fn: () => Promise<T>): Promise<T> {
+		const previousPromise = saveLogsPromise;
+		let resolveFn: () => void;
+		saveLogsPromise = new Promise((resolve) => {
+			resolveFn = resolve;
+		});
+
+		await previousPromise;
+		try {
+			return await fn();
+		} finally {
+			resolveFn!();
+		}
+	}
 
 	function groupDestructionEvents(logs: Log[]): Log[] {
 		const workingLogs: Log[] = JSON.parse(JSON.stringify(logs));
@@ -214,7 +234,7 @@
 		if (storedPlayerId) {
 			playerId = storedPlayerId;
 		} else if (savedFile) {
-			const pathPartsForId = savedFile.split('/');
+			const pathPartsForId = savedFile.replace(/\\/g, '/').split('/');
 			playerId = pathPartsForId.length > 1 ? pathPartsForId.slice(-2, -1)[0] : generateId();
 			await store.set('id', playerId);
 		} else {
@@ -240,7 +260,7 @@
 		}
 
 		try {
-			logLocation = savedFile?.split('/').slice(-2, -1)[0] || null;
+			logLocation = savedFile?.replace(/\\/g, '/').split('/').slice(-2, -1)[0] || null;
 
 			if (savedFile) {
 				file = savedFile;
@@ -263,16 +283,20 @@
 
 	function dedupeAndSortLogs(logs: Log[]): Log[] {
 		const seen = new Set<string>();
-		const deduped = [];
-		for (const log of logs) {
-			if (!seen.has(log.id)) {
-				seen.add(log.id);
+		const deduped: Log[] = [];
+
+		const sortedLogs = [...logs].sort(
+			(a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+		);
+
+		for (const log of sortedLogs) {
+			const uniquenessKey = log.original ? `${log.original.trim()}-${log.userId}` : log.id;
+			if (!seen.has(uniquenessKey)) {
+				seen.add(uniquenessKey);
 				deduped.push(log);
 			}
 		}
-		return deduped.sort(
-			(a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-		);
+		return deduped;
 	}
 
 	async function loadLogsFromDisk(): Promise<Log[]> {
@@ -286,21 +310,25 @@
 	}
 
 	async function saveLogsToDisk(logs: Log[]): Promise<void> {
-		const encoder = new TextEncoder();
-		const data = encoder.encode(JSON.stringify(dedupeAndSortLogs(logs), null, 2));
+		const data = JSON.stringify(logs, null, 2);
 		const filePath = await getLogFilePath();
-		await writeFile(filePath, data);
+		await writeFile(filePath, new TextEncoder().encode(data));
 	}
 
 	async function appendLogToDisk(newLog: Log): Promise<void> {
-		const logs = await loadLogsFromDisk();
-		logs.push(newLog);
-		const logsToSave = logs.map((log) => (log.userId ? log : { ...log, userId: playerId! }));
-		await saveLogsToDisk(logsToSave);
+		await withLogFileLock(async () => {
+			const logs = await loadLogsFromDisk();
+			logs.push(newLog);
+			const allLogs = dedupeAndSortLogs(logs);
+			await saveLogsToDisk(allLogs);
+			fileContent = allLogs;
+		});
 	}
 
 	async function clearLogs() {
-		await saveLogsToDisk([]);
+		await withLogFileLock(async () => {
+			await saveLogsToDisk([]);
+		});
 		fileContent = [];
 		prevLineCount = 0;
 		lineCount = 0;
@@ -340,13 +368,26 @@
 		if (ws && ws.readyState === WebSocket.OPEN) {
 			return;
 		}
+		if (connectionStatus === 'connecting') return; // Avoid multiple concurrent attempts
+
 		connectionStatus = 'connecting';
+		if (connectionAttemptTimeout) clearTimeout(connectionAttemptTimeout);
+		connectionAttemptTimeout = setTimeout(() => {
+			if (connectionStatus === 'connecting') {
+				alert('Connection attempt timed out. Please try again.');
+				disconnectWebSocket();
+			}
+		}, 10000); // 10 second timeout
 
 		try {
 			const socket = new WebSocket('wss://picologs-server.fly.dev/ws');
 			ws = socket;
 
 			socket.onopen = () => {
+				if (connectionAttemptTimeout) {
+					clearTimeout(connectionAttemptTimeout);
+					connectionAttemptTimeout = null;
+				}
 				connectionStatus = 'connected';
 				try {
 					if (playerId && friendCode) {
@@ -520,6 +561,13 @@
 								}
 								break;
 							case 'error':
+								if (message.message && message.message.includes('User ID') && message.message.includes('already in use')) {
+									disconnectWebSocket();
+									alert(
+										'This user ID is already in use, possibly in another Picologs window. The app will now restart to resolve the conflict.'
+									);
+									await relaunch();
+								}
 								break;
 							case 'log':
 								if (message.log) {
@@ -534,11 +582,9 @@
 											// Don't show duplicate connection logs
 										} else if (log.emoji === '🛜' && !already_connected[log.userId]) {
 											already_connected[log.userId] = true;
-											fileContent = dedupeAndSortLogs([...fileContent, log]);
-											appendLogToDisk(log); // Save to disk
+											await appendLogToDisk(log); // Save to disk
 										} else {
-											fileContent = dedupeAndSortLogs([...fileContent, log]);
-											appendLogToDisk(log); // Save to disk
+											await appendLogToDisk(log); // Save to disk
 										}
 									}
 								}
@@ -564,11 +610,13 @@
 								break;
 							case 'sync_logs':
 								if (message.logs && Array.isArray(message.logs)) {
-									// Merge, dedupe, and save logs
-									const localLogs = await loadLogsFromDisk();
-									const allLogs = dedupeAndSortLogs([...localLogs, ...message.logs]);
-									await saveLogsToDisk(allLogs);
-									fileContent = allLogs;
+									await withLogFileLock(async () => {
+										// Merge, dedupe, and save logs
+										const localLogs = await loadLogsFromDisk();
+										const allLogs = dedupeAndSortLogs([...localLogs, ...message.logs]);
+										await saveLogsToDisk(allLogs);
+										fileContent = allLogs;
+									});
 								}
 								break;
 							default:
@@ -579,6 +627,10 @@
 			};
 
 			socket.onclose = (event) => {
+				if (connectionAttemptTimeout) {
+					clearTimeout(connectionAttemptTimeout);
+					connectionAttemptTimeout = null;
+				}
 				connectionStatus = 'disconnected';
 				ws = null;
 				autoConnectionAttempted = false;
@@ -588,6 +640,12 @@
 			};
 
 			socket.onerror = (error) => {
+				if (connectionAttemptTimeout) {
+					clearTimeout(connectionAttemptTimeout);
+					connectionAttemptTimeout = null;
+				}
+				console.error('WebSocket connection failed:', error);
+				alert('Failed to connect to the server. Please check your internet connection and try again.');
 				connectionStatus = 'disconnected';
 				ws = null;
 				autoConnectionAttempted = false;
@@ -595,7 +653,20 @@
 				friendsList = friendsList.map((friend) => ({ ...friend, isOnline: false }));
 				saveFriendsListToStore();
 			};
-		} catch (error) {}
+		} catch (error) {
+			if (connectionAttemptTimeout) {
+				clearTimeout(connectionAttemptTimeout);
+				connectionAttemptTimeout = null;
+			}
+			console.error('WebSocket connection failed:', error);
+			alert('Failed to connect to the server. Please check your internet connection and try again.');
+			connectionStatus = 'disconnected';
+			ws = null;
+			autoConnectionAttempted = false;
+
+			friendsList = friendsList.map((friend) => ({ ...friend, isOnline: false }));
+			saveFriendsListToStore();
+		}
 	}
 
 	async function handleInitialiseWatch(filePath: string) {
@@ -663,14 +734,9 @@
 		if (!filePath) return;
 		try {
 			tick = 0;
-			const pathParts = filePath.split('\\');
+			const pathParts = filePath.replace(/\\/g, '/').split('/');
 			if (!logLocation) {
-				logLocation =
-					pathParts.length > 1
-						? pathParts[pathParts.length - 2]
-						: filePath.split('/').length > 1
-							? filePath.split('/').slice(-2, -1)[0]
-							: null;
+				logLocation = pathParts.length > 1 ? pathParts[pathParts.length - 2] : null;
 			}
 
 			const linesText = await readTextFile(filePath);
@@ -700,6 +766,7 @@
 
 			const processedNewContent: Log[] = linesToProcess
 				.map((line) => {
+					line = line.trim();
 					if (!line.trim()) return null;
 
 					const timestampMatch = line.match(/<([^>]+)>/);
@@ -976,14 +1043,17 @@
 				.filter((item): item is Log => item !== null);
 
 			if (processedNewContent.length > 0) {
-				const newContentWithUserId = processedNewContent.map((log) =>
-					log.userId ? log : { ...log, userId: playerId! }
-				);
+				await withLogFileLock(async () => {
+					const newContentWithUserId = processedNewContent.map((log) =>
+						log.userId ? log : { ...log, userId: playerId! }
+					);
 
-				// Combine with existing content, dedupe, sort, and save
-				const combinedLogs = dedupeAndSortLogs([...fileContent, ...newContentWithUserId]);
-				await saveLogsToDisk(combinedLogs);
-				fileContent = combinedLogs; // Update in-memory state
+					// Combine with existing content, dedupe, sort, and save
+					const existingLogs = await loadLogsFromDisk();
+					const combinedLogs = dedupeAndSortLogs([...existingLogs, ...newContentWithUserId]);
+					await saveLogsToDisk(combinedLogs);
+					fileContent = combinedLogs; // Update in-memory state
+				});
 
 				// Update the timestamp filter to the latest processed log
 				if (latestProcessedTimestamp > (onlyProcessLogsAfterThisDateTimeStamp || 0)) {
@@ -1021,7 +1091,7 @@
 
 			let storedPlayerId = await store.get<string>('id');
 			if (!storedPlayerId) {
-				const pathPartsForId = selectedPath.split('/');
+				const pathPartsForId = selectedPath.replace(/\\/g, '/').split('/');
 				playerId = pathPartsForId.length > 1 ? pathPartsForId.slice(-2, -1)[0] : generateId();
 				await store.set('id', playerId);
 			}
@@ -1176,6 +1246,21 @@
 			handleFile(file);
 		}
 	}, 1000);
+
+	function disconnectWebSocket() {
+		if (connectionAttemptTimeout) {
+			clearTimeout(connectionAttemptTimeout);
+			connectionAttemptTimeout = null;
+		}
+		if (ws) {
+			ws.onclose = null; // Prevent onclose handler from running on manual disconnect
+			ws.close();
+		}
+		connectionStatus = 'disconnected';
+		ws = null;
+		friendsList = friendsList.map((friend) => ({ ...friend, isOnline: false }));
+		saveFriendsListToStore();
+	}
 </script>
 
 <main class="container">
@@ -1192,6 +1277,7 @@
 		{selectFile}
 		{playerName}
 		{clearLogs}
+		{disconnectWebSocket}
 		bind:logLocation />
 
 	<div class="content">
