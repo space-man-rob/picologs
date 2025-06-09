@@ -104,10 +104,10 @@
 	let shipName = $derived(shipData ? shipData.name : null);
 
 	function checkVictimName(victimName: string) {
-		if (victimName.includes('_') && victimName.includes('kopion')) {
+		if (victimName.includes('kopion')) {
 			return 'Kopion';
 		}
-		if (victimName.includes('_')) {
+		if (['PU_Human', '_NPC_'].includes(victimName)) {
 			return 'NPC';
 		}
 		return victimName;
