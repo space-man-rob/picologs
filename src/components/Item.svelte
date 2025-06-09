@@ -279,6 +279,6 @@
 	}
 
 	.item.child .timestamp {
-		display: none;
+		font-size: 0.5rem;
 	}
 </style>

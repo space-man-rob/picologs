@@ -18,7 +18,7 @@
 	let ws = $state<WebSocket | null>(null);
 	let file = $state<string | null>(null);
 	let fileContent = $state<Log[]>([]);
-	let groupedFileContent = $derived(groupKillingSprees(groupDestructionEvents(fileContent)));
+	let groupedFileContent = $derived(groupRelatedEvents(fileContent));
 	let friendCode = $state<string | null>(null);
 	let playerName = $state<string | null>(null);
 	let playerId = $state<string | null>(null);
@@ -64,67 +64,74 @@
 		}
 	}
 
-	function groupDestructionEvents(logs: Log[]): Log[] {
+	function groupRelatedEvents(logs: Log[]): Log[] {
 		const workingLogs: Log[] = JSON.parse(JSON.stringify(logs));
-		const destructionMap = new Map<string, Log>(); // vehicleId -> parent log
 		const childLogIds = new Set<string>();
 
-		// Reset children to avoid duplicates on re-processing
+		// Reset children to avoid duplicates on re-processing, important for reactivity
 		for (const log of workingLogs) {
-			log.children = [];
+			if (log.children) {
+				log.children = [];
+			}
 		}
 
+		// Group destruction events
+		const destructionMap = new Map<string, Log>(); // vehicleId -> parent log
 		for (const log of workingLogs) {
-			let parentLog: Log | undefined;
+			if (childLogIds.has(log.id)) continue;
 
+			let vehicleId: string | undefined;
 			if (log.eventType === 'destruction' && log.metadata?.vehicleId) {
-				const vehicleId = log.metadata.vehicleId;
-				parentLog = destructionMap.get(vehicleId);
-				if (parentLog) {
-					const timeDiff = new Date(log.timestamp).getTime() - new Date(parentLog.timestamp).getTime();
-					if (timeDiff < 10000) {
-						if (!parentLog.children) parentLog.children = [];
-						parentLog.children.push(log);
-						childLogIds.add(log.id);
-					} else {
-						destructionMap.set(vehicleId, log); // New parent event
-					}
-				} else {
-					destructionMap.set(vehicleId, log); // New parent event
-				}
+				vehicleId = log.metadata.vehicleId;
 			} else if (
 				log.eventType === 'actor_death' &&
 				log.metadata?.damageType === 'VehicleDestruction' &&
 				log.metadata?.zone
 			) {
 				const vehicleIdMatch = log.metadata.zone.match(/_(\d+)$/);
-				if (vehicleIdMatch) {
-					const vehicleId = vehicleIdMatch[1];
-					parentLog = destructionMap.get(vehicleId);
-					if (parentLog) {
-						const timeDiff =
-							new Date(log.timestamp).getTime() - new Date(parentLog.timestamp).getTime();
-						if (timeDiff < 10000) {
+				if (vehicleIdMatch) vehicleId = vehicleIdMatch[1];
+			}
+
+			if (vehicleId) {
+				const parentLog = destructionMap.get(vehicleId);
+				if (parentLog) {
+					const timeDiff =
+						new Date(log.timestamp).getTime() - new Date(parentLog.timestamp).getTime();
+
+					if (timeDiff >= 0 && timeDiff < 60000) {
+						// Upgrade to hard death if applicable
+						if (
+							log.eventType === 'destruction' &&
+							log.metadata?.destroyLevelTo === '2' &&
+							parentLog.metadata?.destroyLevelTo === '1'
+						) {
+							log.children = [...(parentLog.children || []), parentLog];
+							childLogIds.add(parentLog.id);
+							destructionMap.set(vehicleId, log); // New parent
+						} else {
 							if (!parentLog.children) parentLog.children = [];
 							parentLog.children.push(log);
 							childLogIds.add(log.id);
 						}
+					} else if (timeDiff >= 60000) {
+						// Treat as a new event if it's much later
+						destructionMap.set(vehicleId, log);
 					}
+				} else {
+					destructionMap.set(vehicleId, log);
 				}
 			}
 		}
 
-		return workingLogs.filter((log) => !childLogIds.has(log.id));
-	}
+		let finalLogs = workingLogs.filter((log) => !childLogIds.has(log.id));
 
-	function groupKillingSprees(logs: Log[]): Log[] {
-		const spreeTimeWindow = 2 * 60 * 1000; // 2 minutes
+		// Group killing sprees
+		const spreeTimeWindow = 2 * 60 * 1000;
 		const minKillsForSpree = 2;
-		const childLogIds = new Set<string>();
+		const spreeChildLogIds = new Set<string>();
 
-		const standaloneActorDeaths = logs.filter(
+		const standaloneActorDeaths = finalLogs.filter(
 			(log) =>
-				!log.children?.length &&
 				log.eventType === 'actor_death' &&
 				log.metadata?.killerId &&
 				log.metadata.killerId !== '0' &&
@@ -142,9 +149,10 @@
 		}
 
 		const spreeParents = new Map<string, Log>();
-
 		for (const kills of killsByPlayer.values()) {
 			if (kills.length < minKillsForSpree) continue;
+			// Sort by time to find sprees accurately
+			kills.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
 			let currentSpree: Log[] = [];
 			const processSpree = () => {
@@ -152,7 +160,7 @@
 					const firstKill = currentSpree[0];
 					const parentLog = {
 						...firstKill,
-						id: firstKill.id + '-spree',
+						id: `${firstKill.id}-spree-${currentSpree.length}`,
 						eventType: 'killing_spree' as const,
 						line: `${firstKill.metadata!.killerName} is on a killing spree (${currentSpree.length} kills)`,
 						emoji: '🎯',
@@ -160,7 +168,7 @@
 					};
 					spreeParents.set(firstKill.id, parentLog);
 					for (const kill of currentSpree) {
-						childLogIds.add(kill.id);
+						spreeChildLogIds.add(kill.id);
 					}
 				}
 			};
@@ -173,7 +181,6 @@
 						currentSpree[currentSpree.length - 1].timestamp
 					).getTime();
 					const currentKillTime = new Date(kills[i].timestamp).getTime();
-
 					if (currentKillTime - lastKillTime < spreeTimeWindow) {
 						currentSpree.push(kills[i]);
 					} else {
@@ -185,16 +192,16 @@
 			processSpree();
 		}
 
-		const finalLogs: Log[] = [];
-		for (const log of logs) {
+		const logsWithSprees: Log[] = [];
+		for (const log of finalLogs) {
 			if (spreeParents.has(log.id)) {
-				finalLogs.push(spreeParents.get(log.id)!);
-			} else if (!childLogIds.has(log.id)) {
-				finalLogs.push(log);
+				logsWithSprees.push(spreeParents.get(log.id)!);
+			} else if (!spreeChildLogIds.has(log.id)) {
+				logsWithSprees.push(log);
 			}
 		}
 
-		return finalLogs;
+		return logsWithSprees.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 	}
 
 	onMount(async () => {
