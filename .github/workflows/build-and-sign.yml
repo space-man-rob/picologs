@@ -43,7 +43,7 @@ jobs:
       - name: install dependencies (windows only)
         shell: pwsh
         run: |
-          $releaseUrl = "https://github.com/Levminer/trusted-signing-cli/releases/latest/download/trusted-signing-cli-x86_64-pc-windows-msvc.zip"
+          $releaseUrl = "https://github.com/Levminer/trusted-signing-cli/releases/latest/download/trusted-signing-cli-x86_64-pc-windows-gnu.zip"
           Invoke-WebRequest -Uri $releaseUrl -OutFile "trusted-signing-cli.zip"
           Expand-Archive -Path "trusted-signing-cli.zip" -DestinationPath "trusted-signing-cli"
           echo "$((Get-Item -Path ".\\trusted-signing-cli").FullName)" >> $env:GITHUB_PATH
