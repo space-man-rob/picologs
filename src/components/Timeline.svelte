@@ -249,7 +249,7 @@
 							if (
 								existing &&
 								new Date(item.timestamp).getTime() - new Date(existing.event.timestamp).getTime() <
-									5000 &&
+									60000 &&
 								item.player
 							) {
 								isDuplicate = true;
@@ -262,7 +262,18 @@
 								if (!reportedBy.includes(item.player)) {
 									reportedBy.push(item.player);
 								}
-								const updatedEvent = { ...existingEventInConsolidated, reportedBy };
+								let updatedEvent = { ...existingEventInConsolidated, reportedBy };
+
+								if (item.eventType === 'destruction') {
+									const oldLevel = existingEventInConsolidated.metadata?.destroyLevelTo;
+									const newLevel = item.metadata?.destroyLevelTo;
+									if (oldLevel === '1' && newLevel === '2') {
+										updatedEvent = { ...item, reportedBy: reportedBy };
+									} else if (oldLevel === '2' && newLevel === '1') {
+										// Hard death already recorded, keep it and just add the reporter
+										updatedEvent = { ...existingEventInConsolidated, reportedBy: reportedBy };
+									}
+								}
 								consolidatedEvents[existing.index] = updatedEvent;
 								existing.event = updatedEvent; // Keep map in sync
 							} else {
