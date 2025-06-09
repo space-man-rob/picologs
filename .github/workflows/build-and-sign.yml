@@ -24,6 +24,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - name: setup node
         uses: actions/setup-node@v4
         with:
@@ -42,11 +47,6 @@ jobs:
           Invoke-WebRequest -Uri $releaseUrl -OutFile "trusted-signing-cli.zip"
           Expand-Archive -Path "trusted-signing-cli.zip" -DestinationPath "trusted-signing-cli"
           echo "$((Get-Item -Path ".\\trusted-signing-cli").FullName)" >> $env:GITHUB_PATH
-
-      - name: install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       - name: install frontend dependencies
         run: pnpm install
