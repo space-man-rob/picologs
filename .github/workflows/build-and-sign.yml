@@ -28,13 +28,20 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
+          cache: 'pnpm'
 
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
+      - uses: swatinem/rust-cache@v2
+
       - name: install dependencies (windows only)
+        shell: pwsh
         run: |
-          cargo install trusted-signing-cli
+          $releaseUrl = "https://github.com/Levminer/trusted-signing-cli/releases/latest/download/trusted-signing-cli-x86_64-pc-windows-msvc.zip"
+          Invoke-WebRequest -Uri $releaseUrl -OutFile "trusted-signing-cli.zip"
+          Expand-Archive -Path "trusted-signing-cli.zip" -DestinationPath "trusted-signing-cli"
+          echo "$((Get-Item -Path ".\\trusted-signing-cli").FullName)" >> $env:GITHUB_PATH
 
       - name: install pnpm
         uses: pnpm/action-setup@v4
