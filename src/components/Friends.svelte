@@ -77,7 +77,6 @@
 		justify-content: space-between;
 	}
 
-
 	.pending-label {
 		display: inline-block;
 		margin-left: 0.7em;
