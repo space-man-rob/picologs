@@ -71,15 +71,18 @@
 		}
 	});
 
-	type LogVersion = 'LIVE' | 'PTU';
+	type LogVersion = 'LIVE' | 'PTU' | 'HOTFIX';
 	let getLogVersion = () => {
 		if (logLocation?.includes('PTU')) {
 			return 'PTU';
 		}
+		if (logLocation?.includes('HOTFIX')) {
+			return 'HOTFIX';
+		}
 		return 'LIVE';
 	};
 	let logVersionSelect = $state<LogVersion>(getLogVersion()); // LIVE, PTU
-	let logVersionSelectOptions = $state<LogVersion[]>(['LIVE', 'PTU']);
+	let logVersionSelectOptions = $state<LogVersion[]>(['LIVE', 'PTU', 'HOTFIX']);
 	let selectVersion = (e: Event) => {
 		logLocation = (e.target as HTMLSelectElement).value;
 	};
@@ -302,7 +305,7 @@
 		&::picker(select) {
 			appearance: base-select;
 			background-color: rgba(255, 255, 255, 0.1);
-			width: 100px;
+			width: 120px;
 			overflow: hidden;
 			border: 1px solid rgba(255, 255, 255, 0.2);
 			border-radius: 4px;

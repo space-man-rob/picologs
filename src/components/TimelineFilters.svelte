@@ -10,11 +10,13 @@
 	} = $props();
 
 	type EventType =
+		| 'connection'
 		| 'vehicle_control_flow'
 		| 'actor_death'
 		| 'destruction'
 		| 'location_change'
-		| 'other';
+		| 'other'
+		| 'corpsify';
 
 	type Filters = {
 		eventTypes: Record<EventType, boolean>;
@@ -32,6 +34,8 @@
 			actor_death: true,
 			destruction: true,
 			location_change: true,
+			connection: true,
+			corpsify: true,
 			other: true
 		},
 		search: '',
@@ -139,6 +143,13 @@
 							bind:checked={filters.eventTypes.location_change}
 							onchange={handleFilterChange} />
 						🔍 Location Changes
+					</label>
+					<label>
+						<input
+							type="checkbox"
+							bind:checked={filters.eventTypes.corpsify}
+							onchange={handleFilterChange} />
+						🧟 Corpsify
 					</label>
 					<label>
 						<input
