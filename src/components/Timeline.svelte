@@ -23,7 +23,9 @@
 			location_change: true,
 			other: true,
 			destruction: true,
-			killing_spree: true
+			killing_spree: true,
+			connection: true,
+			corpsify: true
 		},
 		search: '',
 		players: {
@@ -282,6 +284,18 @@
 						}
 					}
 					break;
+				case 'connection':
+					if (item.player) {
+						playerLocationEvents[item.player] = item;
+					}
+					break;
+				case 'corpsify':
+					if (item.player) {
+						playerLocationEvents[item.player] = item;
+					}
+					break;
+				default:
+					break;
 			}
 
 			if (!isDuplicate) {
@@ -292,6 +306,7 @@
 		return consolidatedEvents;
 	});
 
+	$inspect(computedEvents);
 </script>
 
 <div class="timeline-container">

@@ -621,6 +621,12 @@
 									});
 								}
 								break;
+							case 'corpsify':
+								if (message.log) {
+									const log = message.log;
+									await appendLogToDisk(log);
+								}
+								break;
 							default:
 						}
 					} catch (e) {}
@@ -823,15 +829,16 @@
 							}
 						}
 						if (playerName && !already_connected[playerName]) {
-						logEntry = {
-							id: generateLogId(line),
-							userId: playerId!,
-							player: playerName,
-							emoji: '🛜',
-							line: `${playerName || 'Player'} connected to the game`,
-							timestamp,
-							original: line,
-								open: false
+							logEntry = {
+								id: generateLogId(line),
+								userId: playerId!,
+								player: playerName,
+								emoji: '🛜',
+								line: `${playerName || 'Player'} connected to the game`,
+								timestamp,
+								original: line,
+								open: false,
+								eventType: 'connection'
 							};
 							already_connected[playerName] = true;
 						}
@@ -1036,6 +1043,25 @@
 									vehicleId,
 									team,
 									entityType
+								}
+							};
+						}
+					} else if (line.includes('<[ActorState] Corpse>') && line.includes('Running corpsify')) {
+						const match = line.match(/Player '([^']+)'/);
+						if (match) {
+							const eventPlayerName = match[1];
+							logEntry = {
+								id: generateLogId(line),
+								userId: playerId!,
+								player: playerName,
+								emoji: '🧟',
+								line: `${eventPlayerName} is being turned into a corpse.`,
+								timestamp,
+								original: line,
+								open: false,
+								eventType: 'corpsify',
+								metadata: {
+									player: eventPlayerName
 								}
 							};
 						}

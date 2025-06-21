@@ -163,6 +163,8 @@
 			</div>
 		{:else if eventType === 'system_quit'}
 			<div class="line">{player} left the game</div>
+		{:else if eventType === 'corpsify'}
+			<div class="line">{line}</div>
 		{:else}
 			<div class="line">{line}</div>
 		{/if}

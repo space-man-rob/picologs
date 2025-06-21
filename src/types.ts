@@ -9,13 +9,15 @@ export type Log = {
 	open: boolean;
 	reportedBy?: string[];
 	eventType?:
+		| 'connection'
 		| 'vehicle_control_flow'
 		| 'actor_death'
 		| 'location_change'
 		| 'actor_spawn'
 		| 'destruction'
 		| 'system_quit'
-		| 'killing_spree';
+		| 'killing_spree'
+		| 'corpsify';
 	metadata?: {
 		vehicleName?: string;
 		vehicleId?: string;
@@ -35,6 +37,9 @@ export type Log = {
 		destroyLevelTo?: string;
 		causeName?: string;
 		causeId?: string;
+		player?: string;
+		reason?: string;
+		spawnpoint?: string;
 	};
 	ship?: {
 		vehicleId: string;
