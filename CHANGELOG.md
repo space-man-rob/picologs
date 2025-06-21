@@ -1,5 +1,12 @@
 # Picologs Changelog
 
+## Sunday 22nd June 2025
+
+### 0.12.0
+
+* 'HOTFIX' as a log version option
+* Event type: 🧟 Corpsify
+
 ## Monday 9th June 2025
 
 ### 0.11.2

@@ -77,26 +77,6 @@
 		justify-content: space-between;
 	}
 
-	.remove-friend-btn {
-		background: none;
-		color: rgba(255, 128, 128, 0.7);
-		border: none;
-		border-radius: 50%;
-		width: 24px;
-		height: 24px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		transition: all 0.2s ease;
-		position: absolute;
-		right: 0.7rem;
-		top: 0.7rem;
-	}
-
-	.remove-friend-btn:hover {
-		background: rgba(255, 80, 80, 0.15);
-		color: #ff8080;
-	}
 
 	.pending-label {
 		display: inline-block;
