@@ -23,7 +23,7 @@
       "csp": null,
       "dangerousRemoteDomainIpcAccess": [
         {
-          "domain": "picologs.vercel.app",
+          "domain": "picologs.com",
           "enableTauriAPI": false
         },
         {
