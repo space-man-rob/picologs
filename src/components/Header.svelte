@@ -20,7 +20,8 @@
 		playerName,
 		clearLogs,
 		updateInfo,
-		installUpdate
+		installUpdate,
+		connectionError
 	} = $props();
 
 
@@ -106,13 +107,13 @@
 			</span>
 		</button>
 		{#if logLocation}
-		<select class="log-version-select" value={logLocation} onchange={selectVersion} title="Select Game.log file">
+		<select class="log-version-select" bind:value={logVersionSelect} onchange={selectVersion} title="Select Game.log file">
 			{#each logVersionSelectOptions as option}
-				<option value={option} selected={logVersionSelect === option}>
+				<option value={option}>
 					{option}
-					</option>
-				{/each}
-			</select>
+				</option>
+			{/each}
+		</select>
 		{:else}
 			<button class="log-version-choose-button" onclick={selectFile} title="Select Game.log file">
 				<FileText size={18} />Select Game.log file
@@ -124,7 +125,7 @@
 		</button>
 		<!-- <button onclick={clearSettings} title="Clear all settings and log file">Clear Settings</button> -->
 
-		<button class="online-status-button" onclick={toggleOnlineStatus}>
+		<button class="online-status-button" onclick={toggleOnlineStatus} title={connectionError || ''}>
 			{#if connectionStatus === 'connecting'}
 				<div class="spinner"></div>
 			{:else}
@@ -142,6 +143,12 @@
 		</button>
 	</aside>
 </header>
+
+{#if connectionError}
+	<div class="connection-error-banner">
+		⚠️ Connection lost. <button class="reconnect-button" onclick={connectWebSocket}>Click here to try to connect again</button>
+	</div>
+{/if}
 
 <style>
 	header {
@@ -312,5 +319,46 @@
 
 	.update-button {
 		background-color: #4caf50;
+	}
+
+	.connection-error-banner {
+		background: #f44336;
+		color: white;
+		padding: 0.5rem 1rem;
+		text-align: center;
+		font-size: 0.9rem;
+		border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+		animation: slideDown 0.3s ease-out;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
+	}
+
+	.reconnect-button {
+		background-color: rgba(255, 255, 255, 0.9);
+		color: #f44336;
+		border: none;
+		padding: 0.3rem 0.8rem;
+		font-weight: 600;
+		border-radius: 4px;
+		cursor: pointer;
+		transition: background-color 0.2s ease-in-out;
+		font-size: 0.85rem;
+	}
+
+	.reconnect-button:hover {
+		background-color: white;
+	}
+
+	@keyframes slideDown {
+		from {
+			opacity: 0;
+			transform: translateY(-10px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
 	}
 </style>

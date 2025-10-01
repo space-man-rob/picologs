@@ -35,6 +35,10 @@
 	let copiedStatusVisible = $state(false);
 	let pendingFriendRequests = $state<{ friendCode: string }[]>([]);
 	let autoConnectionAttempted = $state(false);
+	let reconnectAttempts = $state(0);
+	let reconnectTimer = $state<ReturnType<typeof setTimeout> | null>(null);
+	const MAX_RECONNECT_ATTEMPTS = 5;
+	let connectionError = $state<string | null>(null);
 	let friendsList = $state<FriendType[]>([]);
 	let pendingFriendRequest = $state<{
 		fromUserId: string;
@@ -207,13 +211,22 @@
 		// Need at least a discordUserId to connect (can be temporary for OAuth)
 		if (!discordUserId) {
 			console.log('[WebSocket] Not connecting - no user ID available');
+			connectionError = 'Please sign in with Discord to connect';
 			return;
 		}
 
 		if (ws && ws.readyState === WebSocket.OPEN) {
 			return;
 		}
+
+		// Clear any existing reconnection timer
+		if (reconnectTimer) {
+			clearTimeout(reconnectTimer);
+			reconnectTimer = null;
+		}
+
 		connectionStatus = 'connecting';
+		connectionError = null;
 
 		try {
 			// Use local WebSocket server for development
@@ -224,6 +237,12 @@
 
 			socket.onopen = () => {
 				connectionStatus = 'connected';
+				connectionError = null;
+				reconnectAttempts = 0;
+				if (reconnectTimer) {
+					clearTimeout(reconnectTimer);
+					reconnectTimer = null;
+				}
 				console.log('[WebSocket] Connected, registering with Discord user ID:', discordUserId);
 				try {
 					if (discordUserId && friendCode) {
@@ -474,23 +493,36 @@
 			};
 
 			socket.onclose = (event) => {
+				console.log('[WebSocket] Connection closed:', event.code, event.reason);
 				connectionStatus = 'disconnected';
 				ws = null;
 				autoConnectionAttempted = false;
 
 				friendsList = friendsList.map((friend) => ({ ...friend, isOnline: false }));
 				saveFriendsListToStore();
+
+				// Show error message if not a normal closure
+				if (event.code !== 1000) {
+					connectionError = 'Connection lost';
+				} else {
+					connectionError = null;
+				}
 			};
 
 			socket.onerror = (error) => {
+				console.error('[WebSocket] Connection error:', error);
 				connectionStatus = 'disconnected';
+				connectionError = 'Failed to connect to server. Retrying...';
 				ws = null;
 				autoConnectionAttempted = false;
 
 				friendsList = friendsList.map((friend) => ({ ...friend, isOnline: false }));
 				saveFriendsListToStore();
 			};
-		} catch (error) {}
+		} catch (error) {
+			console.error('[WebSocket] Failed to connect:', error);
+			connectionError = 'Unable to connect to server. Check your internet connection.';
+		}
 	}
 
 	onMount(async () => {
@@ -1134,7 +1166,8 @@
 		{isSignedIn}
 		{discordUser}
 		{handleSignIn}
-		{handleSignOut} />
+		{handleSignOut}
+		{connectionError} />
 
 	<div class="content">
 		<div class="friends-sidebar">

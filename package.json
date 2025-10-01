@@ -1,6 +1,6 @@
 {
   "name": "picologs",
-  "version": "0.13.0",
+  "version": "0.12.0",
   "description": "A tool for viewing and filtering the logs of a game",
   "type": "module",
   "scripts": {
@@ -14,6 +14,7 @@
   "license": "MIT",
   "dependencies": {
     "@tauri-apps/api": "^2.8.0",
+    "@tauri-apps/plugin-deep-link": "^2.4.3",
     "@tauri-apps/plugin-dialog": "~2.4.0",
     "@tauri-apps/plugin-fs": "~2.4.2",
     "@tauri-apps/plugin-opener": "^2.5.0",
