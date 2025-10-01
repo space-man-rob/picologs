@@ -1,289 +1,155 @@
 <script lang="ts">
-	import { appDataDir } from '@tauri-apps/api/path';
-	import { open } from '@tauri-apps/plugin-dialog';
 	import { readTextFile, watchImmediate, writeFile } from '@tauri-apps/plugin-fs';
 	import { load } from '@tauri-apps/plugin-store';
-	import { check } from '@tauri-apps/plugin-updater';
-	import { relaunch } from '@tauri-apps/plugin-process';
+	import { open } from '@tauri-apps/plugin-dialog';
+	import Item from '../components/Item.svelte';
 	import { onMount } from 'svelte';
+	import Friends from '../components/Friends.svelte';
+	import User from '../components/User.svelte';
+	import AddFriend from '../components/AddFriend.svelte';
+	import type { Log, Friend as FriendType } from '../types';
+	import { appDataDir } from '@tauri-apps/api/path';
 	import Header from '../components/Header.svelte';
-	import Resizer from '../components/Resizer.svelte';
-	import Timeline from '../components/Timeline.svelte';
-	import WebsiteIframe from '../components/WebsiteIframe.svelte';
-	import type { Friend as FriendType, Log } from '../types';
+	import PendingFriendRequests from '../components/PendingFriendRequests.svelte';
+	import { ask } from '@tauri-apps/plugin-dialog';
+	import { check } from '@tauri-apps/plugin-updater';
+	import { loginWithDiscord, loadAuthData, signOut, handleAuthComplete } from '$lib/oauth';
+	import { onOpenUrl } from '@tauri-apps/plugin-deep-link';
+
+	// Authentication state
+	let isSignedIn = $state(false);
+	let discordUser = $state<{ username: string; avatar: string | null } | null>(null);
+	let discordUserId = $state<string | null>(null); // Discord user ID for WebSocket auth
 
 	let ws = $state<WebSocket | null>(null);
 	let file = $state<string | null>(null);
 	let fileContent = $state<Log[]>([]);
-	let groupedFileContent = $derived(groupRelatedEvents(fileContent));
 	let friendCode = $state<string | null>(null);
 	let playerName = $state<string | null>(null);
-	let playerId = $state<string | null>(null);
+	let playerId = $state<string | null>(null); // Star Citizen player ID from Game.log
 	let tick = $state(0);
 	let logLocation = $state<string | null>(null);
 	let prevLineCount = $state<number>(0);
 	let lineCount = $state<number>(0);
 	let connectionStatus = $state<'connected' | 'disconnected' | 'connecting'>('disconnected');
 	let copiedStatusVisible = $state(false);
-	let friendsList = $state<FriendType[]>([]); // Keep for Timeline component compatibility
-	let onlyProcessLogsAfterThisDateTimeStamp = $state<number | null>(null);
-	let fileContentContainer = $state<HTMLDivElement | null>(null);
-	let endWatch: () => void;
-	let hasInitialised = $state(false);
-	let updateInfo = $state<any>(null);
-	let saveLogsPromise: Promise<void> = Promise.resolve();
-	let connectionAttemptTimeout: ReturnType<typeof setTimeout> | null = null;
+	let pendingFriendRequests = $state<{ friendCode: string }[]>([]);
+	let autoConnectionAttempted = $state(false);
+	let friendsList = $state<FriendType[]>([]);
+	let pendingFriendRequest = $state<{
+		fromUserId: string;
+		fromFriendCode: string;
+		fromPlayerName?: string;
+		fromTimezone?: string;
+	} | null>(null);
+	let currentUserDisplayData = $state<FriendType | null>(null);
+	let lastPendingRequestId = $state<string | null>(null);
 
-	async function withLogFileLock<T>(fn: () => Promise<T>): Promise<T> {
-		const previousPromise = saveLogsPromise;
-		let resolveFn: () => void;
-		saveLogsPromise = new Promise((resolve) => {
-			resolveFn = resolve;
-		});
+	// Authentication functions
+	async function handleSignIn() {
+		// Ensure friendCode exists
+		if (!friendCode) {
+			friendCode = crypto.randomUUID().substring(0, 6);
+			const store = await load('store.json', { autoSave: false });
+			await store.set('friendCode', friendCode);
+			await store.save();
+			console.log('[Auth] Generated friend code:', friendCode);
+		}
 
-		await previousPromise;
+		// Generate a temporary ID for OAuth callback if no Discord ID yet
+		const tempAuthId = discordUserId || crypto.randomUUID();
+
+		console.log('[Auth] Starting OAuth flow with temp ID:', tempAuthId);
+
+		// Connect to WebSocket FIRST so we can receive auth_complete message
+		if (!ws || ws.readyState !== WebSocket.OPEN) {
+			// Temporarily set discordUserId so WebSocket can connect
+			const originalDiscordUserId = discordUserId;
+			discordUserId = tempAuthId;
+
+			try {
+				await connectWebSocket();
+				console.log('[Auth] WebSocket connected, ready to receive auth callback');
+			} catch (error) {
+				console.error('[Auth] Failed to connect WebSocket:', error);
+				discordUserId = originalDiscordUserId;
+				alert('Failed to connect to server. Please try again.');
+				return;
+			}
+		}
+
 		try {
-			return await fn();
-		} finally {
-			resolveFn!();
-		}
-	}
+			const { user, tokens } = await loginWithDiscord(tempAuthId);
 
-	function groupRelatedEvents(logs: Log[]): Log[] {
-		const workingLogs: Log[] = JSON.parse(JSON.stringify(logs));
-		const childLogIds = new Set<string>();
-
-		// Reset children to avoid duplicates on re-processing, important for reactivity
-		for (const log of workingLogs) {
-			if (log.children) {
-				log.children = [];
-			}
-		}
-
-		// Group destruction events
-		const destructionMap = new Map<string, Log>(); // vehicleId -> parent log
-		for (const log of workingLogs) {
-			if (childLogIds.has(log.id)) continue;
-
-			let vehicleId: string | undefined;
-			if (log.eventType === 'destruction' && log.metadata?.vehicleId) {
-				vehicleId = log.metadata.vehicleId;
-			} else if (
-				log.eventType === 'actor_death' &&
-				log.metadata?.damageType === 'VehicleDestruction' &&
-				log.metadata?.zone
-			) {
-				const vehicleIdMatch = log.metadata.zone.match(/_(\d+)$/);
-				if (vehicleIdMatch) vehicleId = vehicleIdMatch[1];
-			}
-
-			if (vehicleId) {
-				const parentLog = destructionMap.get(vehicleId);
-				if (parentLog) {
-					const timeDiff =
-						new Date(log.timestamp).getTime() - new Date(parentLog.timestamp).getTime();
-
-					if (timeDiff >= 0 && timeDiff < 60000) {
-						// Upgrade to hard death if applicable
-						if (
-							log.eventType === 'destruction' &&
-							log.metadata?.destroyLevelTo === '2' &&
-							parentLog.metadata?.destroyLevelTo === '1'
-						) {
-							log.children = [...(parentLog.children || []), parentLog];
-							childLogIds.add(parentLog.id);
-							destructionMap.set(vehicleId, log); // New parent
-						} else {
-							if (!parentLog.children) parentLog.children = [];
-							parentLog.children.push(log);
-							childLogIds.add(log.id);
-						}
-					} else if (timeDiff >= 60000) {
-						// Treat as a new event if it's much later
-						destructionMap.set(vehicleId, log);
-					}
-				} else {
-					destructionMap.set(vehicleId, log);
-				}
-			}
-		}
-
-		let finalLogs = workingLogs.filter((log) => !childLogIds.has(log.id));
-
-		// Group killing sprees
-		const spreeTimeWindow = 2 * 60 * 1000;
-		const minKillsForSpree = 2;
-		const spreeChildLogIds = new Set<string>();
-
-		const standaloneActorDeaths = finalLogs.filter(
-			(log) =>
-				log.eventType === 'actor_death' &&
-				log.metadata?.killerId &&
-				log.metadata.killerId !== '0' &&
-				log.metadata.killerId !== log.metadata.victimId &&
-				log.metadata.damageType !== 'VehicleDestruction'
-		);
-
-		const killsByPlayer = new Map<string, Log[]>();
-		for (const death of standaloneActorDeaths) {
-			const killerId = death.metadata!.killerId!;
-			if (!killsByPlayer.has(killerId)) {
-				killsByPlayer.set(killerId, []);
-			}
-			killsByPlayer.get(killerId)!.push(death);
-		}
-
-		const spreeParents = new Map<string, Log>();
-		for (const kills of killsByPlayer.values()) {
-			if (kills.length < minKillsForSpree) continue;
-			// Sort by time to find sprees accurately
-			kills.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-
-			let currentSpree: Log[] = [];
-			const processSpree = () => {
-				if (currentSpree.length >= minKillsForSpree) {
-					const firstKill = currentSpree[0];
-					const parentLog = {
-						...firstKill,
-						id: `${firstKill.id}-spree-${currentSpree.length}`,
-						eventType: 'killing_spree' as const,
-						line: `${firstKill.metadata!.killerName} is on a killing spree (${currentSpree.length} kills)`,
-						emoji: '🎯',
-						children: currentSpree.map((l) => ({ ...l, children: [] }))
-					};
-					spreeParents.set(firstKill.id, parentLog);
-					for (const kill of currentSpree) {
-						spreeChildLogIds.add(kill.id);
-					}
-				}
+			// Store Discord authentication
+			discordUserId = user.id; // Use Discord's user ID
+			isSignedIn = true;
+			discordUser = {
+				username: user.global_name || user.username,
+				avatar: user.avatar
 			};
 
-			for (let i = 0; i < kills.length; i++) {
-				if (currentSpree.length === 0) {
-					currentSpree.push(kills[i]);
-				} else {
-					const lastKillTime = new Date(
-						currentSpree[currentSpree.length - 1].timestamp
-					).getTime();
-					const currentKillTime = new Date(kills[i].timestamp).getTime();
-					if (currentKillTime - lastKillTime < spreeTimeWindow) {
-						currentSpree.push(kills[i]);
-					} else {
-						processSpree();
-						currentSpree = [kills[i]];
-					}
-				}
-			}
-			processSpree();
-		}
+			console.log('[Auth] Successfully authenticated:', user.username);
+			console.log('[Auth] Discord user ID:', discordUserId);
 
-		const logsWithSprees: Log[] = [];
-		for (const log of finalLogs) {
-			if (spreeParents.has(log.id)) {
-				logsWithSprees.push(spreeParents.get(log.id)!);
-			} else if (!spreeChildLogIds.has(log.id)) {
-				logsWithSprees.push(log);
-			}
-		}
+			// Save Discord user ID to store
+			const store = await load('store.json', { autoSave: false });
+			await store.set('discordUserId', discordUserId);
+			await store.save();
 
-		return logsWithSprees.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+			// Reconnect WebSocket with real Discord ID
+			if (ws && ws.readyState === WebSocket.OPEN) {
+				ws.close();
+			}
+			await connectWebSocket();
+		} catch (error) {
+			console.error('Authentication failed:', error);
+			alert(`Sign in failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+		}
 	}
 
-	onMount(async () => {
-		await checkForUpdates();
-
-		const store = await load('store.json', { autoSave: false });
-		const savedFile = await store.get<string>('lastFile');
-		const savedFriendCode = await store.get<string>('friendCode');
-		const savedFriendsList = await store.get<FriendType[]>('friendsList');
-		const savedPlayerName = await store.get<string>('playerName');
-		const savedPendingFriendRequests =
-			await store.get<{ friendCode: string }[]>('pendingFriendRequests');
-
-		if (savedPlayerName) {
-			playerName = savedPlayerName;
-		}
-
-		if (savedFriendsList) {
-			friendsList = savedFriendsList.map((friend) => ({ ...friend, isOnline: false }));
-		}
-
-		if (savedPendingFriendRequests) {
-			pendingFriendRequests = savedPendingFriendRequests;
-		}
-
-		let storedPlayerId = await store.get<string>('id');
-
-		if (!savedFriendCode) {
-			friendCode = generateId(6);
-			await store.set('friendCode', friendCode);
-		} else {
-			friendCode = savedFriendCode;
-		}
-
-		if (storedPlayerId) {
-			playerId = storedPlayerId;
-		} else if (savedFile) {
-			const pathPartsForId = savedFile.replace(/\\/g, '/').split('/');
-			playerId = pathPartsForId.length > 1 ? pathPartsForId.slice(-2, -1)[0] : generateId();
-			await store.set('id', playerId);
-		}
-
-		await store.save();
-
-		// Load logs from disk first
-		const storedLogs = await loadLogsFromDisk();
-		if (storedLogs && Array.isArray(storedLogs) && storedLogs.length > 0) {
-			fileContent = dedupeAndSortLogs(storedLogs);
-			// Set the timestamp filter to the newest log in logs.json
-			const newestLog = storedLogs.reduce((latest, current) => {
-				return new Date(current.timestamp).getTime() > new Date(latest.timestamp).getTime()
-					? current
-					: latest;
-			});
-			onlyProcessLogsAfterThisDateTimeStamp = new Date(newestLog.timestamp).getTime();
-		} else {
-			fileContent = storedLogs || []; // Initialize if no logs or empty
-		}
-
+	async function handleSignOut() {
 		try {
-			logLocation = savedFile?.replace(/\\/g, '/').split('/').slice(-2, -1)[0] || null;
+			await signOut();
+			isSignedIn = false;
+			discordUser = null;
+			discordUserId = null;
 
-			if (savedFile) {
-				file = savedFile;
-				await handleFile(file); // Process game log, respecting onlyProcessLogsAfterThisDateTimeStamp
-				handleInitialiseWatch(file);
+			// Clear Discord user ID from store
+			const store = await load('store.json', { autoSave: false });
+			await store.delete('discordUserId');
+			await store.save();
+
+			// Disconnect WebSocket when signing out
+			if (ws && ws.readyState === WebSocket.OPEN) {
+				ws.close();
 			}
-		} catch (error) {}
+			connectionStatus = 'disconnected';
 
-		if (playerId && friendCode && file && (!ws || ws.readyState !== WebSocket.OPEN)) {
-			connectWebSocket();
+			console.log('[Auth] Successfully signed out');
+		} catch (error) {
+			console.error('Sign out failed:', error);
 		}
-
-		hasInitialised = true;
-	});
+	}
 
 	async function getLogFilePath(): Promise<string> {
 		const dir = await appDataDir();
 		return dir.endsWith('/') ? `${dir}logs.json` : `${dir}/logs.json`;
 	}
 
+	// Utility to deduplicate and sort logs by id and timestamp
 	function dedupeAndSortLogs(logs: Log[]): Log[] {
 		const seen = new Set<string>();
-		const deduped: Log[] = [];
-
-		const sortedLogs = [...logs].sort(
-			(a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-		);
-
-		for (const log of sortedLogs) {
-			const uniquenessKey = log.original ? `${log.original.trim()}-${log.userId}` : log.id;
-			if (!seen.has(uniquenessKey)) {
-				seen.add(uniquenessKey);
+		const deduped = [];
+		for (const log of logs) {
+			if (!seen.has(log.id)) {
+				seen.add(log.id);
 				deduped.push(log);
 			}
 		}
-		return deduped;
+		return deduped.sort(
+			(a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+		);
 	}
 
 	async function loadLogsFromDisk(): Promise<Log[]> {
@@ -297,44 +163,34 @@
 	}
 
 	async function saveLogsToDisk(logs: Log[]): Promise<void> {
-		const data = JSON.stringify(logs, null, 2);
+		const encoder = new TextEncoder();
+		const data = encoder.encode(JSON.stringify(dedupeAndSortLogs(logs), null, 2));
 		const filePath = await getLogFilePath();
-		await writeFile(filePath, new TextEncoder().encode(data));
+		await writeFile(filePath, data);
 	}
 
 	async function appendLogToDisk(newLog: Log): Promise<void> {
-		await withLogFileLock(async () => {
-			const logs = await loadLogsFromDisk();
-			logs.push(newLog);
-			const allLogs = dedupeAndSortLogs(logs);
-			await saveLogsToDisk(allLogs);
-			fileContent = allLogs;
-		});
+		const logs = await loadLogsFromDisk();
+		logs.push(newLog);
+		const logsToSave = logs.map((log) => (log.userId ? log : { ...log, userId: playerId! }));
+		await saveLogsToDisk(logsToSave);
 	}
 
+	let onlyProcessLogsAfterThisDateTimeStamp = $state<number | null>(null);
 	async function clearLogs() {
-		await withLogFileLock(async () => {
-			await saveLogsToDisk([]);
-		});
+		await saveLogsToDisk([]);
 		fileContent = [];
 		prevLineCount = 0;
 		lineCount = 0;
 		onlyProcessLogsAfterThisDateTimeStamp = new Date().getTime();
-		const store = await load('store.json', { autoSave: false });
-		await store.set('lastFile', null);
-		await store.save();
 	}
 
-	function generateLogId(line: string): string {
-		let hash = 0;
-		if (line.length === 0) return '0';
-		for (let i = 0; i < line.length; i++) {
-			const char = line.charCodeAt(i);
-			hash = (hash << 5) - hash + char;
-			hash = hash & hash; // Convert to 32bit integer
+	setInterval(() => {
+		tick += 1;
+		if (tick > 5 && file) {
+			handleFile(file);
 		}
-		return hash.toString();
-	}
+	}, 1000);
 
 	function generateId(length: number = 10) {
 		return crypto.randomUUID().slice(0, length);
@@ -343,53 +199,49 @@
 	function sendLogViaWebSocket(log: Log) {
 		if (ws && ws.readyState === WebSocket.OPEN) {
 			ws.send(JSON.stringify({ type: 'log', log }));
+			console.log('Sent log via WebSocket:', log);
 		}
 	}
 
 	async function connectWebSocket() {
-		const store = await load('store.json', { autoSave: false });
-		const wouldGoOnline = await store.get<boolean>('wouldGoOnline');
-		if (!wouldGoOnline) {
+		// Need at least a discordUserId to connect (can be temporary for OAuth)
+		if (!discordUserId) {
+			console.log('[WebSocket] Not connecting - no user ID available');
 			return;
 		}
+
 		if (ws && ws.readyState === WebSocket.OPEN) {
 			return;
 		}
-		if (connectionStatus === 'connecting') return; // Avoid multiple concurrent attempts
-
 		connectionStatus = 'connecting';
-		if (connectionAttemptTimeout) clearTimeout(connectionAttemptTimeout);
-		connectionAttemptTimeout = setTimeout(() => {
-			if (connectionStatus === 'connecting') {
-				alert('Connection attempt timed out. Please try again.');
-				disconnectWebSocket();
-			}
-		}, 10000); // 10 second timeout
 
 		try {
-			const socket = new WebSocket('wss://picologs-server.fly.dev/ws');
+			// Use local WebSocket server for development
+		const wsUrl = import.meta.env.DEV ? 'ws://localhost:8080/ws' : 'wss://picologs-server.fly.dev/ws';
+		console.log('[WebSocket] Connecting to:', wsUrl);
+		const socket = new WebSocket(wsUrl);
 			ws = socket;
 
 			socket.onopen = () => {
-				if (connectionAttemptTimeout) {
-					clearTimeout(connectionAttemptTimeout);
-					connectionAttemptTimeout = null;
-				}
 				connectionStatus = 'connected';
+				console.log('[WebSocket] Connected, registering with Discord user ID:', discordUserId);
 				try {
-					if (playerId && friendCode) {
+					if (discordUserId && friendCode) {
 						socket.send(
 							JSON.stringify({
 								type: 'register',
-								userId: playerId,
+								userId: discordUserId, // Use Discord user ID instead of Star Citizen player ID
 								friendCode: friendCode,
-								playerName: playerName,
+								playerName: playerName || playerId, // Use SC player ID as display name if no custom name
 								timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
 							})
 						);
 					} else {
+						console.log('[WebSocket] Cannot register - missing discordUserId or friendCode');
 					}
-				} catch (sendError) {}
+				} catch (sendError) {
+					console.error('[WebSocket] Registration error:', sendError);
+				}
 			};
 
 			socket.onmessage = async (event) => {
@@ -399,8 +251,13 @@
 
 						switch (message.type) {
 							case 'welcome':
+								console.log('[WebSocket] ✅ Received welcome message from server');
+								break;
+							case 'registered':
+								console.log('[WebSocket] ✅ Successfully registered with server as:', discordUserId);
 								break;
 							case 'registration_success':
+								console.log('[WebSocket] ✅ Successfully registered with server');
 								break;
 							case 'auto_initiate_offer':
 								if (message.targetUserId && !autoConnectionAttempted) {
@@ -426,16 +283,28 @@
 											responderTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone
 										})
 									);
-
-									// Avoid duplicates
-									if (!incomingFriendRequests.some((req) => req.fromUserId === message.fromUserId)) {
-										const newRequest = {
+									const requestId = `${message.fromUserId}:${message.fromFriendCode}`;
+									if (
+										pendingFriendRequest?.fromUserId !== message.fromUserId ||
+										lastPendingRequestId !== requestId
+									) {
+										pendingFriendRequest = {
 											fromUserId: message.fromUserId,
 											fromFriendCode: message.fromFriendCode,
 											fromPlayerName: message.fromPlayerName,
 											fromTimezone: message.fromTimezone
 										};
-										incomingFriendRequests = [...incomingFriendRequests, newRequest];
+										lastPendingRequestId = requestId;
+
+										const answer = await ask(
+											`Accept friend request from ${pendingFriendRequest?.fromPlayerName || pendingFriendRequest?.fromFriendCode}`,
+											{
+												title: 'Accept friend request',
+												kind: 'info'
+											}
+										);
+
+										handleFriendRequestResponse(answer);
 									}
 								}
 								break;
@@ -548,12 +417,11 @@
 								}
 								break;
 							case 'error':
-								if (message.message && message.message.includes('User ID') && message.message.includes('already in use')) {
-									disconnectWebSocket();
-									alert(
-										'This user ID is already in use, possibly in another Picologs window. The app will now restart to resolve the conflict.'
-									);
-									await relaunch();
+								break;
+							case 'auth_complete':
+								if (message.data?.user && message.data?.tokens) {
+									console.log('[WebSocket] Received auth_complete message');
+									handleAuthComplete(message.data);
 								}
 								break;
 							case 'log':
@@ -565,14 +433,8 @@
 									);
 									const isFromMe = log.userId === playerId;
 									if (isFromFriend || isFromMe) {
-										if (!isFromMe && log.emoji === '🛜' && already_connected[log.userId]) {
-											// Don't show duplicate connection logs
-										} else if (log.emoji === '🛜' && !already_connected[log.userId]) {
-											already_connected[log.userId] = true;
-											await appendLogToDisk(log); // Save to disk
-										} else {
-											await appendLogToDisk(log); // Save to disk
-										}
+										fileContent = dedupeAndSortLogs([...fileContent, log]);
+										appendLogToDisk(log); // Save to disk
 									}
 								}
 								break;
@@ -597,19 +459,11 @@
 								break;
 							case 'sync_logs':
 								if (message.logs && Array.isArray(message.logs)) {
-									await withLogFileLock(async () => {
-										// Merge, dedupe, and save logs
-										const localLogs = await loadLogsFromDisk();
-										const allLogs = dedupeAndSortLogs([...localLogs, ...message.logs]);
-										await saveLogsToDisk(allLogs);
-										fileContent = allLogs;
-									});
-								}
-								break;
-							case 'corpsify':
-								if (message.log) {
-									const log = message.log;
-									await appendLogToDisk(log);
+									// Merge, dedupe, and save logs
+									const localLogs = await loadLogsFromDisk();
+									const allLogs = dedupeAndSortLogs([...localLogs, ...message.logs]);
+									await saveLogsToDisk(allLogs);
+									fileContent = allLogs;
 								}
 								break;
 							default:
@@ -620,10 +474,6 @@
 			};
 
 			socket.onclose = (event) => {
-				if (connectionAttemptTimeout) {
-					clearTimeout(connectionAttemptTimeout);
-					connectionAttemptTimeout = null;
-				}
 				connectionStatus = 'disconnected';
 				ws = null;
 				autoConnectionAttempted = false;
@@ -633,12 +483,6 @@
 			};
 
 			socket.onerror = (error) => {
-				if (connectionAttemptTimeout) {
-					clearTimeout(connectionAttemptTimeout);
-					connectionAttemptTimeout = null;
-				}
-				console.error('WebSocket connection failed:', error);
-				alert('Failed to connect to the server. Please check your internet connection and try again.');
 				connectionStatus = 'disconnected';
 				ws = null;
 				autoConnectionAttempted = false;
@@ -646,33 +490,138 @@
 				friendsList = friendsList.map((friend) => ({ ...friend, isOnline: false }));
 				saveFriendsListToStore();
 			};
-		} catch (error) {
-			if (connectionAttemptTimeout) {
-				clearTimeout(connectionAttemptTimeout);
-				connectionAttemptTimeout = null;
-			}
-			console.error('WebSocket connection failed:', error);
-			alert('Failed to connect to the server. Please check your internet connection and try again.');
-			connectionStatus = 'disconnected';
-			ws = null;
-			autoConnectionAttempted = false;
-
-			friendsList = friendsList.map((friend) => ({ ...friend, isOnline: false }));
-			saveFriendsListToStore();
-		}
+		} catch (error) {}
 	}
+
+	onMount(async () => {
+		// Load authentication data
+		const authData = await loadAuthData();
+		if (authData) {
+			isSignedIn = true;
+			discordUser = {
+				username: authData.user.global_name || authData.user.username,
+				avatar: authData.user.avatar
+			};
+		}
+
+		const store = await load('store.json', { autoSave: false });
+		const savedFile = await store.get<string>('lastFile');
+		const savedFriendCode = await store.get<string>('friendCode');
+		const savedFriendsList = await store.get<FriendType[]>('friendsList');
+		const savedPlayerName = await store.get<string>('playerName');
+		const savedPendingFriendRequests =
+			await store.get<{ friendCode: string }[]>('pendingFriendRequests');
+
+		if (savedPlayerName) {
+			playerName = savedPlayerName;
+		}
+
+		if (savedFriendsList) {
+			friendsList = savedFriendsList.map((friend) => ({ ...friend, isOnline: false }));
+		}
+
+		if (savedPendingFriendRequests) {
+			pendingFriendRequests = savedPendingFriendRequests;
+		}
+
+		// Load Discord authentication state
+		const storedDiscordUserId = await store.get<string>('discordUserId');
+		if (storedDiscordUserId) {
+			discordUserId = storedDiscordUserId;
+			console.log('[Init] Loaded Discord user ID:', discordUserId);
+
+			// Load Discord user data from auth store
+			const authData = await loadAuthData();
+			if (authData) {
+				isSignedIn = true;
+				discordUser = {
+					username: authData.user.global_name || authData.user.username,
+					avatar: authData.user.avatar
+				};
+				console.log('[Init] Restored Discord auth session');
+			}
+		}
+
+		if (!savedFriendCode) {
+			friendCode = generateId(6);
+			await store.set('friendCode', friendCode);
+		} else {
+			friendCode = savedFriendCode;
+		}
+
+		await store.save();
+
+		// Load the Game.log file if previously selected
+		try {
+			logLocation = savedFile?.split('/').slice(-2, -1)[0] || null;
+
+			if (savedFile) {
+				file = savedFile;
+				fileContent = [];
+				prevLineCount = 0;
+				await handleFile(file);
+				handleInitialiseWatch(file);
+				// playerId will be extracted from Game.log when parsing
+			}
+		} catch (error) {}
+
+		// Connect WebSocket only if signed in with Discord
+		if (isSignedIn && discordUserId && friendCode && (!ws || ws.readyState !== WebSocket.OPEN)) {
+			connectWebSocket();
+		}
+
+		// Load logs from disk and display them
+		const storedLogs = await loadLogsFromDisk();
+		if (storedLogs && Array.isArray(storedLogs)) {
+			fileContent = dedupeAndSortLogs(storedLogs);
+		}
+
+		check().then((update: any) => {
+			if (update?.available) {
+				if (confirm('A new update is available. Would you like to download and install it now?')) {
+					update.downloadAndInstall();
+				}
+			}
+		});
+
+		// Setup deep link listener for OAuth callbacks
+		const unlisten = await onOpenUrl((urls) => {
+			console.log('[Deep Link] Received URLs:', urls);
+
+			for (const url of urls) {
+				try {
+					const urlObj = new URL(url);
+
+					// Handle picologs://auth?data=...
+					if (urlObj.protocol === 'picologs:' && urlObj.hostname === 'auth') {
+						const authDataEncoded = urlObj.searchParams.get('data');
+						if (authDataEncoded) {
+							const authData = JSON.parse(decodeURIComponent(authDataEncoded));
+							console.log('[Deep Link] Received auth data');
+							handleAuthComplete(authData);
+						}
+					}
+				} catch (error) {
+					console.error('[Deep Link] Error parsing URL:', error);
+				}
+			}
+		});
+
+		// Cleanup on unmount
+		return () => {
+			unlisten();
+		};
+	});
+
+	let endWatch: () => void;
 
 	async function handleInitialiseWatch(filePath: string) {
 		if (endWatch) {
 			endWatch();
 		}
-		endWatch = await watchImmediate(
-			filePath,
-			(event) => {
-				handleFile(filePath);
-			},
-			{ recursive: false }
-		);
+		endWatch = await watchImmediate(filePath, (event) => {
+			handleFile(filePath);
+		}, {recursive: false});
 	}
 
 	function parseLogTimestamp(raw: string): string {
@@ -684,182 +633,107 @@
 		return `${year}-${month}-${day}T${hour}:${min}:${sec}.${msStr}Z`;
 	}
 
-	$effect(() => {
-		if (logLocation && logLocation !== null && hasInitialised) {
-			load('store.json', { autoSave: false }).then((store) => {
-				store
-					.get('lastFile')
-					.then((location) => {
-						const originalPath = location as string;
-						if (!originalPath) {
-							return;
-						}
-
-						// Prevent running on init by checking if location actually changed
-						const pathParts = originalPath.replace(/\\/g, '/').split('/');
-						const currentStoredLocation =
-							pathParts.length > 1 ? pathParts[pathParts.length - 2] : null;
-						if (currentStoredLocation === logLocation) {
-							return;
-						}
-
-						const updatedPath = originalPath.replace(
-							/(\\StarCitizen\\)[^\\]+(\\Game\.log)/i,
-							`$1${logLocation}$2`
-						);
-						fileContent = [];
-						prevLineCount = 0;
-						onlyProcessLogsAfterThisDateTimeStamp = null;
-						file = updatedPath;
-						store.set('lastFile', updatedPath).then(() => {
-							handleFile(updatedPath);
-							handleInitialiseWatch(updatedPath);
-						});
-					})
-					.catch((error) => {
-						console.error('Error loading store', error);
-					});
-			});
-		}
-	});
-
 	async function handleFile(filePath: string | null) {
 		if (!filePath) return;
+
 		try {
 			tick = 0;
-			const pathParts = filePath.replace(/\\/g, '/').split('/');
-			if (!logLocation) {
-				logLocation = pathParts.length > 1 ? pathParts[pathParts.length - 2] : null;
-			}
+			const pathParts = filePath.split('\\');
+			logLocation =
+				pathParts.length > 1
+					? pathParts[pathParts.length - 2]
+					: filePath.split('/').length > 1
+						? filePath.split('/').slice(-2, -1)[0]
+						: null;
 
 			const linesText = await readTextFile(filePath);
 			const lineBreak = linesText.split('\n');
 			const currentLineCount = lineBreak.length;
 
-			if (currentLineCount <= prevLineCount && !onlyProcessLogsAfterThisDateTimeStamp) {
-				// If the file hasn't grown and we don't have a specific start time, nothing new to process.
-				// This check might need refinement if game log resets but we still want to process from a certain point.
+			if (currentLineCount < prevLineCount) {
+				prevLineCount = 0;
+				fileContent = [];
+			}
+
+			if (currentLineCount <= prevLineCount) {
 				return;
 			}
 
-			// If we have a timestamp filter, we might re-process the whole file to catch up if prevLineCount was reset.
-			// Otherwise, just process new lines. This logic could be refined further.
-			// For now, if onlyProcessLogsAfterThisDateTimeStamp is set, we will process all lines from the game log file
-			// that are newer than this timestamp, regardless of prevLineCount.
-			const linesToProcess = onlyProcessLogsAfterThisDateTimeStamp
-				? lineBreak
-				: lineBreak.slice(prevLineCount, currentLineCount);
-
-			prevLineCount = currentLineCount; // Update prevLineCount after slicing/deciding linesToProcess
+			const newLines = lineBreak.slice(prevLineCount, currentLineCount);
+			prevLineCount = currentLineCount;
 			lineCount = currentLineCount;
 
-			let latestProcessedTimestamp = onlyProcessLogsAfterThisDateTimeStamp || 0;
-
-			const prevInventoryLocations: { [key: string]: { timestamp: string; location: string } } = {};
-
-			const processedNewContent: Log[] = linesToProcess
+			const newContent = newLines
 				.map((line) => {
-					line = line.trim();
 					if (!line.trim()) return null;
 
 					const timestampMatch = line.match(/<([^>]+)>/);
-					let timestamp = new Date().toISOString(); // Default, should be replaced
-					let rawTimestampFromLog: string | undefined;
-
+					let timestamp = new Date().toISOString();
 					if (timestampMatch) {
-						rawTimestampFromLog = timestampMatch[1];
-						if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(rawTimestampFromLog)) {
-							timestamp = rawTimestampFromLog;
+						const raw = timestampMatch[1];
+						// If it's a valid ISO string, use it directly
+						if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(raw)) {
+							timestamp = raw;
 						} else {
-							timestamp = parseLogTimestamp(rawTimestampFromLog);
+							timestamp = parseLogTimestamp(raw);
 						}
 					}
-
-					const currentLogTime = new Date(timestamp).getTime();
-
-					if (
-						onlyProcessLogsAfterThisDateTimeStamp &&
-						currentLogTime <= onlyProcessLogsAfterThisDateTimeStamp
-					) {
-						return null; // Skip logs that are not newer than what we already have
+					if (onlyProcessLogsAfterThisDateTimeStamp && new Date(timestamp).getTime() < onlyProcessLogsAfterThisDateTimeStamp) {
+						return null;
 					}
-
 					let logEntry: Log | null = null;
 
 					if (line.match(/AccountLoginCharacterStatus_Character/)) {
 						const nameMatch = line.match(/- name (.*?) /);
 						const oldPlayerName = playerName;
-						if (nameMatch && nameMatch[1]) {
-							playerName = nameMatch[1];
+						playerName = nameMatch ? nameMatch[1] : playerName;
+
+						// Extract Star Citizen player ID from EntityId if not already set
+						if (!playerId && line.includes('EntityId')) {
+							const entityIdMatch = line.match(/EntityId\[(.*?)\]/);
+							if (entityIdMatch) {
+								playerId = entityIdMatch[1];
+								console.log('[Log] Extracted Star Citizen player ID from log:', playerId);
+							}
 						}
 
 						if (playerName && playerName !== oldPlayerName) {
-							already_connected[playerName] = false;
-
-							load('store.json', { autoSave: false }).then(async (store) => {
-								await store.set('playerName', playerName);
-								await store.save();
-							});
-
-							if (ws && ws.readyState === WebSocket.OPEN && playerId && friendCode) {
+							if (ws && ws.readyState === WebSocket.OPEN && discordUserId && friendCode) {
 								ws.send(
 									JSON.stringify({
 										type: 'update_my_details',
-										userId: playerId,
+										userId: discordUserId, // Use Discord ID for WebSocket
 										friendCode: friendCode,
 										playerName: playerName,
+										playerId: playerId, // Include SC player ID as metadata
 										timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
 									})
 								);
 							}
 						}
-						if (playerName && !already_connected[playerName]) {
-							logEntry = {
-								id: generateLogId(line),
-								userId: playerId!,
-								player: playerName,
-								emoji: '🛜',
-								line: `${playerName || 'Player'} connected to the game`,
-								timestamp,
-								original: line,
-								open: false,
-								eventType: 'connection'
-							};
-							already_connected[playerName] = true;
-						}
+						logEntry = {
+							id: generateId(),
+							userId: playerId!,
+							player: playerName,
+							emoji: '🛜',
+							line: `${playerName || 'Player'} connected to the game`,
+							timestamp,
+							original: line,
+							open: false
+						};
 					} else if (line.match(/<RequestLocationInventory>/)) {
 						const playerMatch = line.split('Player[')[1]?.split(']')[0];
 						const locationMatch = line.split('Location[')[1]?.split(']')[0];
-						const checkLocationsOverLastMinutes = (minutes: number) => {
-							const prevLocation = prevInventoryLocations[playerMatch];
-							if (!prevLocation) return true;
-							const date = new Date(timestamp);
-							const prevDate = new Date(prevLocation.timestamp);
-							const diffMs = date.getTime() - prevDate.getTime();
-							const isAtLeastMinutesApart = diffMs >= minutes * 60 * 1000;
-							if (prevLocation && isAtLeastMinutesApart) {
-								return true;
-							}
-							if (prevLocation.location !== locationMatch) {
-								return true;
-							}
-							return false;
-						};
-						if (playerMatch === playerName && locationMatch && checkLocationsOverLastMinutes(15)) {
-							prevInventoryLocations[playerMatch] = { timestamp, location: locationMatch };
+						if (playerMatch === playerName && locationMatch) {
 							logEntry = {
-								id: generateLogId(line),
+								id: generateId(),
 								userId: playerId!,
 								player: playerName,
 								emoji: '🔍',
 								line: `${playerName} requested inventory in ${locationMatch}`,
 								timestamp,
 								original: line,
-								open: false,
-								eventType: 'location_change',
-								metadata: {
-									location: locationMatch
-								}
+								open: false
 							};
 						}
 					} else if (
@@ -867,231 +741,112 @@
 						line.match(/<Actor Death>/) &&
 						line.match(`CActor::Kill: '${playerName}'`)
 					) {
-						const regex =
-							/'([^']+)' \[(\d+)\] in zone '([^']+)' killed by '([^']+)' \[(\d+)\] using '([^']+)' \[Class ([^\]]+)\] with damage type '([^']+)' from direction x: ([\d\.\-]+), y: ([\d\.\-]+), z: ([\d\.\-]+)/;
-						const match = line.match(regex);
-
-						if (match) {
-							const victimName = match[1];
-							const victimId = match[2];
-							const zone = match[3];
-							const killerName = match[4];
-							const killerId = match[5];
-							const weaponInstance = match[6];
-							const weaponClass = match[7];
-							const damageType = match[8];
-							const dirX = match[9];
-							const dirY = match[10];
-							const dirZ = match[11];
-
-							//    "original": "<2025-05-29T21:16:49.545Z> [Notice] <Actor Death> CActor::Kill: 'space-man-rob' [600682182829] in zone 'AEGS_Idris_P_602567901387' killed by 'OvRuin' [602076272105] using 'behr_lmg_ballistic_01_602567887316' [Class behr_lmg_ballistic_01] with damage type 'Bullet' from direction x: 0.811733, y: 0.533934, z: -0.236652 [Team_ActorTech][Actor]\r",
-							logEntry = {
-								id: generateLogId(line),
-								userId: playerId!,
-								player: playerName,
-								emoji: '😵',
-								line: `${playerName} was `,
-								timestamp,
-								original: line,
-								open: false,
-								eventType: 'actor_death',
-								metadata: {
-									victimName,
-									victimId,
-									zone,
-									killerName,
-									killerId,
-									weaponInstance,
-									weaponClass,
-									damageType,
-									direction: { x: dirX, y: dirY, z: dirZ }
-								}
-							};
-						}
+						logEntry = {
+							id: generateId(),
+							userId: playerId!,
+							player: playerName,
+							emoji: '😵',
+							line: `${playerName} died`,
+							timestamp,
+							original: line,
+							open: false
+						};
 					} else if (
 						playerName &&
 						line.match(/<Actor Death>/) &&
 						!line.match(`CActor::Kill: '${playerName}'`)
 					) {
-						const regex =
-							/'([^']+)' \[(\d+)\] in zone '([^']+)' killed by '([^']+)' \[(\d+)\] using '([^']+)' \[Class ([^\]]+)\] with damage type '([^']+)' from direction x: ([\d\.\-]+), y: ([\d\.\-]+), z: ([\d\.\-]+)/;
-						const match = line.match(regex);
-
-						if (match) {
-							const victimName = match[1];
-							const victimId = match[2];
-							const zone = match[3];
-							const killerName = match[4];
-							const killerId = match[5];
-							const weaponInstance = match[6];
-							const weaponClass = match[7];
-							const damageType = match[8];
-							const dirX = match[9];
-							const dirY = match[10];
-							const dirZ = match[11];
-
+						const victimMatch = line.split('CActor::Kill: ')[1]?.split(' ')[0].replaceAll("'", '');
+						if (victimMatch) {
 							logEntry = {
-								id: generateLogId(line),
+								id: generateId(),
 								userId: playerId!,
 								player: playerName,
 								emoji: '🗡️',
-								line: `${victimName} killed by ${killerName}`,
+								line: `${victimMatch} killed by ${playerName}`,
 								timestamp,
 								original: line,
-								open: false,
-								eventType: 'actor_death',
-								metadata: {
-									victimName,
-									victimId,
-									zone,
-									killerName,
-									killerId,
-									weaponInstance,
-									weaponClass,
-									damageType,
-									direction: { x: dirX, y: dirY, z: dirZ }
-								}
+								open: false
 							};
 						}
 					} else if (line.match(/<Vehicle Destruction>/)) {
-						//"original": "<2025-05-29T21:10:28.425Z> [Notice] <Vehicle Destruction> CVehicle::OnAdvanceDestroyLevel: Vehicle 'MRAI_Guardian_MX_602567996805' [602567996805] in zone 'pyro1' [pos x: -140667.891402, y: 313131.061752, z: 229132.608634 vel x: -22.312147, y: 0.408933, z: 14.170518] driven by 'unknown' [0] advanced from destroy level 1 to 2 caused by 'AIModule_Unmanned_PU_PDC_602567901611' [602567901611] with 'Combat' [Team_CGP4][Vehicle]\r",
-						const regex =
-							/Vehicle '([^']+)' \[(\d+)\].*?from destroy level (\d+) to (\d+).*?caused by '([^']+)' \[(\d+)\]/;
-						const match = line.match(regex);
-
-						if (match) {
-							const vehicleName = match[1];
-							const vehicleId = match[2];
-							const destroyLevel = match[3];
-							const destroyLevelTo = match[4];
-							const causeName = match[5];
-							const causeId = match[6];
-
-							logEntry = {
-								id: generateLogId(line),
-								userId: playerId!,
-								player: playerName,
-								emoji: destroyLevelTo === '1' ? '❌' : '💥',
-								line: `${vehicleName.split('_').slice(0, -1).join(' ')} destroyed (${destroyLevelTo === '1' ? 'soft' : 'hard'}) by ${causeName.split('_').slice(0, -1).join(' ') || causeName}`,
-								timestamp,
-								original: line,
-								open: false,
-								eventType: 'destruction',
-								metadata: {
-									vehicleName,
-									vehicleId,
-									destroyLevel,
-									destroyLevelTo,
-									causeName,
-									causeId
-								}
-							};
-						}
+						const vehicle = line.match(/Vehicle '(.*?)' \[.*?\]/)?.[1];
+						const shipType = getShipType(vehicle || '');
+						const destroyer = getName(line.match(/caused by '(.*?)' \[.*?\]/)?.[1] || '');
+						logEntry = {
+							id: generateId(),
+							userId: playerId!,
+							player: playerName,
+							emoji: '💥',
+							line: `${shipType} destroyed by ${destroyer}`,
+							timestamp,
+							original: line,
+							open: false
+						};
+					} else if (line.match(/<Ship Destruction>/)) {
+						logEntry = {
+							id: generateId(),
+							userId: playerId!,
+							player: playerName,
+							emoji: '💥',
+							line: `${playerName || 'Someone'} destroyed a ship`,
+							timestamp,
+							original: line,
+							open: false
+						};
 					} else if (line.match(/<SystemQuit>/)) {
 						logEntry = {
-							id: generateLogId(line),
+							id: generateId(),
 							userId: playerId!,
 							player: playerName,
 							emoji: '👋',
 							line: `${playerName || 'Player'} quit the game`,
 							timestamp,
 							original: line,
-							open: false,
-							eventType: 'system_quit'
+							open: false
 						};
-					}
-					const regex = /<Vehicle Control Flow> CVehicle::Initialize/;
-					// and doesn't include "Default_"
-					if (regex.test(line) && !line.includes('Default_')) {
-						const regex =
-							/Local client node \[(\d+)\] granted control token for '([^']+)' \[(\d+)\] \[([^\]]+)\]\[([^\]]+)\]/;
-
-						const match = line.match(regex);
-						if (match) {
-							const vehicleName = match[2];
-							const vehicleId = match[3];
-							const team = match[4];
-							const entityType = match[5];
-
+					} else if (line.match(/<Vehicle Control Flow>/)) {
+						const shipNameMatch = line.match(/'([A-Za-z0-9_]+)_\d+'/);
+						const shipIdMatch = line
+							.match(/\[(\d+)\]/g)
+							?.pop()
+							?.match(/\d+/)?.[0];
+						const shipName = shipNameMatch?.[1];
+						if (shipName) {
 							logEntry = {
-								id: generateLogId(line),
+								id: generateId(),
 								userId: playerId!,
 								player: playerName,
 								emoji: '🚀',
-								line: ``,
+								line: `${playerName || 'Player'} boarded ${shipName}${shipIdMatch ? ` [${shipIdMatch}]` : ''}`,
 								timestamp,
 								original: line,
-								open: false,
-								eventType: 'vehicle_control_flow',
-								metadata: {
-									vehicleName,
-									vehicleId,
-									team,
-									entityType
-								}
-							};
-						}
-					} else if (line.includes('<[ActorState] Corpse>') && line.includes('Running corpsify')) {
-						const match = line.match(/Player '([^']+)'/);
-						if (match) {
-							const eventPlayerName = match[1];
-							logEntry = {
-								id: generateLogId(line),
-								userId: playerId!,
-								player: playerName,
-								emoji: '🧟',
-								line: `${eventPlayerName} is being turned into a corpse.`,
-								timestamp,
-								original: line,
-								open: false,
-								eventType: 'corpsify',
-								metadata: {
-									player: eventPlayerName
-								}
+								open: false
 							};
 						}
 					}
-
 					if (logEntry) {
 						if (connectionStatus === 'connected') sendLogViaWebSocket(logEntry);
-						// Don't append to disk one by one here. Collect and save later.
-						if (currentLogTime > latestProcessedTimestamp) {
-							latestProcessedTimestamp = currentLogTime;
-						}
+						appendLogToDisk(logEntry); // Save to disk
 					}
 					return logEntry;
 				})
 				.filter((item): item is Log => item !== null);
 
-			if (processedNewContent.length > 0) {
-				await withLogFileLock(async () => {
-					const newContentWithUserId = processedNewContent.map((log) =>
-						log.userId ? log : { ...log, userId: playerId! }
-					);
-
-					// Combine with existing content, dedupe, sort, and save
-					const existingLogs = await loadLogsFromDisk();
-					const combinedLogs = dedupeAndSortLogs([...existingLogs, ...newContentWithUserId]);
-					await saveLogsToDisk(combinedLogs);
-					fileContent = combinedLogs; // Update in-memory state
-				});
-
-				// Update the timestamp filter to the latest processed log
-				if (latestProcessedTimestamp > (onlyProcessLogsAfterThisDateTimeStamp || 0)) {
-					onlyProcessLogsAfterThisDateTimeStamp = latestProcessedTimestamp;
-				}
+			if (newContent.length > 0) {
+				// Ensure all logs have userId (for backward compatibility or future-proofing)
+				const newContentWithUserId = newContent.map((log) =>
+					log.userId ? log : { ...log, userId: playerId! }
+				);
+				fileContent = dedupeAndSortLogs([...fileContent, ...newContentWithUserId]);
+				setTimeout(() => {
+					fileContentContainer?.scrollTo({
+						top: fileContentContainer.scrollHeight,
+						behavior: 'smooth'
+					});
+				}, 0);
 			}
-			scrollToBottom();
-		} catch (error) {
-			console.error(error);
-		}
-	}
-
-	function scrollToBottom() {
-		fileContentContainer?.scrollTo({
-			top: fileContentContainer.scrollHeight,
-			behavior: 'smooth'
-		});
+		} catch (error) {}
 	}
 
 	async function selectFile() {
@@ -1100,7 +855,7 @@
 			multiple: false,
 			directory: false,
 			filters: [{ name: 'Game.log', extensions: ['log'] }],
-			defaultPath: 'C:\\Program Files\\Roberts Space Industries\\StarCitizen'
+			defaultPath: 'C:\\Program Files\\Roberts Space Industries\\StarCitizen\\LIVE\\'
 		});
 
 		if (typeof selectedPath === 'string' && selectedPath) {
@@ -1110,8 +865,9 @@
 			onlyProcessLogsAfterThisDateTimeStamp = null;
 			await store.set('lastFile', selectedPath);
 
-			if (!playerId) {
-				const pathPartsForId = selectedPath.replace(/\\/g, '/').split('/');
+			let storedPlayerId = await store.get<string>('id');
+			if (!storedPlayerId) {
+				const pathPartsForId = selectedPath.split('/');
 				playerId = pathPartsForId.length > 1 ? pathPartsForId.slice(-2, -1)[0] : generateId();
 				await store.set('id', playerId);
 			}
@@ -1124,6 +880,136 @@
 				connectWebSocket();
 			}
 		}
+	}
+
+	async function clearSettings() {
+		const store = await load('store.json', { autoSave: false });
+
+		// Save Discord auth before clearing
+		const savedDiscordUserId = await store.get<string>('discordUserId');
+
+		await store.clear();
+		await store.delete('friendsList');
+		await store.delete('lastFile');
+		await store.delete('friendCode');
+		await store.delete('playerName');
+
+		// Restore Discord auth
+		if (savedDiscordUserId) {
+			await store.set('discordUserId', savedDiscordUserId);
+		}
+
+		await store.save();
+
+		file = null;
+		fileContent = [];
+		playerName = null;
+		logLocation = null;
+		prevLineCount = 0;
+		lineCount = 0;
+		playerId = null; // Will be re-extracted from Game.log
+		friendCode = null;
+		friendsList = [];
+		pendingFriendRequest = null;
+		currentUserDisplayData = null;
+		autoConnectionAttempted = false;
+
+		friendCode = generateId(6);
+		await store.set('friendCode', friendCode);
+		await store.save();
+
+		console.log('[Reset] Data reset complete, Discord auth preserved');
+
+		// Reconnect WebSocket if signed in
+		if (ws && ws.readyState === WebSocket.OPEN) {
+			ws.close();
+		}
+		connectionStatus = 'disconnected';
+
+		if (isSignedIn && discordUserId) {
+			connectWebSocket();
+		}
+	}
+
+	let fileContentContainer = $state<HTMLDivElement | null>(null);
+
+	const shipTypes = [
+		'325a',
+		'c1',
+		'a2',
+		'warlock',
+		'eclipse',
+		'inferno',
+		'85x',
+		'mantis',
+		'hornet',
+		'fury',
+		'spirit_a1',
+		'spirit_c1',
+		'400i',
+		'c2',
+		'firebird',
+		'reclaimer',
+		'polaris',
+		'comet',
+		'gladius',
+		'lightning',
+		'scorpius',
+		'arrow',
+		'c8r',
+		'c8x',
+		'hull_c',
+		'ursa_medivac',
+		'starlancer_max',
+		'mole',
+		'starfighter',
+		'ballista',
+		'starfarer',
+		'carrack',
+		'taurus',
+		'atls',
+		'm50',
+		'sabre',
+		'dragonfly_yellow',
+		'corsair',
+		'cutlass_red',
+		'prospector',
+		'srv',
+		'constellation',
+		'freelancer',
+		'archimedes',
+		'avenger',
+		'vulture',
+		'cutter',
+		'nomad',
+		'cutlass',
+		'350r',
+		'razor',
+		'890jump',
+		'starlifter',
+		'caterpillar',
+		'vanguard',
+		'reliant',
+		'buccaneer',
+		'glaive',
+		'scythe',
+		'600i',
+		'talon'
+	];
+
+	function getShipType(shipName: string) {
+		if (!shipName) return 'Unknown Ship';
+		return (
+			shipTypes.find((type) => shipName.toLowerCase().includes(type.toLowerCase())) || shipName
+		);
+	}
+
+	function getName(line: string) {
+		if (!line) return 'Unknown';
+		if (line.includes('unknown')) {
+			return '🤷‍♂️ Unknown';
+		}
+		return line.includes('PU_') ? '🤖 NPC' : line;
 	}
 
 	async function saveFriendsListToStore() {
@@ -1185,22 +1071,14 @@
 		);
 	}
 
-	function respondToFriendRequest(
-		accepted: boolean,
-		request: {
-			fromUserId: string;
-			fromFriendCode: string;
-			fromPlayerName?: string;
-			fromTimezone?: string;
-		}
-	) {
-		if (!request || !ws || !playerId || !friendCode) {
+	function handleFriendRequestResponse(accepted: boolean) {
+		if (!pendingFriendRequest || !ws || !playerId || !friendCode) {
 			return;
 		}
 
 		const response = {
 			type: accepted ? 'friend_request_response_accept' : 'friend_request_response_deny',
-			requesterUserId: request.fromUserId,
+			requesterUserId: pendingFriendRequest.fromUserId,
 			responderUserId: playerId,
 			responderFriendCode: friendCode,
 			responderPlayerName: playerName,
@@ -1208,9 +1086,7 @@
 		};
 
 		ws.send(JSON.stringify(response));
-		incomingFriendRequests = incomingFriendRequests.filter(
-			(req) => req.fromUserId !== request.fromUserId
-		);
+		pendingFriendRequest = null;
 	}
 
 	function handleRemoveFriend(id: string) {
@@ -1237,53 +1113,6 @@
 		await store.set('pendingFriendRequests', pendingFriendRequests);
 		await store.save();
 	}
-
-	async function installUpdate() {
-		if (!updateInfo) return;
-		await updateInfo.downloadAndInstall();
-		// The updater will relaunch the app automatically.
-		updateInfo = null;
-	}
-
-	async function checkForUpdates() {
-		try {
-			const update = await check();
-			if (update?.available) {
-				updateInfo = update;
-			}
-		} catch (e) {
-			console.error('Update check failed:', e);
-		}
-	}
-
-	setInterval(() => {
-		// Only check for updates if one isn't already pending
-		if (!updateInfo) {
-			checkForUpdates();
-		}
-	}, 1000 * 60 * 10); // 10 minutes
-
-	setInterval(() => {
-		tick += 1;
-		if (tick > 5 && file) {
-			handleFile(file);
-		}
-	}, 1000);
-
-	function disconnectWebSocket() {
-		if (connectionAttemptTimeout) {
-			clearTimeout(connectionAttemptTimeout);
-			connectionAttemptTimeout = null;
-		}
-		if (ws) {
-			ws.onclose = null; // Prevent onclose handler from running on manual disconnect
-			ws.close();
-		}
-		connectionStatus = 'disconnected';
-		ws = null;
-		friendsList = friendsList.map((friend) => ({ ...friend, isOnline: false }));
-		saveFriendsListToStore();
-	}
 </script>
 
 <main class="container">
@@ -1295,35 +1124,75 @@
 		{connectWebSocket}
 		{connectionStatus}
 		{ws}
+		{currentUserDisplayData}
 		{copiedStatusVisible}
 		{selectFile}
+		{logLocation}
+		{file}
 		{playerName}
 		{clearLogs}
-		{disconnectWebSocket}
-		bind:logLocation
-		{updateInfo}
-		{installUpdate} />
+		{isSignedIn}
+		{discordUser}
+		{handleSignIn}
+		{handleSignOut} />
 
 	<div class="content">
-		<Resizer>
-			{#snippet leftPanel()}
-				<div class="friends-sidebar">
-					<WebsiteIframe {playerId} {playerName} {friendCode} />
-				</div>
-			{/snippet}
-
-			{#snippet rightPanel()}
-				{#if hasInitialised}
-					<Timeline fileContent={groupedFileContent} {file} {friendsList} {playerName} />
-				{/if}
-
-				{#if file}
-					<div class="line-count">
-						Log lines processed: {Number(lineCount).toLocaleString()}
+		<div class="friends-sidebar">
+			{#if currentUserDisplayData}
+				<User user={currentUserDisplayData} />
+			{/if}
+			{#if pendingFriendRequests.length > 0}
+				<PendingFriendRequests
+					{pendingFriendRequests}
+					removeFriendRequest={handleRemoveFriendRequest} />
+			{/if}
+			<Friends {friendsList} removeFriend={handleRemoveFriend} />
+			<div class="add-friend-container">
+				<AddFriend addFriend={handleAddFriend} />
+			</div>
+		</div>
+		<div class="file-content" bind:this={fileContentContainer}>
+			{#if file}
+				{#each fileContent as item, index (item.id)}
+					{#if index === 0 || fileContent[index - 1]?.line !== item.line || fileContent[index - 1]?.timestamp !== item.timestamp}
+						<Item {...item} bind:open={item.open} />
+					{/if}
+				{:else}
+					<div class="item">
+						<div class="line-container">
+							<div class="line">No new logs yet. Waiting for game activity...</div>
+						</div>
 					</div>
-				{/if}
-			{/snippet}
-		</Resizer>
+				{/each}
+			{:else}
+				<div class="welcome">
+					<h2>🚀 Getting started</h2>
+					<ol class="welcome-list">
+						<li>
+							Select your <code>Game.log</code>
+							file. Usually found at the default path:
+							<code>C:\Program Files\Roberts Space Industries\StarCitizen\LIVE\Game.log</code>
+							<br />
+							(Or the equivalent path on your system if installed elsewhere.)
+						</li>
+						<li>
+							Once a log file is selected and you go <strong>Online</strong>
+							(using the top-right button), Picologs automatically connects you with other friends for
+							real-time log sharing.
+						</li>
+						<li>
+							To add friends use your <strong>Friend Code</strong>
+							displayed at the top. Share this with friends to connect with them.
+						</li>
+					</ol>
+				</div>
+			{/if}
+		</div>
+		{#if file}
+			<div class="line-count">
+				Log lines processed: {Number(lineCount).toLocaleString()}
+			</div>
+		{/if}
 	</div>
 </main>
 
@@ -1339,13 +1208,55 @@
 	}
 
 	.content {
-		display: flex;
-		flex-direction: column;
+		display: grid;
+		grid-template-columns: 290px 1fr;
+		grid-template-rows: 1fr auto;
+		height: calc(100dvh - 70px);
 		overflow: hidden;
 	}
 
+	.file-content {
+		grid-column: 2 / 3;
+		grid-row: 1 / 2;
+		overflow-y: auto;
+		display: flex;
+		flex-direction: column;
+		scrollbar-width: thin;
+		scrollbar-color: rgba(255, 255, 255, 0.3) rgba(0, 0, 0, 0.2);
+		background: rgba(0, 0, 0, 0.1);
+	}
+
+	.item {
+		display: flex;
+		align-items: flex-start;
+		gap: 1rem;
+		padding: 0.75rem 1rem;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+	}
+
+	.item:last-child {
+		border-bottom: none;
+	}
+
+	.line-container {
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+	}
+
+	.line {
+		font-size: 0.95rem;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		line-height: 1.4;
+	}
+
+	:global(.item:nth-child(2n)) {
+		background-color: rgba(255, 255, 255, 0.05);
+	}
+
 	.line-count {
-		height: 40px;
 		grid-column: 2 / 3;
 		grid-row: 2 / 3;
 		display: flex;
@@ -1359,26 +1270,122 @@
 		color: rgba(255, 255, 255, 0.7);
 	}
 
-	.friends-sidebar {
-		/* grid-column: 1 / 2; */ /* Handled by Resizer */
-		/* grid-row: 1 / 3; */ /* Handled by Resizer's grid item */
-		/* border-right: 1px solid rgba(255, 255, 255, 0.2); */ /* Resizer itself will have a border */
+	.welcome {
 		display: flex;
 		flex-direction: column;
-		overflow-y: hidden;
-		height: 100%; /* Ensure it fills the resizer panel */
+		align-items: flex-start;
+		gap: 1rem;
+		margin: 2rem auto;
+		padding: 2rem;
+		border-radius: 8px;
+		background: rgba(255, 255, 255, 0.03);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		max-width: 600px;
 	}
 
-	.friends-sidebar-container {
+	.welcome h2 {
+		margin: 0 0 0.5rem 0;
+		font-size: 1.6rem;
+		font-weight: 500;
+	}
+
+	.welcome ol,
+	.welcome li {
+		margin: 0;
+		font-size: 1rem;
+		font-weight: 300;
+		line-height: 1.6;
+	}
+
+	.welcome .welcome-list {
+		list-style: none;
+		padding-left: 0;
+		counter-reset: welcome-counter;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.welcome .welcome-list li {
+		display: inline-block;
+
+		position: relative;
+		padding-left: 34px;
+	}
+
+	.welcome .welcome-list li::before {
+		counter-increment: welcome-counter;
+		content: counter(welcome-counter);
+		position: absolute;
+		left: 0;
+		top: 0;
+
+		width: 24px;
+		height: 24px;
+		background-color: #4caf50;
+		color: white;
+		border-radius: 50%;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 0.85em;
+		font-weight: bold;
+		line-height: 24px;
+	}
+
+	.welcome code {
+		background: rgba(255, 255, 255, 0.1);
+		padding: 0.1rem 0.3rem;
+		border-radius: 3px;
+		font-family: monospace;
+	}
+
+	.friends-sidebar {
+		grid-column: 1 / 2;
+		grid-row: 1 / 3;
+		border-right: 1px solid rgba(255, 255, 255, 0.2);
 		display: flex;
 		flex-direction: column;
 		gap: 1rem;
-		overflow-y: hidden;
-		flex-grow: 1;
+		overflow-y: auto;
 	}
 
 	.add-friend-container {
 		margin-top: auto;
-		min-width: 200px;
+		padding-top: 1rem;
+	}
+
+	.welcome .welcome-list {
+		list-style: none;
+		padding-left: 0;
+		counter-reset: welcome-counter;
+		margin-top: 1em;
+	}
+
+	.welcome .welcome-list li::before {
+		counter-increment: welcome-counter;
+		content: counter(welcome-counter);
+		flex-shrink: 0;
+		width: 24px;
+		height: 24px;
+		background-color: #4caf50;
+		color: white;
+		border-radius: 50%;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 0.85em;
+		font-weight: bold;
+		margin-right: 0.8em;
+		line-height: 24px;
+	}
+
+	.welcome code {
+		background: rgba(255, 255, 255, 0.1);
+		padding: 0.1rem 0.3rem;
+		border-radius: 3px;
+		font-family: monospace;
+		display: inline;
+		font-size: 1em;
 	}
 </style>
