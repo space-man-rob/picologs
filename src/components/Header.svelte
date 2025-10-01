@@ -14,7 +14,6 @@
 		disconnectWebSocket,
 		connectionStatus,
 		ws,
-		currentUserDisplayData,
 		copiedStatusVisible,
 		selectFile,
 		logLocation = $bindable(),
@@ -53,23 +52,6 @@
 		}
 	}
 
-	$effect(() => {
-		if (playerId && friendCode) {
-			const currentTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-			currentUserDisplayData = {
-				id: playerId,
-				name: playerName || 'Unknown player', // Always show name, with fallback
-				friendCode: friendCode,
-				status: 'confirmed',
-				timezone: currentTz,
-				isOnline: connectionStatus === 'connected'
-			};
-		} else {
-			if (currentUserDisplayData !== null) {
-				currentUserDisplayData = null;
-			}
-		}
-	});
 
 	type LogVersion = 'LIVE' | 'PTU' | 'HOTFIX';
 	let getLogVersion = () => {
@@ -110,7 +92,7 @@
 		<button
 			class="friend-code-button"
 			onclick={() => {
-				const textToCopy = `My Picologs Friend Code: ${currentUserDisplayData?.friendCode || friendCode || 'Not set'}`;
+				const textToCopy = `My Picologs Friend Code: ${friendCode || 'Not set'}`;
 				navigator.clipboard.writeText(textToCopy);
 				copiedStatusVisible = true;
 				setTimeout(() => {
@@ -118,7 +100,7 @@
 				}, 1500);
 			}}>
 			<Copy size={18} />
-			<p>Friend Code: {currentUserDisplayData?.friendCode || friendCode || 'N/A'}</p>
+			<p>Friend Code: {friendCode || 'N/A'}</p>
 			<span class="friend-code-copy-status" class:show-copied={copiedStatusVisible}>
 				Copied Friend Code!
 			</span>

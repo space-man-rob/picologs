@@ -1295,7 +1295,6 @@
 		{connectWebSocket}
 		{connectionStatus}
 		{ws}
-		{currentUserDisplayData}
 		{copiedStatusVisible}
 		{selectFile}
 		{playerName}

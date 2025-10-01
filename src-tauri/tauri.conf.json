@@ -20,17 +20,7 @@
       }
     ],
     "security": {
-      "csp": null,
-      "dangerousRemoteDomainIpcAccess": [
-        {
-          "domain": "picologs.com",
-          "enableTauriAPI": false
-        },
-        {
-          "domain": "localhost:5173",
-          "enableTauriAPI": false
-        }
-      ]
+      "csp": null
     }
   },
   "bundle": {
