@@ -6,13 +6,10 @@
 	import { check } from '@tauri-apps/plugin-updater';
 	import { relaunch } from '@tauri-apps/plugin-process';
 	import { onMount } from 'svelte';
-	import AddFriend from '../components/AddFriend.svelte';
-	import Friends from '../components/Friends.svelte';
 	import Header from '../components/Header.svelte';
-	import PendingFriendRequests from '../components/PendingFriendRequests.svelte';
 	import Resizer from '../components/Resizer.svelte';
 	import Timeline from '../components/Timeline.svelte';
-	import User from '../components/User.svelte';
+	import WebsiteIframe from '../components/WebsiteIframe.svelte';
 	import type { Friend as FriendType, Log } from '../types';
 
 	let ws = $state<WebSocket | null>(null);
@@ -28,22 +25,10 @@
 	let lineCount = $state<number>(0);
 	let connectionStatus = $state<'connected' | 'disconnected' | 'connecting'>('disconnected');
 	let copiedStatusVisible = $state(false);
-	let pendingFriendRequests = $state<{ friendCode: string }[]>([]);
-	let incomingFriendRequests = $state<
-		{
-			fromUserId: string;
-			fromFriendCode: string;
-			fromPlayerName?: string;
-			fromTimezone?: string;
-		}[]
-	>([]);
-	let autoConnectionAttempted = $state(false);
-	let friendsList = $state<FriendType[]>([]);
-	let currentUserDisplayData = $state<FriendType | null>(null);
+	let friendsList = $state<FriendType[]>([]); // Keep for Timeline component compatibility
 	let onlyProcessLogsAfterThisDateTimeStamp = $state<number | null>(null);
 	let fileContentContainer = $state<HTMLDivElement | null>(null);
 	let endWatch: () => void;
-	let already_connected = $state<Record<string, boolean>>({});
 	let hasInitialised = $state(false);
 	let updateInfo = $state<any>(null);
 	let saveLogsPromise: Promise<void> = Promise.resolve();
@@ -1324,23 +1309,7 @@
 		<Resizer>
 			{#snippet leftPanel()}
 				<div class="friends-sidebar">
-					<div class="friends-sidebar-container">
-						{#if currentUserDisplayData}
-							<User user={currentUserDisplayData} />
-						{/if}
-						{#if pendingFriendRequests.length > 0 || incomingFriendRequests.length > 0}
-							<PendingFriendRequests
-								{pendingFriendRequests}
-								{incomingFriendRequests}
-								removeFriendRequest={handleRemoveFriendRequest}
-								respondToFriendRequest={respondToFriendRequest}
-							/>
-						{/if}
-						<Friends {friendsList} removeFriend={handleRemoveFriend} />
-					</div>
-					<div class="add-friend-container">
-						<AddFriend addFriend={handleAddFriend} />
-					</div>
+					<WebsiteIframe {playerId} {playerName} {friendCode} />
 				</div>
 			{/snippet}
 
