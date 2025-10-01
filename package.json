@@ -1,6 +1,6 @@
 {
   "name": "picologs",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "description": "A tool for viewing and filtering the logs of a game",
   "type": "module",
   "scripts": {
@@ -13,30 +13,30 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@tauri-apps/api": "^2.5.0",
-    "@tauri-apps/plugin-dialog": "~2.2.2",
-    "@tauri-apps/plugin-fs": "~2.3.0",
-    "@tauri-apps/plugin-opener": "^2.3.0",
-    "@tauri-apps/plugin-process": "~2.2.2",
-    "@tauri-apps/plugin-store": "~2.2.1",
-    "@tauri-apps/plugin-updater": "^2.8.1",
-    "@tauri-apps/plugin-websocket": "~2.3.1"
+    "@tauri-apps/api": "^2.8.0",
+    "@tauri-apps/plugin-dialog": "~2.4.0",
+    "@tauri-apps/plugin-fs": "~2.4.2",
+    "@tauri-apps/plugin-opener": "^2.5.0",
+    "@tauri-apps/plugin-process": "~2.3.0",
+    "@tauri-apps/plugin-store": "~2.4.0",
+    "@tauri-apps/plugin-updater": "^2.9.0",
+    "@tauri-apps/plugin-websocket": "~2.4.0"
   },
   "devDependencies": {
-    "@lucide/svelte": "^0.522.0",
-    "@sveltejs/adapter-static": "^3.0.8",
-    "@sveltejs/kit": "^2.22.0",
-    "@sveltejs/vite-plugin-svelte": "^5.1.0",
-    "@tauri-apps/cli": "^2.5.0",
+    "@lucide/svelte": "^0.544.0",
+    "@sveltejs/adapter-static": "^3.0.9",
+    "@sveltejs/kit": "^2.43.6",
+    "@sveltejs/vite-plugin-svelte": "^6.2.1",
+    "@tauri-apps/cli": "^2.8.4",
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
     "fuse.js": "^7.1.0",
-    "prettier": "^3.5.3",
+    "prettier": "^3.6.2",
     "prettier-plugin-svelte": "^3.4.0",
-    "svelte": "^5.34.7",
-    "svelte-check": "^4.2.2",
+    "svelte": "^5.39.7",
+    "svelte-check": "^4.3.2",
     "svelte-lazy": "^1.2.11",
-    "typescript": "~5.8.3",
-    "vite": "^6.3.5"
+    "typescript": "~5.9.3",
+    "vite": "^7.1.7"
   }
 }
