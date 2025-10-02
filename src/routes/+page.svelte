@@ -41,6 +41,7 @@
 	let friendCode = $state<string | null>(null);
 	let playerName = $state<string | null>(null);
 	let playerId = $state<string | null>(null); // Star Citizen player ID from Game.log
+	let isLoadingFile = $state(true); // Prevent flash of welcome screen
 	let tick = $state(0);
 	let logLocation = $state<string | null>(null);
 	let selectedEnvironment = $state<'LIVE' | 'PTU' | 'HOTFIX'>('LIVE');
@@ -714,6 +715,12 @@
 				'selectedEnvironment'
 			);
 
+			// Set file path immediately to prevent welcome screen flash
+			if (savedFile) {
+				file = savedFile;
+				logLocation = savedFile.split('/').slice(-2, -1)[0] || null;
+			}
+
 			if (savedEnvironment) {
 				selectedEnvironment = savedEnvironment;
 			}
@@ -754,18 +761,19 @@
 			await store.save();
 
 			// Load the Game.log file if previously selected
-			try {
-				logLocation = savedFile?.split('/').slice(-2, -1)[0] || null;
-
-				if (savedFile) {
-					file = savedFile;
+			if (savedFile) {
+				try {
 					fileContent = [];
 					prevLineCount = 0;
+					// Parse entire log file from the beginning
 					await handleFile(file);
 					handleInitialiseWatch(file);
 					// playerId will be extracted from Game.log when parsing
-				}
-			} catch (error) {}
+				} catch (error) {}
+			}
+
+			// Mark loading complete
+			isLoadingFile = false;
 
 			// Sync user profile from API if signed in (to get friend code)
 			if (isSignedIn && discordUserId) {
@@ -775,14 +783,6 @@
 			// Connect WebSocket only if signed in with Discord
 			if (isSignedIn && discordUserId && !ws) {
 				connectWebSocket();
-			}
-
-			// Load logs from disk and display them
-			const storedLogs = await loadLogsFromDisk();
-			if (storedLogs && Array.isArray(storedLogs)) {
-				let groupedLogs = dedupeAndSortLogs(storedLogs);
-				groupedLogs = groupKillingSprees(groupedLogs);
-				fileContent = groupedLogs;
 			}
 
 			check().then((update: any) => {
@@ -872,15 +872,18 @@
 			const lineBreak = linesText.split('\n');
 			const currentLineCount = lineBreak.length;
 
+			// If file was truncated (e.g., new game session), reset
 			if (currentLineCount < prevLineCount) {
 				prevLineCount = 0;
 				fileContent = [];
 			}
 
+			// No new lines to process
 			if (currentLineCount <= prevLineCount) {
 				return;
 			}
 
+			// Process only new lines since last read
 			const newLines = lineBreak.slice(prevLineCount, currentLineCount);
 			prevLineCount = currentLineCount;
 			lineCount = currentLineCount;
@@ -1128,8 +1131,10 @@
 						}
 					}
 					if (logEntry) {
+						// Send via WebSocket if connected
 						if (connectionStatus === 'connected') sendLogViaWebSocket(logEntry);
-						appendLogToDisk(logEntry); // Save to disk
+						// Save to disk if signed in (for sharing with friends)
+						if (isSignedIn) appendLogToDisk(logEntry);
 					}
 					return logEntry;
 				})
@@ -1507,7 +1512,7 @@
 						</div>
 					</div>
 				{/each}
-			{:else}
+			{:else if !isLoadingFile}
 				<div
 					class="flex flex-col items-start gap-4 my-8 mx-auto p-8 rounded-lg bg-white/[0.03] border border-white/10 max-w-[600px]">
 					<h2 class="m-0 mb-2 text-[1.6rem] font-medium">🚀 Getting started</h2>
