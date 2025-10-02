@@ -226,6 +226,86 @@
 		return crypto.randomUUID().slice(0, length);
 	}
 
+	function groupKillingSprees(logs: Log[]): Log[] {
+		const spreeTimeWindow = 2 * 60 * 1000; // 2 minutes
+		const minKillsForSpree = 2;
+		const childLogIds = new Set<string>();
+
+		const standaloneActorDeaths = logs.filter(
+			(log) =>
+				!log.children?.length &&
+				log.eventType === 'actor_death' &&
+				log.metadata?.killerId &&
+				log.metadata.killerId !== '0' &&
+				log.metadata.killerId !== log.metadata.victimId &&
+				log.metadata.damageType !== 'VehicleDestruction'
+		);
+
+		const killsByPlayer = new Map<string, Log[]>();
+		for (const death of standaloneActorDeaths) {
+			const killerId = death.metadata!.killerId!;
+			if (!killsByPlayer.has(killerId)) {
+				killsByPlayer.set(killerId, []);
+			}
+			killsByPlayer.get(killerId)!.push(death);
+		}
+
+		const spreeParents = new Map<string, Log>();
+
+		for (const kills of killsByPlayer.values()) {
+			if (kills.length < minKillsForSpree) continue;
+
+			let currentSpree: Log[] = [];
+			const processSpree = () => {
+				if (currentSpree.length >= minKillsForSpree) {
+					const firstKill = currentSpree[0];
+					const parentLog = {
+						...firstKill,
+						id: firstKill.id + '-spree',
+						eventType: 'killing_spree' as const,
+						line: `${firstKill.metadata!.killerName} is on a killing spree (${currentSpree.length} kills)`,
+						emoji: '🎯',
+						children: currentSpree.map((l) => ({ ...l, children: [] }))
+					};
+					spreeParents.set(firstKill.id, parentLog);
+					for (const kill of currentSpree) {
+						childLogIds.add(kill.id);
+					}
+				}
+			};
+
+			for (let i = 0; i < kills.length; i++) {
+				if (currentSpree.length === 0) {
+					currentSpree.push(kills[i]);
+				} else {
+					const lastKillTime = new Date(
+						currentSpree[currentSpree.length - 1].timestamp
+					).getTime();
+					const currentKillTime = new Date(kills[i].timestamp).getTime();
+
+					if (currentKillTime - lastKillTime < spreeTimeWindow) {
+						currentSpree.push(kills[i]);
+					} else {
+						processSpree();
+						currentSpree = [kills[i]];
+					}
+				}
+			}
+			processSpree();
+		}
+
+		const finalLogs: Log[] = [];
+		for (const log of logs) {
+			if (spreeParents.has(log.id)) {
+				finalLogs.push(spreeParents.get(log.id)!);
+			} else if (!childLogIds.has(log.id)) {
+				finalLogs.push(log);
+			}
+		}
+
+		return finalLogs;
+	}
+
 	function sendLogViaWebSocket(log: Log) {
 		if (ws && ws.readyState === WebSocket.OPEN) {
 			ws.send(JSON.stringify({ type: 'log', log }));
@@ -491,7 +571,9 @@
 									);
 									const isFromMe = log.userId === playerId;
 									if (isFromFriend || isFromMe) {
-										fileContent = dedupeAndSortLogs([...fileContent, log]);
+										let groupedLogs = dedupeAndSortLogs([...fileContent, log]);
+										groupedLogs = groupKillingSprees(groupedLogs);
+										fileContent = groupedLogs;
 										appendLogToDisk(log); // Save to disk
 									}
 								}
@@ -522,7 +604,8 @@
 								if (message.logs && Array.isArray(message.logs)) {
 									// Merge, dedupe, and save logs
 									const localLogs = await loadLogsFromDisk();
-									const allLogs = dedupeAndSortLogs([...localLogs, ...message.logs]);
+									let allLogs = dedupeAndSortLogs([...localLogs, ...message.logs]);
+									allLogs = groupKillingSprees(allLogs);
 									await saveLogsToDisk(allLogs);
 									fileContent = allLogs;
 								}
@@ -666,7 +749,9 @@
 			// Load logs from disk and display them
 			const storedLogs = await loadLogsFromDisk();
 			if (storedLogs && Array.isArray(storedLogs)) {
-				fileContent = dedupeAndSortLogs(storedLogs);
+				let groupedLogs = dedupeAndSortLogs(storedLogs);
+				groupedLogs = groupKillingSprees(groupedLogs);
+				fileContent = groupedLogs;
 			}
 
 			check().then((update: any) => {
@@ -842,38 +927,101 @@
 						line.match(/<Actor Death>/) &&
 						line.match(`CActor::Kill: '${playerName}'`)
 					) {
-						logEntry = {
-							id: generateId(),
-							userId: playerId!,
-							player: playerName,
-							emoji: '😵',
-							line: `${playerName} died`,
-							timestamp,
-							original: line,
-							open: false
-						};
+						const regex =
+							/'([^']+)' \[(\d+)\] in zone '([^']+)' killed by '([^']+)' \[(\d+)\] using '([^']+)' \[Class ([^\]]+)\] with damage type '([^']+)' from direction x: ([\d\.\-]+), y: ([\d\.\-]+), z: ([\d\.\-]+)/;
+						const match = line.match(regex);
+
+						if (match) {
+							const victimName = match[1];
+							const victimId = match[2];
+							const zone = match[3];
+							const killerName = match[4];
+							const killerId = match[5];
+							const weaponInstance = match[6];
+							const weaponClass = match[7];
+							const damageType = match[8];
+							const dirX = match[9];
+							const dirY = match[10];
+							const dirZ = match[11];
+
+							const displayKillerName = getName(killerName);
+
+							logEntry = {
+								id: generateId(),
+								userId: playerId!,
+								player: playerName,
+								emoji: '😵',
+								line: `${playerName} killed by ${displayKillerName}`,
+								timestamp,
+								original: line,
+								open: false,
+								eventType: 'actor_death',
+								metadata: {
+									victimName,
+									victimId,
+									zone,
+									killerName,
+									killerId,
+									weaponInstance,
+									weaponClass,
+									damageType,
+									direction: { x: dirX, y: dirY, z: dirZ }
+								}
+							};
+						}
 					} else if (
 						playerName &&
 						line.match(/<Actor Death>/) &&
 						!line.match(`CActor::Kill: '${playerName}'`)
 					) {
-						const victimMatch = line.split('CActor::Kill: ')[1]?.split(' ')[0].replaceAll("'", '');
-						if (victimMatch) {
+						const regex =
+							/'([^']+)' \[(\d+)\] in zone '([^']+)' killed by '([^']+)' \[(\d+)\] using '([^']+)' \[Class ([^\]]+)\] with damage type '([^']+)' from direction x: ([\d\.\-]+), y: ([\d\.\-]+), z: ([\d\.\-]+)/;
+						const match = line.match(regex);
+
+						if (match) {
+							const victimName = match[1];
+							const victimId = match[2];
+							const zone = match[3];
+							const killerName = match[4];
+							const killerId = match[5];
+							const weaponInstance = match[6];
+							const weaponClass = match[7];
+							const damageType = match[8];
+							const dirX = match[9];
+							const dirY = match[10];
+							const dirZ = match[11];
+
+							const displayVictimName = getName(victimName);
+							const displayKillerName = getName(killerName);
+
 							logEntry = {
 								id: generateId(),
 								userId: playerId!,
 								player: playerName,
 								emoji: '🗡️',
-								line: `${victimMatch} killed by ${playerName}`,
+								line: `${displayVictimName} killed by ${displayKillerName}`,
 								timestamp,
 								original: line,
-								open: false
+								open: false,
+								eventType: 'actor_death',
+								metadata: {
+									victimName,
+									victimId,
+									zone,
+									killerName,
+									killerId,
+									weaponInstance,
+									weaponClass,
+									damageType,
+									direction: { x: dirX, y: dirY, z: dirZ }
+								}
 							};
 						}
 					} else if (line.match(/<Vehicle Destruction>/)) {
 						const vehicle = line.match(/Vehicle '(.*?)' \[.*?\]/)?.[1];
 						const shipType = getShipType(vehicle || '');
 						const destroyer = getName(line.match(/caused by '(.*?)' \[.*?\]/)?.[1] || '');
+						const destroyLevelMatch = line.match(/destroyLevel from '(.*?)' to '(.*?)'/);
 						logEntry = {
 							id: generateId(),
 							userId: playerId!,
@@ -882,7 +1030,14 @@
 							line: `${shipType} destroyed by ${destroyer}`,
 							timestamp,
 							original: line,
-							open: false
+							open: false,
+							eventType: 'destruction',
+							metadata: {
+								vehicleName: vehicle,
+								destroyer: destroyer,
+								destroyLevelFrom: destroyLevelMatch?.[1],
+								destroyLevelTo: destroyLevelMatch?.[2]
+							}
 						};
 					} else if (line.match(/<Ship Destruction>/)) {
 						logEntry = {
@@ -939,7 +1094,9 @@
 				const newContentWithUserId = newContent.map((log) =>
 					log.userId ? log : { ...log, userId: playerId! }
 				);
-				fileContent = dedupeAndSortLogs([...fileContent, ...newContentWithUserId]);
+				let groupedLogs = dedupeAndSortLogs([...fileContent, ...newContentWithUserId]);
+				groupedLogs = groupKillingSprees(groupedLogs);
+				fileContent = groupedLogs;
 				setTimeout(() => {
 					fileContentContainer?.scrollTo({
 						top: fileContentContainer.scrollHeight,
@@ -1285,6 +1442,11 @@
 				{#each fileContent as item, index (item.id)}
 					{#if index === 0 || fileContent[index - 1]?.line !== item.line || fileContent[index - 1]?.timestamp !== item.timestamp}
 						<Item {...item} bind:open={item.open} />
+						{#if item.children && item.children.length > 0}
+							{#each item.children as child (child.id)}
+								<Item {...child} bind:open={child.open} child={true} />
+							{/each}
+						{/if}
 					{/if}
 				{:else}
 					<div class="flex items-start gap-4 px-4 py-3 border-b border-white/5">

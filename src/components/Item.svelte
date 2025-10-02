@@ -115,36 +115,36 @@
 </script>
 
 <button
-	class="grid gap-4 p-4 {child ? 'grid-cols-[1rem_1fr] gap-2 pl-6' : 'grid-cols-[4rem_1fr]'}"
+	class="item grid items-start gap-4 p-4 {child ? 'grid-cols-[1rem_1fr] gap-2 pl-6' : 'grid-cols-[4rem_1fr]'}"
 	onclick={() => (open = !open)}
 >
 	{#if (eventType === 'vehicle_control_flow' || eventType === 'destruction') && shipImage}
 		{@const isSoftDeath = eventType === 'destruction' && metadata?.destroyLevelTo === '1'}
 		{@const isHardDeath = eventType === 'destruction' && metadata?.destroyLevelTo === '2'}
-		<div class="relative flex items-center justify-center overflow-visible">
+		<div class="relative flex justify-center overflow-hidden pt-1 self-start h-10 min-h-10">
 			{#if isHardDeath}
 				<img
 					src={shipImage}
 					alt={metadata.vehicleName}
-					class="absolute h-16 w-16 -rotate-[15deg] -translate-x-1 object-contain object-center opacity-90 [clip-path:polygon(0_0,50%_0,50%_100%,0%_100%)] [filter:drop-shadow(2px_2px_0_rgba(0,0,0,0.4))_brightness(2)_saturate(1)]"
+					class="absolute top-0 left-1/2 -translate-x-1/2 h-10 w-10 max-w-full -rotate-[15deg] -translate-x-[calc(50%+0.25rem)] object-contain object-center opacity-90 [clip-path:polygon(0_0,50%_0,50%_100%,0%_100%)] [filter:drop-shadow(2px_2px_0_rgba(0,0,0,0.4))_brightness(2)_saturate(1)]"
 				/>
 				<img
 					src={shipImage}
 					alt={metadata.vehicleName}
-					class="absolute h-16 w-16 rotate-[15deg] translate-x-1 object-contain object-center opacity-90 [clip-path:polygon(50%_0,100%_0,100%_100%,50%_100%)] [filter:drop-shadow(2px_2px_0_rgba(0,0,0,0.4))_brightness(2)_saturate(1)]"
+					class="absolute top-0 left-1/2 -translate-x-1/2 h-10 w-10 max-w-full rotate-[15deg] translate-x-[calc(-50%+0.25rem)] object-contain object-center opacity-90 [clip-path:polygon(50%_0,100%_0,100%_100%,50%_100%)] [filter:drop-shadow(2px_2px_0_rgba(0,0,0,0.4))_brightness(2)_saturate(1)]"
 				/>
 			{:else}
 				<img
 					src={shipImage}
 					alt={metadata.vehicleName}
-					class="absolute h-16 w-16 object-contain object-center [filter:drop-shadow(2px_2px_0_rgba(0,0,0,0.4))_brightness(2)_saturate(1)] {child
+					class="absolute top-0 left-1/2 -translate-x-1/2 h-10 w-10 max-w-full object-contain object-center [filter:drop-shadow(2px_2px_0_rgba(0,0,0,0.4))_brightness(2)_saturate(1)] {child
 						? 'hidden'
 						: ''}"
 				/>
 			{/if}
 			{#if eventType === 'destruction'}
 				<div
-					class="relative z-10 flex scale-75 items-center justify-center {child
+					class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 flex items-center justify-center {child
 						? 'text-xs'
 						: 'text-2xl'}"
 				>
@@ -153,7 +153,7 @@
 			{/if}
 		</div>
 	{:else}
-		<div class="flex items-center justify-center {child ? 'text-xs' : 'text-2xl'}">{emoji}</div>
+		<div class="flex justify-center pt-1 self-start {child ? 'text-xs' : 'text-2xl'}">{emoji}</div>
 	{/if}
 	<div>
 		{#if eventType === 'actor_death' && metadata.damageType === 'SelfDestruct'}
@@ -195,11 +195,11 @@
 		{:else}
 			<div class="flex items-center {child ? 'gap-1 text-xs' : 'gap-8 text-base'}">{line}</div>
 		{/if}
-		<div class="text-white/50 {child ? 'text-[0.5rem]' : 'text-xs'}">
+		<div class="text-white/50 text-left {child ? 'text-[0.5rem]' : 'text-xs'}">
 			{formattedTimestamp}, {reportedBy ? reportedBy.join(', ') : player}
 		</div>
 		{#if open}
-			<div class="mt-2 inline-block rounded-lg bg-white/10 p-2 text-xs text-white/70">
+			<div class="mt-2 rounded-lg bg-white/10 p-2 text-left text-xs text-white/70">
 				{original}
 			</div>
 		{/if}
