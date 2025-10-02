@@ -115,7 +115,7 @@
 </script>
 
 <button
-	class="item grid items-start gap-4 p-4 {child ? 'grid-cols-[1rem_1fr] gap-2 pl-6' : 'grid-cols-[4rem_1fr]'}"
+	class="grid items-start gap-4 p-4 {child ? 'grid-cols-[1rem_1fr] gap-2 pl-6' : 'grid-cols-[4rem_1fr]'} {eventType === 'killing_spree' ? 'bg-red-500/10 border-l-4 border-red-500' : child ? '' : 'item'}"
 	onclick={() => (open = !open)}
 >
 	{#if (eventType === 'vehicle_control_flow' || eventType === 'destruction') && shipImage}
@@ -181,7 +181,10 @@
 				{player} controls a {shipName || metadata.vehicleName.split('_').slice(0, -1).join(' ')}
 			</div>
 		{:else if eventType === 'killing_spree'}
-			<div class="flex items-center {child ? 'gap-1 text-xs' : 'gap-8 text-base'}">{line}</div>
+			<div class="flex items-center {child ? 'gap-1 text-xs' : 'gap-2 text-base font-bold text-red-400'}">
+				<span class="text-xs opacity-50">{open ? '▼' : '▶'}</span>
+				{line}
+			</div>
 		{:else if eventType === 'location_change'}
 			<div class="flex items-center {child ? 'gap-1 text-xs' : 'gap-8 text-base'}">
 				{player} requested inventory in {metadata.location.split('_').join(' ')}

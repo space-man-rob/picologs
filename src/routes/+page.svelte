@@ -295,11 +295,14 @@
 		}
 
 		const finalLogs: Log[] = [];
+		let childrenFiltered = 0;
 		for (const log of logs) {
 			if (spreeParents.has(log.id)) {
 				finalLogs.push(spreeParents.get(log.id)!);
 			} else if (!childLogIds.has(log.id)) {
 				finalLogs.push(log);
+			} else {
+				childrenFiltered++;
 			}
 		}
 
@@ -1077,7 +1080,11 @@
 								line: `${playerName || 'Player'} boarded ${shipName}${shipIdMatch ? ` [${shipIdMatch}]` : ''}`,
 								timestamp,
 								original: line,
-								open: false
+								open: false,
+								eventType: 'vehicle_control_flow',
+								metadata: {
+									vehicleName: shipName
+								}
 							};
 						}
 					}
@@ -1440,13 +1447,13 @@
 			bind:this={fileContentContainer}>
 			{#if file}
 				{#each fileContent as item, index (item.id)}
-					{#if index === 0 || fileContent[index - 1]?.line !== item.line || fileContent[index - 1]?.timestamp !== item.timestamp}
-						<Item {...item} bind:open={item.open} />
-						{#if item.children && item.children.length > 0}
+					<Item {...item} bind:open={item.open} />
+					{#if item.open && item.children && item.children.length > 0}
+						<div class="relative ml-16 before:content-[''] before:absolute before:left-0 before:top-0 before:bottom-0 before:w-[2px] before:bg-gradient-to-b before:from-red-500/50 before:via-red-500/30 before:to-transparent">
 							{#each item.children as child (child.id)}
 								<Item {...child} bind:open={child.open} child={true} />
 							{/each}
-						{/if}
+						</div>
 					{/if}
 				{:else}
 					<div class="flex items-start gap-4 px-4 py-3 border-b border-white/5">
