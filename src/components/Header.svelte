@@ -1,22 +1,15 @@
 <script lang="ts">
 	import { BrushCleaning, Copy, FileText, Download, ScrollText } from '@lucide/svelte';
-	import type { Friend as FriendType } from '../types';
 	import { load } from '@tauri-apps/plugin-store';
 	import { ask } from '@tauri-apps/plugin-dialog';
 
 	let {
-		playerId,
 		friendCode,
-		friendsList,
-		saveFriendsListToStore,
 		connectWebSocket,
-		disconnectWebSocket,
 		connectionStatus,
-		ws,
 		copiedStatusVisible,
 		selectFile,
 		logLocation = $bindable(),
-		playerName,
 		clearLogs,
 		updateInfo,
 		installUpdate,
@@ -38,38 +31,15 @@
 		}
 	}
 
-	type LogVersion = 'LIVE' | 'PTU' | 'HOTFIX';
-	let getLogVersion = () => {
-		if (logLocation?.includes('PTU')) {
-			return 'PTU';
-		}
-		if (logLocation?.includes('HOTFIX')) {
-			return 'HOTFIX';
-		}
-		return 'LIVE';
-	};
-	let logVersionSelect = $state<LogVersion>(getLogVersion());
-	let logVersionSelectOptions = $state<(LogVersion | 'Select new')[]>(['LIVE', 'PTU', 'HOTFIX', 'Select new']);
 	let logVersionDropdownOpen = $state(false);
 
-	async function selectVersion(version: LogVersion | 'Select new') {
+	async function selectVersion(option: 'Select new') {
 		logVersionDropdownOpen = false;
 
-		if (version === 'Select new') {
+		if (option === 'Select new') {
 			selectFile();
 			return;
 		}
-
-		logVersionSelect = version;
-		// Store selected version and trigger file selection
-		const store = await load('store.json', {
-			defaults: {},
-			autoSave: false
-		});
-		await store.set('selectedEnvironment', version);
-		await store.save();
-		// Trigger file selection with new environment
-		selectFile(version);
 	}
 
 	function toggleLogVersionDropdown() {
@@ -86,11 +56,6 @@
 		userDropdownOpen = false;
 	}
 
-	$effect(() => {
-		if (logLocation) {
-			logVersionSelect = getLogVersion();
-		}
-	});
 
 	// Show dialog when connection error occurs
 	let showConnectionDialog = $state(false);
@@ -147,25 +112,27 @@
 				<Download size={18} /> Update Available
 			</button>
 		{/if}
-		<button
-			class="relative overflow-hidden bg-white/10 text-white border border-white/20 px-4 py-2 font-medium rounded cursor-pointer transition-colors duration-200 flex items-center gap-2 hover:bg-white/20"
-			onclick={() => {
-				const textToCopy = `My Picologs Friend Code: ${friendCode || 'Not set'}`;
-				navigator.clipboard.writeText(textToCopy);
-				copiedStatusVisible = true;
-				setTimeout(() => {
-					copiedStatusVisible = false;
-				}, 1500);
-			}}>
-			<Copy size={18} />
-			<p class="m-0">Friend Code: {friendCode || 'N/A'}</p>
-			<span
-				class="absolute inset-0 flex items-center justify-center bg-[rgba(0,150,50,0.9)] text-white z-10 pointer-events-none transition-opacity duration-300"
-				class:opacity-100={copiedStatusVisible}
-				class:opacity-0={!copiedStatusVisible}>
-				Copied Friend Code!
-			</span>
-		</button>
+		{#if isSignedIn && discordUser}
+			<button
+				class="relative overflow-hidden bg-white/10 text-white border border-white/20 px-4 py-2 font-medium rounded cursor-pointer transition-colors duration-200 flex items-center gap-2 hover:bg-white/20"
+				onclick={() => {
+					const textToCopy = `My Picologs Friend Code: ${friendCode || 'Not set'}`;
+					navigator.clipboard.writeText(textToCopy);
+					copiedStatusVisible = true;
+					setTimeout(() => {
+						copiedStatusVisible = false;
+					}, 1500);
+				}}>
+				<Copy size={18} />
+				<p class="m-0">Friend Code: {friendCode || 'N/A'}</p>
+				<span
+					class="absolute inset-0 flex items-center justify-center bg-[rgba(0,150,50,0.9)] text-white z-10 pointer-events-none transition-opacity duration-300"
+					class:opacity-100={copiedStatusVisible}
+					class:opacity-0={!copiedStatusVisible}>
+					Copied Friend Code!
+				</span>
+			</button>
+		{/if}
 		{#if logLocation}
 			<div class="relative">
 				<button
@@ -173,7 +140,7 @@
 					onclick={toggleLogVersionDropdown}
 					title="Select Game.log file">
 					<ScrollText size={18} />
-					<span>{logVersionSelect}</span>
+					<span>{logLocation}</span>
 					<div
 						class="flex items-center justify-center w-4 h-4 transition-transform duration-200 {logVersionDropdownOpen
 							? 'rotate-180'
@@ -194,16 +161,11 @@
 				{#if logVersionDropdownOpen}
 					<div
 						class="absolute top-full left-0 mt-2 bg-[rgb(10,30,42)] border border-white/20 rounded min-w-[120px] shadow-md z-[1000] overflow-hidden">
-						{#each logVersionSelectOptions as option}
-							<button
-								class="w-full px-4 py-2 bg-transparent border-none text-white text-left cursor-pointer text-sm transition-colors duration-150 flex items-center hover:bg-white/10 {logVersionSelect ===
-								option
-									? 'bg-white/5'
-									: ''}"
-								onclick={() => selectVersion(option)}>
-								{option}
-							</button>
-						{/each}
+						<button
+							class="w-full px-4 py-2 bg-transparent border-none text-white text-left cursor-pointer text-sm transition-colors duration-150 flex items-center hover:bg-white/10"
+							onclick={() => selectVersion('Select new')}>
+							Select new
+						</button>
 					</div>
 				{/if}
 			</div>

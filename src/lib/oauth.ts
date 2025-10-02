@@ -1,5 +1,6 @@
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { load as loadStore } from '@tauri-apps/plugin-store';
+import { fetch } from '@tauri-apps/plugin-http';
 
 const DISCORD_CLIENT_ID = import.meta.env.VITE_DISCORD_CLIENT_ID;
 const DISCORD_API_ENDPOINT = 'https://discord.com/api/v10';
@@ -35,11 +36,36 @@ let authCompleteCallback: ((result: AuthResult) => void) | null = null;
  * Handle Discord auth complete from deep link
  * This should be called when the app receives a deep link with auth data
  */
-export function handleAuthComplete(data: { user: DiscordUser; tokens: DiscordTokenResponse }) {
+export function handleAuthComplete(data: {
+	user: DiscordUser;
+	tokens: DiscordTokenResponse;
+	dbUser?: {
+		id: string;
+		discordId: string;
+		username: string;
+		avatar: string | null;
+		player: string | null;
+		friendCode: string | null;
+	};
+}) {
 	console.log('[OAuth] Discord auth complete received!');
 	if (authCompleteCallback) {
 		authCompleteCallback({ user: data.user, tokens: data.tokens });
 		authCompleteCallback = null; // Clear callback after use
+
+		// Store dbUser info separately (async, don't block callback)
+		if (data.dbUser) {
+			(async () => {
+				try {
+					const store = await loadStore('auth.json', { defaults: {}, autoSave: false });
+					await store.set('db_user_info', data.dbUser);
+					await store.save();
+					console.log('[OAuth] Stored database user info with friend code:', data.dbUser.friendCode);
+				} catch (error) {
+					console.error('[OAuth] Error storing database user info:', error);
+				}
+			})();
+		}
 	} else {
 		console.log('[OAuth] No auth callback registered!');
 	}
@@ -48,7 +74,18 @@ export function handleAuthComplete(data: { user: DiscordUser; tokens: DiscordTok
 /**
  * Store authentication data in Tauri store
  */
-async function storeAuthData(user: DiscordUser, tokens: DiscordTokenResponse): Promise<void> {
+async function storeAuthData(
+	user: DiscordUser,
+	tokens: DiscordTokenResponse,
+	dbUser?: {
+		id: string;
+		discordId: string;
+		username: string;
+		avatar: string | null;
+		player: string | null;
+		friendCode: string | null;
+	}
+): Promise<void> {
 	const store = await loadStore('auth.json', {
 		defaults: {},
 		autoSave: false
@@ -57,6 +94,13 @@ async function storeAuthData(user: DiscordUser, tokens: DiscordTokenResponse): P
 	await store.set('discord_refresh_token', tokens.refresh_token);
 	await store.set('discord_user', user);
 	await store.set('discord_expires_at', Date.now() + tokens.expires_in * 1000);
+
+	// Store database user info if provided (needed for API authentication)
+	if (dbUser) {
+		await store.set('db_user_info', dbUser);
+		console.log('[OAuth] Stored database user info with friend code:', dbUser.friendCode);
+	}
+
 	await store.save();
 }
 

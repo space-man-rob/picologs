@@ -3,25 +3,39 @@
 	import { load } from '@tauri-apps/plugin-store';
 	import { open } from '@tauri-apps/plugin-dialog';
 	import Item from '../components/Item.svelte';
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
+	import { ArrowDown } from '@lucide/svelte';
+	import { fade } from 'svelte/transition';
 	import Friends from '../components/Friends.svelte';
 	import User from '../components/User.svelte';
 	import AddFriend from '../components/AddFriend.svelte';
 	import type { Log, Friend as FriendType } from '../types';
 	import { appDataDir } from '@tauri-apps/api/path';
 	import Header from '../components/Header.svelte';
-	import PendingFriendRequests from '../components/PendingFriendRequests.svelte';
 	import { ask } from '@tauri-apps/plugin-dialog';
 	import { check } from '@tauri-apps/plugin-updater';
 	import { loginWithDiscord, loadAuthData, signOut, handleAuthComplete } from '$lib/oauth';
 	import { onOpenUrl } from '@tauri-apps/plugin-deep-link';
+	import WebSocket from '@tauri-apps/plugin-websocket';
+	import {
+		fetchFriends,
+		fetchFriendRequests,
+		fetchUserProfile,
+		sendFriendRequest as apiSendFriendRequest,
+		acceptFriendRequest as apiAcceptFriendRequest,
+		denyFriendRequest as apiDenyFriendRequest,
+		removeFriend as apiRemoveFriend,
+		type ApiFriend,
+		type ApiFriendRequest,
+		type ApiUserProfile
+	} from '$lib/api';
 
 	// Authentication state
 	let isSignedIn = $state(false);
 	let discordUser = $state<{ id: string; username: string; avatar: string | null } | null>(null);
 	let discordUserId = $state<string | null>(null); // Discord user ID for WebSocket auth
 
-	let ws = $state<WebSocket | null>(null);
+	let ws = $state<any>(null); // Tauri WebSocket type
 	let file = $state<string | null>(null);
 	let fileContent = $state<Log[]>([]);
 	let friendCode = $state<string | null>(null);
@@ -34,26 +48,95 @@
 	let lineCount = $state<number>(0);
 	let connectionStatus = $state<'connected' | 'disconnected' | 'connecting'>('disconnected');
 	let copiedStatusVisible = $state(false);
-	let pendingFriendRequests = $state<{ friendCode: string }[]>([]);
 	let autoConnectionAttempted = $state(false);
 	let reconnectAttempts = $state(0);
 	let reconnectTimer = $state<ReturnType<typeof setTimeout> | null>(null);
 	const MAX_RECONNECT_ATTEMPTS = 5;
 	let connectionError = $state<string | null>(null);
 	let friendsList = $state<FriendType[]>([]);
-	let pendingFriendRequest = $state<{
-		fromUserId: string;
-		fromFriendCode: string;
-		fromPlayerName?: string;
-		fromTimezone?: string;
-	} | null>(null);
 	let currentUserDisplayData = $state<FriendType | null>(null);
-	let lastPendingRequestId = $state<string | null>(null);
 	let updateInfo = $state<any>(null);
 
-	function disconnectWebSocket() {
-		if (ws && ws.readyState === WebSocket.OPEN) {
-			ws.close();
+	// API-fetched friend data
+	let apiFriends = $state<ApiFriend[]>([]);
+	let apiFriendRequests = $state<ApiFriendRequest[]>([]);
+	let apiUserProfile = $state<ApiUserProfile | null>(null);
+
+	// Sync user profile from API (includes friend code)
+	async function syncUserProfileFromAPI() {
+		if (!isSignedIn) {
+			console.log('[API] Not syncing user profile - not signed in');
+			return;
+		}
+
+		console.log('[API] Fetching user profile from API...');
+		const profile = await fetchUserProfile();
+		if (profile) {
+			apiUserProfile = profile;
+			// Update local friendCode to match database
+			if (profile.friendCode) {
+				friendCode = profile.friendCode;
+				console.log('[API] Synced friend code from database:', friendCode);
+
+				// Save to local store for display
+				const store = await load('store.json', {
+					defaults: {},
+					autoSave: false
+				});
+				await store.set('friendCode', friendCode);
+				await store.save();
+			}
+		}
+	}
+
+	// Sync friends from API
+	async function syncFriendsFromAPI() {
+		if (!isSignedIn) {
+			console.log('[API] Not syncing friends - not signed in');
+			return;
+		}
+
+		console.log('[API] Fetching friends from API...');
+		const friends = await fetchFriends();
+		apiFriends = friends;
+
+		// Convert API friends to local format
+		friendsList = friends.map((f) => ({
+			id: f.friendUserId,
+			friendCode: '', // Friend code not needed in display
+			name: f.friendUsePlayerAsDisplayName && f.friendPlayer
+				? f.friendPlayer
+				: f.friendUsername,
+			status: 'confirmed' as const,
+			timezone: f.friendTimeZone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+			isOnline: false, // Will be updated by WebSocket
+			isConnected: false
+		}));
+
+		console.log('[API] Synced', friends.length, 'friends');
+	}
+
+	// Sync friend requests from API
+	async function syncFriendRequestsFromAPI() {
+		if (!isSignedIn) {
+			console.log('[API] Not syncing friend requests - not signed in');
+			return;
+		}
+
+		console.log('[API] Fetching friend requests from API...');
+		const requests = await fetchFriendRequests();
+		apiFriendRequests = requests;
+
+		console.log('[API] Synced', requests.length, 'friend requests');
+	}
+
+	async function disconnectWebSocket() {
+		if (ws) {
+			try {
+				await ws.disconnect();
+			} catch (error) {
+				console.error('[WebSocket] Error disconnecting:', error);
+			}
 		}
 		connectionStatus = 'disconnected';
 		ws = null;
@@ -67,25 +150,13 @@
 
 	// Authentication functions
 	async function handleSignIn() {
-		// Ensure friendCode exists
-		if (!friendCode) {
-			friendCode = crypto.randomUUID().substring(0, 6);
-			const store = await load('store.json', {
-				defaults: {},
-				autoSave: false
-			});
-			await store.set('friendCode', friendCode);
-			await store.save();
-			console.log('[Auth] Generated friend code:', friendCode);
-		}
-
 		// Generate a temporary ID for OAuth callback if no Discord ID yet
 		const tempAuthId = discordUserId || crypto.randomUUID();
 
 		console.log('[Auth] Starting OAuth flow with temp ID:', tempAuthId);
 
 		// Connect to WebSocket FIRST so we can receive auth_complete message
-		if (!ws || ws.readyState !== WebSocket.OPEN) {
+		if (!ws) {
 			// Temporarily set discordUserId so WebSocket can connect
 			const originalDiscordUserId = discordUserId;
 			discordUserId = tempAuthId;
@@ -125,8 +196,12 @@
 			await store.save();
 
 			// Reconnect WebSocket with real Discord ID
-			if (ws && ws.readyState === WebSocket.OPEN) {
-				ws.close();
+			if (ws) {
+				try {
+					await ws.disconnect();
+				} catch (error) {
+					console.error('[WebSocket] Error disconnecting:', error);
+				}
 			}
 			await connectWebSocket();
 		} catch (error) {
@@ -151,8 +226,12 @@
 			await store.save();
 
 			// Disconnect WebSocket when signing out
-			if (ws && ws.readyState === WebSocket.OPEN) {
-				ws.close();
+			if (ws) {
+				try {
+					await ws.disconnect();
+				} catch (error) {
+					console.error('[WebSocket] Error disconnecting:', error);
+				}
 			}
 			connectionStatus = 'disconnected';
 
@@ -309,10 +388,14 @@
 		return finalLogs;
 	}
 
-	function sendLogViaWebSocket(log: Log) {
-		if (ws && ws.readyState === WebSocket.OPEN) {
-			ws.send(JSON.stringify({ type: 'log', log }));
-			console.log('Sent log via WebSocket:', log);
+	async function sendLogViaWebSocket(log: Log) {
+		if (ws) {
+			try {
+				await ws.send(JSON.stringify({ type: 'log', log }));
+				console.log('Sent log via WebSocket:', log);
+			} catch (error) {
+				console.error('[WebSocket] Error sending log:', error);
+			}
 		}
 	}
 
@@ -324,7 +407,7 @@
 			return Promise.reject(new Error('No user ID available'));
 		}
 
-		if (ws && ws.readyState === WebSocket.OPEN) {
+		if (ws) {
 			return Promise.resolve();
 		}
 
@@ -337,323 +420,270 @@
 		connectionStatus = 'connecting';
 		connectionError = null;
 
-		return new Promise((resolve, reject) => {
-			try {
-				// Use local WebSocket server for development
-				const wsUrl = import.meta.env.DEV
-					? 'ws://localhost:8080/ws'
-					: 'wss://picologs-server.fly.dev/ws';
-				console.log('[WebSocket] Connecting to:', wsUrl);
-				const socket = new WebSocket(wsUrl);
-				ws = socket;
+		try {
+			// Use local WebSocket server for development
+			const wsUrl = import.meta.env.DEV
+				? 'ws://localhost:8080/ws'
+				: 'wss://picologs-server.fly.dev/ws';
+			console.log('[WebSocket] Connecting to:', wsUrl);
 
-				socket.onopen = () => {
-					connectionStatus = 'connected';
-					connectionError = null;
-					reconnectAttempts = 0;
-					if (reconnectTimer) {
-						clearTimeout(reconnectTimer);
-						reconnectTimer = null;
-					}
-					console.log('[WebSocket] Connected, registering with Discord user ID:', discordUserId);
-					try {
-						if (discordUserId && friendCode) {
-							socket.send(
-								JSON.stringify({
-									type: 'register',
-									userId: discordUserId, // Use Discord user ID instead of Star Citizen player ID
-									friendCode: friendCode,
-									playerName: playerName || playerId, // Use SC player ID as display name if no custom name
-									timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-								})
-							);
-						} else {
-							console.log('[WebSocket] Cannot register - missing discordUserId or friendCode');
-						}
-					} catch (sendError) {
-						console.error('[WebSocket] Registration error:', sendError);
-					}
-					resolve();
-				};
+			// Connect using Tauri WebSocket plugin
+			const socket = await WebSocket.connect(wsUrl);
+			ws = socket;
 
-			socket.onmessage = async (event) => {
-				if (typeof event.data === 'string') {
-					try {
-						const message = JSON.parse(event.data);
+			// Add message listener
+			await socket.addListener((msg) => {
+				handleWebSocketMessage(msg);
+			});
 
-						switch (message.type) {
-							case 'welcome':
-								console.log('[WebSocket] ✅ Received welcome message from server');
-								break;
-							case 'registered':
-								console.log(
-									'[WebSocket] ✅ Successfully registered with server as:',
-									discordUserId
-								);
-								break;
-							case 'registration_success':
-								console.log('[WebSocket] ✅ Successfully registered with server');
-								break;
-							case 'auto_initiate_offer':
-								if (message.targetUserId && !autoConnectionAttempted) {
-									autoConnectionAttempted = true;
-								} else if (autoConnectionAttempted) {
-								}
-								break;
-							case 'auto_expect_offer':
-								if (message.fromUserId) {
-									autoConnectionAttempted = true;
-								}
-								break;
-							case 'friend_request_received':
-								if (message.fromUserId && message.fromFriendCode) {
-									// Step 5: Immediately acknowledge receipt to server
-									ws?.send(
-										JSON.stringify({
-											type: 'friend_request_received_ack',
-											requesterUserId: message.fromUserId,
-											responderUserId: playerId,
-											responderFriendCode: friendCode,
-											responderPlayerName: playerName,
-											responderTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-										})
-									);
-									const requestId = `${message.fromUserId}:${message.fromFriendCode}`;
-									if (
-										pendingFriendRequest?.fromUserId !== message.fromUserId ||
-										lastPendingRequestId !== requestId
-									) {
-										pendingFriendRequest = {
-											fromUserId: message.fromUserId,
-											fromFriendCode: message.fromFriendCode,
-											fromPlayerName: message.fromPlayerName,
-											fromTimezone: message.fromTimezone
-										};
-										lastPendingRequestId = requestId;
-
-										const answer = await ask(
-											`Accept friend request from ${pendingFriendRequest?.fromPlayerName || pendingFriendRequest?.fromFriendCode}`,
-											{
-												title: 'Accept friend request',
-												kind: 'info'
-											}
-										);
-
-										handleFriendRequestResponse(answer);
-									}
-								}
-								break;
-							case 'friend_request_accepted_notice':
-								if (message.friend) {
-									pendingFriendRequests = pendingFriendRequests.filter(
-										(req) => req.friendCode !== message.friend.friendCode
-									);
-									const store = await load('store.json', {
-										defaults: {},
-										autoSave: false
-									});
-									await store.set('pendingFriendRequests', pendingFriendRequests);
-									await store.save();
-									addFriendToList(message.friend);
-									alert(
-										`Your friend request to ${message.friend.playerName || message.friend.friendCode} was accepted!`
-									);
-								}
-								break;
-							case 'friend_added_notice':
-								if (message.friend) {
-									addFriendToList(message.friend);
-									// Send our logs to the new friend
-									if (ws && ws.readyState === WebSocket.OPEN && playerId && message.friend.id) {
-										const myLogs = await loadLogsFromDisk();
-										ws.send(
-											JSON.stringify({
-												type: 'sync_logs',
-												targetUserId: message.friend.id,
-												logs: myLogs
-											})
-										);
-									}
-								}
-								break;
-							case 'friend_request_denied_notice':
-								if (message.fromFriendCode) {
-									pendingFriendRequests = pendingFriendRequests.map((req) =>
-										req.friendCode === message.fromFriendCode ? { ...req, status: 'denied' } : req
-									);
-									const store = await load('store.json', {
-										defaults: {},
-										autoSave: false
-									});
-									await store.set('pendingFriendRequests', pendingFriendRequests);
-									await store.save();
-									alert(`Your friend request to ${message.fromFriendCode} was denied.`);
-								}
-								break;
-							case 'friend_request_error':
-								alert(`Friend request error: ${message.message}`);
-								break;
-							case 'user_came_online':
-								if (message.userData && message.userData.id !== playerId) {
-									const friendId = message.userData.id;
-									const friendIndex = friendsList.findIndex((f) => f.id === friendId);
-									if (friendIndex !== -1) {
-										const oldFriendData = friendsList[friendIndex];
-										friendsList = [
-											...friendsList.slice(0, friendIndex),
-											{
-												...oldFriendData,
-												isOnline: true,
-												name: message.userData.playerName || oldFriendData.name,
-												timezone: message.userData.timezone || oldFriendData.timezone
-											},
-											...friendsList.slice(friendIndex + 1)
-										];
-										saveFriendsListToStore();
-										// Send our logs to the friend who just came online
-										if (ws && ws.readyState === WebSocket.OPEN && playerId && friendId) {
-											const myLogs = await loadLogsFromDisk();
-											ws.send(
-												JSON.stringify({
-													type: 'sync_logs',
-													targetUserId: friendId,
-													logs: myLogs
-												})
-											);
-										}
-									}
-								}
-								break;
-							case 'friend_details_updated':
-								if (message.userData && message.userData.id !== playerId) {
-									const friendIndex = friendsList.findIndex((f) => f.id === message.userData.id);
-									if (friendIndex !== -1) {
-										friendsList = [
-											...friendsList.slice(0, friendIndex),
-											{
-												...friendsList[friendIndex],
-												name: message.userData.playerName || friendsList[friendIndex].name,
-												timezone: message.userData.timezone || friendsList[friendIndex].timezone,
-												friendCode:
-													message.userData.friendCode || friendsList[friendIndex].friendCode
-											},
-											...friendsList.slice(friendIndex + 1)
-										];
-										saveFriendsListToStore();
-									}
-								}
-								break;
-							case 'user_disconnected':
-								if (message.userId) {
-									const friendId = message.userId;
-									const friendIndex = friendsList.findIndex((f) => f.id === friendId);
-									if (friendIndex !== -1) {
-										friendsList = [
-											...friendsList.slice(0, friendIndex),
-											{ ...friendsList[friendIndex], isOnline: false },
-											...friendsList.slice(friendIndex + 1)
-										];
-										saveFriendsListToStore();
-									}
-								}
-								break;
-							case 'error':
-								break;
-							case 'auth_complete':
-								if (message.data?.user && message.data?.tokens) {
-									console.log('[WebSocket] Received auth_complete message');
-									handleAuthComplete(message.data);
-								}
-								break;
-							case 'log':
-								if (message.log) {
-									const log = message.log;
-									// Only show logs from friends or yourself
-									const isFromFriend = friendsList.some(
-										(friend) => friend.id === log.userId && friend.status === 'confirmed'
-									);
-									const isFromMe = log.userId === playerId;
-									if (isFromFriend || isFromMe) {
-										let groupedLogs = dedupeAndSortLogs([...fileContent, log]);
-										groupedLogs = groupKillingSprees(groupedLogs);
-										fileContent = groupedLogs;
-										appendLogToDisk(log); // Save to disk
-									}
-								}
-								break;
-							case 'friend_request_pending':
-								if (
-									!pendingFriendRequests.some((req) => req.friendCode === message.targetFriendCode)
-								) {
-									pendingFriendRequests = [
-										...pendingFriendRequests,
-										{ friendCode: message.targetFriendCode }
-									];
-									const store = await load('store.json', {
-										defaults: {},
-										autoSave: false
-									});
-									await store.set('pendingFriendRequests', pendingFriendRequests);
-									await store.save();
-								}
-								break;
-							case 'friend_removed':
-								if (message.userId) {
-									friendsList = friendsList.filter((f) => f.id !== message.userId);
-									saveFriendsListToStore();
-								}
-								break;
-							case 'sync_logs':
-								if (message.logs && Array.isArray(message.logs)) {
-									// Merge, dedupe, and save logs
-									const localLogs = await loadLogsFromDisk();
-									let allLogs = dedupeAndSortLogs([...localLogs, ...message.logs]);
-									allLogs = groupKillingSprees(allLogs);
-									await saveLogsToDisk(allLogs);
-									fileContent = allLogs;
-								}
-								break;
-							default:
-						}
-					} catch (e) {}
-				} else {
-				}
-			};
-
-			socket.onclose = (event) => {
-				console.log('[WebSocket] Connection closed:', event.code, event.reason);
-				connectionStatus = 'disconnected';
-				ws = null;
-				autoConnectionAttempted = false;
-
-				friendsList = friendsList.map((friend) => ({ ...friend, isOnline: false }));
-				saveFriendsListToStore();
-
-				// Show error message if not a normal closure
-				if (event.code !== 1000) {
-					connectionError = 'Connection lost';
-				} else {
-					connectionError = null;
-				}
-			};
-
-			socket.onerror = (error) => {
-				console.error('[WebSocket] Connection error:', error);
-				connectionStatus = 'disconnected';
-				connectionError = 'Failed to connect to server. Retrying...';
-				ws = null;
-				autoConnectionAttempted = false;
-
-				friendsList = friendsList.map((friend) => ({ ...friend, isOnline: false }));
-				saveFriendsListToStore();
-				reject(new Error('Failed to connect to WebSocket server'));
-			};
-			} catch (error) {
-				console.error('[WebSocket] Failed to connect:', error);
-				connectionError = 'Unable to connect to server. Check your internet connection.';
-				reject(error instanceof Error ? error : new Error('Failed to connect'));
+			// Connection is established, send registration
+			connectionStatus = 'connected';
+			connectionError = null;
+			reconnectAttempts = 0;
+			if (reconnectTimer) {
+				clearTimeout(reconnectTimer);
+				reconnectTimer = null;
 			}
-		});
+			console.log('[WebSocket] Connected, registering with Discord user ID:', discordUserId);
+
+			try {
+				if (discordUserId && friendCode) {
+					await socket.send(
+						JSON.stringify({
+							type: 'register',
+							userId: discordUserId, // Use Discord user ID instead of Star Citizen player ID
+							friendCode: friendCode,
+							playerName: playerName || playerId, // Use SC player ID as display name if no custom name
+							timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+						})
+					);
+				} else {
+					console.log('[WebSocket] Cannot register - missing discordUserId or friendCode');
+				}
+			} catch (sendError) {
+				console.error('[WebSocket] Registration error:', sendError);
+			}
+
+			return Promise.resolve();
+		} catch (error) {
+			console.error('[WebSocket] Failed to connect:', error);
+			connectionStatus = 'disconnected';
+			connectionError = 'Failed to connect to server. Retrying...';
+			ws = null;
+			autoConnectionAttempted = false;
+
+			friendsList = friendsList.map((friend) => ({ ...friend, isOnline: false }));
+			saveFriendsListToStore();
+			return Promise.reject(error instanceof Error ? error : new Error('Failed to connect'));
+		}
+	}
+
+	async function handleWebSocketMessage(msg: any) {
+		try {
+			// Handle different message types from Tauri WebSocket
+			let messageData: string;
+
+			if (typeof msg === 'string') {
+				messageData = msg;
+			} else if (msg.data && typeof msg.data === 'string') {
+				messageData = msg.data;
+			} else if (msg.type === 'Text' && msg.data) {
+				messageData = msg.data;
+			} else {
+				console.log('[WebSocket] Received non-text message:', msg);
+				return;
+			}
+
+			const message = JSON.parse(messageData);
+
+			switch (message.type) {
+				case 'welcome':
+					console.log('[WebSocket] ✅ Received welcome message from server');
+					break;
+				case 'registered':
+					console.log('[WebSocket] ✅ Successfully registered with server as:', discordUserId);
+					// Initial sync after registration
+					await syncUserProfileFromAPI(); // Fetch friend code first
+					await syncFriendsFromAPI();
+					await syncFriendRequestsFromAPI();
+					break;
+				case 'registration_success':
+					console.log('[WebSocket] ✅ Successfully registered with server');
+					break;
+				case 'refetch_friends':
+					console.log('[WebSocket] 🔄 Received refetch_friends notification');
+					await syncFriendsFromAPI();
+					break;
+				case 'refetch_friend_requests':
+					console.log('[WebSocket] 🔄 Received refetch_friend_requests notification');
+					await syncFriendRequestsFromAPI();
+					break;
+				case 'user_online':
+					// Update friend's online status
+					if (message.userId) {
+						const friendIndex = friendsList.findIndex((f) => f.id === message.userId);
+						if (friendIndex !== -1) {
+							friendsList = [
+								...friendsList.slice(0, friendIndex),
+								{ ...friendsList[friendIndex], isOnline: true },
+								...friendsList.slice(friendIndex + 1)
+							];
+						}
+					}
+					break;
+				case 'user_offline':
+					// Update friend's offline status
+					if (message.userId) {
+						const friendIndex = friendsList.findIndex((f) => f.id === message.userId);
+						if (friendIndex !== -1) {
+							friendsList = [
+								...friendsList.slice(0, friendIndex),
+								{ ...friendsList[friendIndex], isOnline: false },
+								...friendsList.slice(friendIndex + 1)
+							];
+						}
+					}
+					break;
+
+				// Legacy handlers - can be removed after migration
+				case 'auto_initiate_offer':
+					// Deprecated - no longer used
+					break;
+				case 'auto_expect_offer':
+					// Deprecated - no longer used
+					break;
+				case 'friend_request_received':
+					// Deprecated - now handled via API and refetch_friend_requests notification
+					console.log('[WebSocket] Received legacy friend_request_received message - use API instead');
+					break;
+				case 'friend_request_accepted_notice':
+					// Deprecated - now handled via API and refetch notifications
+					console.log('[WebSocket] Received legacy friend_request_accepted_notice - use API instead');
+					break;
+				case 'friend_added_notice':
+					// Deprecated - now handled via API and refetch_friends notification
+					console.log('[WebSocket] Received legacy friend_added_notice - use API instead');
+					break;
+				case 'friend_request_denied_notice':
+					// Deprecated - now handled via API
+					console.log('[WebSocket] Received legacy friend_request_denied_notice - use API instead');
+					break;
+				case 'friend_request_error':
+					// Deprecated - errors now come from API responses
+					console.log('[WebSocket] Received legacy friend_request_error - use API instead');
+					break;
+				case 'user_came_online':
+					if (message.userData && message.userData.id !== playerId) {
+						const friendId = message.userData.id;
+						const friendIndex = friendsList.findIndex((f) => f.id === friendId);
+						if (friendIndex !== -1) {
+							const oldFriendData = friendsList[friendIndex];
+							friendsList = [
+								...friendsList.slice(0, friendIndex),
+								{
+									...oldFriendData,
+									isOnline: true,
+									name: message.userData.playerName || oldFriendData.name,
+									timezone: message.userData.timezone || oldFriendData.timezone
+								},
+								...friendsList.slice(friendIndex + 1)
+							];
+							saveFriendsListToStore();
+							// Send our logs to the friend who just came online
+							if (ws && playerId && friendId) {
+								const myLogs = await loadLogsFromDisk();
+								await ws.send(
+									JSON.stringify({
+										type: 'sync_logs',
+										targetUserId: friendId,
+										logs: myLogs
+									})
+								);
+							}
+						}
+					}
+					break;
+				case 'friend_details_updated':
+					if (message.userData && message.userData.id !== playerId) {
+						const friendIndex = friendsList.findIndex((f) => f.id === message.userData.id);
+						if (friendIndex !== -1) {
+							friendsList = [
+								...friendsList.slice(0, friendIndex),
+								{
+									...friendsList[friendIndex],
+									name: message.userData.playerName || friendsList[friendIndex].name,
+									timezone: message.userData.timezone || friendsList[friendIndex].timezone,
+									friendCode: message.userData.friendCode || friendsList[friendIndex].friendCode
+								},
+								...friendsList.slice(friendIndex + 1)
+							];
+							saveFriendsListToStore();
+						}
+					}
+					break;
+				case 'user_disconnected':
+					if (message.userId) {
+						const friendId = message.userId;
+						const friendIndex = friendsList.findIndex((f) => f.id === friendId);
+						if (friendIndex !== -1) {
+							friendsList = [
+								...friendsList.slice(0, friendIndex),
+								{ ...friendsList[friendIndex], isOnline: false },
+								...friendsList.slice(friendIndex + 1)
+							];
+							saveFriendsListToStore();
+						}
+					}
+					break;
+				case 'error':
+					break;
+				case 'auth_complete':
+					if (message.data?.user && message.data?.tokens) {
+						console.log('[WebSocket] Received auth_complete message');
+						handleAuthComplete(message.data);
+					}
+					break;
+				case 'log':
+					if (message.log) {
+						const log = message.log;
+						// Only show logs from friends or yourself
+						const isFromFriend = friendsList.some(
+							(friend) => friend.id === log.userId && friend.status === 'confirmed'
+						);
+						const isFromMe = log.userId === playerId;
+						if (isFromFriend || isFromMe) {
+							let groupedLogs = dedupeAndSortLogs([...fileContent, log]);
+							groupedLogs = groupKillingSprees(groupedLogs);
+							fileContent = groupedLogs;
+							appendLogToDisk(log); // Save to disk
+						}
+					}
+					break;
+				case 'friend_request_pending':
+					// Deprecated - friend requests are now handled via API
+					console.log('[WebSocket] Received legacy friend_request_pending message - use API instead');
+					break;
+				case 'friend_removed':
+					if (message.userId) {
+						friendsList = friendsList.filter((f) => f.id !== message.userId);
+						saveFriendsListToStore();
+					}
+					break;
+				case 'sync_logs':
+					if (message.logs && Array.isArray(message.logs)) {
+						// Merge, dedupe, and save logs
+						const localLogs = await loadLogsFromDisk();
+						let allLogs = dedupeAndSortLogs([...localLogs, ...message.logs]);
+						allLogs = groupKillingSprees(allLogs);
+						await saveLogsToDisk(allLogs);
+						fileContent = allLogs;
+					}
+					break;
+				default:
+			}
+		} catch (e) {
+			console.error('[WebSocket] Error handling message:', e);
+		}
 	}
 
 	onMount(() => {
@@ -680,8 +710,6 @@
 			const savedFriendCode = await store.get<string>('friendCode');
 			const savedFriendsList = await store.get<FriendType[]>('friendsList');
 			const savedPlayerName = await store.get<string>('playerName');
-			const savedPendingFriendRequests =
-				await store.get<{ friendCode: string }[]>('pendingFriendRequests');
 			const savedEnvironment = await store.get<'LIVE' | 'PTU' | 'HOTFIX'>(
 				'selectedEnvironment'
 			);
@@ -696,10 +724,6 @@
 
 			if (savedFriendsList) {
 				friendsList = savedFriendsList.map((friend) => ({ ...friend, isOnline: false }));
-			}
-
-			if (savedPendingFriendRequests) {
-				pendingFriendRequests = savedPendingFriendRequests;
 			}
 
 			// Load Discord authentication state
@@ -721,10 +745,9 @@
 				}
 			}
 
-			if (!savedFriendCode) {
-				friendCode = generateId(6);
-				await store.set('friendCode', friendCode);
-			} else {
+			// Friend code is loaded from database via syncUserProfileFromAPI()
+			// Only use saved value as fallback display until API loads
+			if (savedFriendCode) {
 				friendCode = savedFriendCode;
 			}
 
@@ -744,8 +767,13 @@
 				}
 			} catch (error) {}
 
+			// Sync user profile from API if signed in (to get friend code)
+			if (isSignedIn && discordUserId) {
+				await syncUserProfileFromAPI();
+			}
+
 			// Connect WebSocket only if signed in with Discord
-			if (isSignedIn && discordUserId && friendCode && (!ws || ws.readyState !== WebSocket.OPEN)) {
+			if (isSignedIn && discordUserId && !ws) {
 				connectWebSocket();
 			}
 
@@ -785,12 +813,20 @@
 					}
 				}
 			});
+			// Add scroll event listener
+			if (fileContentContainer) {
+				console.log('Adding scroll listener to:', fileContentContainer);
+				fileContentContainer.addEventListener('scroll', handleScroll, { passive: true });
+			}
 		})();
 
 		// Cleanup on unmount
 		return () => {
 			if (unlisten) {
 				unlisten();
+			}
+			if (fileContentContainer) {
+				fileContentContainer.removeEventListener('scroll', handleScroll);
 			}
 		};
 	});
@@ -887,7 +923,8 @@
 						}
 
 						if (playerName && playerName !== oldPlayerName) {
-							if (ws && ws.readyState === WebSocket.OPEN && discordUserId && friendCode) {
+							if (ws && discordUserId && friendCode) {
+								// Fire-and-forget WebSocket send (don't block log parsing)
 								ws.send(
 									JSON.stringify({
 										type: 'update_my_details',
@@ -897,7 +934,9 @@
 										playerId: playerId, // Include SC player ID as metadata
 										timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
 									})
-								);
+								).catch((error: any) => {
+									console.error('[WebSocket] Error sending update_my_details:', error);
+								});
 							}
 						}
 						logEntry = {
@@ -1153,7 +1192,7 @@
 			await handleFile(selectedPath);
 			await handleInitialiseWatch(selectedPath);
 
-			if ((!ws || ws.readyState !== WebSocket.OPEN) && playerId) {
+			if (!ws && playerId) {
 				connectWebSocket();
 			}
 		}
@@ -1188,21 +1227,20 @@
 		prevLineCount = 0;
 		lineCount = 0;
 		playerId = null; // Will be re-extracted from Game.log
-		friendCode = null;
+		friendCode = null; // Friend code now comes from database
 		friendsList = [];
-		pendingFriendRequest = null;
 		currentUserDisplayData = null;
 		autoConnectionAttempted = false;
-
-		friendCode = generateId(6);
-		await store.set('friendCode', friendCode);
-		await store.save();
 
 		console.log('[Reset] Data reset complete, Discord auth preserved');
 
 		// Reconnect WebSocket if signed in
-		if (ws && ws.readyState === WebSocket.OPEN) {
-			ws.close();
+		if (ws) {
+			try {
+				await ws.disconnect();
+			} catch (error) {
+				console.error('[WebSocket] Error disconnecting:', error);
+			}
 		}
 		connectionStatus = 'disconnected';
 
@@ -1212,6 +1250,30 @@
 	}
 
 	let fileContentContainer = $state<HTMLDivElement | null>(null);
+	let atTheBottom = $state(true);
+	let hasScrollbar = $state(false);
+
+	function handleScroll(event: Event) {
+		if (!(event.target instanceof HTMLDivElement)) {
+			return;
+		}
+		const target = event.target;
+		const isAtBottom = target.scrollTop + target.clientHeight >= target.scrollHeight - 5;
+		const hasContent = target.scrollHeight > target.clientHeight;
+
+		hasScrollbar = hasContent && !isAtBottom;
+		atTheBottom = isAtBottom;
+
+		console.log('Scroll:', {
+			scrollTop: target.scrollTop,
+			clientHeight: target.clientHeight,
+			scrollHeight: target.scrollHeight,
+			hasContent,
+			isAtBottom,
+			hasScrollbar,
+			atTheBottom
+		});
+	}
 
 	const shipTypes = [
 		'325a',
@@ -1341,64 +1403,47 @@
 	}
 
 	async function handleAddFriend(friendCode: string) {
-		// send friend request to friend
-		ws?.send(
-			JSON.stringify({
-				type: 'friend_request_by_code',
-				targetFriendCode: friendCode,
-				requesterId: playerId,
-				requesterFriendCode: friendCode,
-				requesterPlayerName: playerName,
-				requesterTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-			})
-		);
-	}
-
-	function handleFriendRequestResponse(accepted: boolean) {
-		if (!pendingFriendRequest || !ws || !playerId || !friendCode) {
+		if (!isSignedIn) {
+			alert('Please sign in with Discord to add friends');
 			return;
 		}
 
-		const response = {
-			type: accepted ? 'friend_request_response_accept' : 'friend_request_response_deny',
-			requesterUserId: pendingFriendRequest.fromUserId,
-			responderUserId: playerId,
-			responderFriendCode: friendCode,
-			responderPlayerName: playerName,
-			responderTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-		};
+		console.log('[Friend] Sending friend request to:', friendCode);
+		const success = await apiSendFriendRequest(friendCode);
 
-		ws.send(JSON.stringify(response));
-		pendingFriendRequest = null;
-	}
-
-	function handleRemoveFriend(id: string) {
-		const friend = friendsList.find((f) => f.id === id);
-		if (friend && ws && playerId) {
-			ws.send(
-				JSON.stringify({
-					type: 'remove_friend',
-					userId: playerId,
-					targetUserId: friend.id,
-					friendCode: friend.friendCode
-				})
-			);
+		if (success) {
+			console.log('[Friend] Friend request sent successfully');
+			// API will trigger refetch_friend_requests notification
+		} else {
+			alert('Failed to send friend request. Please check the friend code and try again.');
 		}
-		friendsList = friendsList.filter((f) => f.id !== id);
-		saveFriendsListToStore();
 	}
 
-	async function handleRemoveFriendRequest(friendCode: string) {
-		pendingFriendRequests = pendingFriendRequests.filter(
-			(request: { friendCode: string }) => request.friendCode !== friendCode
-		);
-		const store = await load('store.json', {
-			defaults: {},
-			autoSave: false
-		});
-		await store.set('pendingFriendRequests', pendingFriendRequests);
-		await store.save();
+
+	async function handleRemoveFriend(id: string) {
+		if (!isSignedIn) {
+			alert('Please sign in with Discord to remove friends');
+			return;
+		}
+
+		// Find the friendship ID from apiFriends
+		const apiFriend = apiFriends.find((f) => f.friendUserId === id);
+		if (!apiFriend) {
+			console.error('[Friend] Cannot remove friend - friendship not found');
+			return;
+		}
+
+		console.log('[Friend] Removing friend:', id);
+		const success = await apiRemoveFriend(apiFriend.id);
+
+		if (success) {
+			console.log('[Friend] Friend removed successfully');
+			// API will trigger refetch_friends notification
+		} else {
+			alert('Failed to remove friend. Please try again.');
+		}
 	}
+
 </script>
 
 <main class="p-0 text-white grid grid-cols-1 grid-rows-[auto_1fr] h-dvh overflow-hidden">
@@ -1425,25 +1470,23 @@
 		{connectionError} />
 
 	<div
-		class="grid grid-cols-[290px_1fr] grid-rows-[1fr_auto] h-[calc(100dvh-70px)] overflow-hidden">
-		<div
-			class="col-start-1 col-end-2 row-start-1 row-end-3 border-r border-white/20 flex flex-col gap-4 overflow-y-auto">
-			{#if currentUserDisplayData}
-				<User user={currentUserDisplayData} />
-			{/if}
-			{#if pendingFriendRequests.length > 0}
-				<PendingFriendRequests
-					{pendingFriendRequests}
-					removeFriendRequest={handleRemoveFriendRequest}
-					respondToFriendRequest={handleFriendRequestResponse} />
-			{/if}
-			<Friends {friendsList} removeFriend={handleRemoveFriend} />
-			<div class="mt-auto pt-4">
-				<AddFriend addFriend={handleAddFriend} />
+		class="grid grid-rows-[1fr_auto] h-[calc(100dvh-70px)] overflow-hidden"
+		style="grid-template-columns: {isSignedIn && discordUser ? '290px 1fr' : '1fr'};">
+		{#if isSignedIn && discordUser}
+			<div
+				class="col-start-1 col-end-2 row-start-1 row-end-3 border-r border-white/20 flex flex-col gap-4 overflow-y-auto">
+				{#if currentUserDisplayData}
+					<User user={currentUserDisplayData} />
+				{/if}
+				<Friends {friendsList} removeFriend={handleRemoveFriend} />
+				<div class="mt-auto pt-4">
+					<AddFriend addFriend={handleAddFriend} />
+				</div>
 			</div>
-		</div>
+		{/if}
 		<div
-			class="col-start-2 col-end-3 row-start-1 row-end-2 overflow-y-auto flex flex-col bg-black/10 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.3)_rgba(0,0,0,0.2)]"
+			class="row-start-1 row-end-2 overflow-y-auto flex flex-col bg-black/10 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.3)_rgba(0,0,0,0.2)]"
+			style="grid-column: {isSignedIn && discordUser ? '2 / 3' : '1 / 2'};"
 			bind:this={fileContentContainer}>
 			{#if file}
 				{#each fileContent as item, index (item.id)}
@@ -1498,9 +1541,26 @@
 				</div>
 			{/if}
 		</div>
+
+		<!-- Scroll to bottom button -->
+		{#if hasScrollbar && !atTheBottom}
+			<button
+				in:fade={{ duration: 200, delay: 400 }}
+				out:fade={{ duration: 200 }}
+				class="fixed bottom-[80px] left-1/2 -translate-x-1/2 w-10 h-10 rounded-full bg-white/10 border border-white/20 backdrop-blur-[10px] shadow-[0_0_10px_rgba(0,0,0,0.1)] flex items-center justify-center text-white cursor-pointer z-50"
+				onclick={() =>
+					fileContentContainer?.scrollTo({
+						top: fileContentContainer.scrollHeight,
+						behavior: 'smooth'
+					})}>
+				<ArrowDown size={24} />
+			</button>
+		{/if}
+
 		{#if file}
 			<div
-				class="col-start-2 col-end-3 row-start-2 row-end-3 flex items-center justify-end gap-2 px-4 py-2 bg-[rgb(10,30,42)] border-t border-white/20 text-[0.8rem] text-white/70">
+				class="row-start-2 row-end-3 flex items-center justify-end gap-2 px-4 py-2 bg-[rgb(10,30,42)] border-t border-white/20 text-[0.8rem] text-white/70"
+				style="grid-column: {isSignedIn && discordUser ? '2 / 3' : '1 / 2'};">
 				Log lines processed: {Number(lineCount).toLocaleString()}
 			</div>
 		{/if}
