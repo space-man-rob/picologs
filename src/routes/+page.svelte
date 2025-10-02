@@ -433,7 +433,7 @@
 				await syncFriendRequestsFromAPI();
 			});
 
-			apiSubscribe('user_online', (message: any) => {
+			apiSubscribe('user_online', async (message: any) => {
 				if (message.userId) {
 					const friendIndex = friendsList.findIndex((f) => f.id === message.userId);
 					if (friendIndex !== -1) {
@@ -442,6 +442,21 @@
 							{ ...friendsList[friendIndex], isOnline: true },
 							...friendsList.slice(friendIndex + 1)
 						];
+
+						// Send our logs to the friend who just came online
+						if (ws && discordUserId) {
+							const myLogs = await loadLogsFromDisk();
+							if (myLogs.length > 0) {
+								console.log('[WebSocket] 📤 Sending', myLogs.length, 'logs to', message.userId);
+								await ws.send(
+									JSON.stringify({
+										type: 'sync_logs',
+										targetUserId: message.userId,
+										logs: myLogs
+									})
+								);
+							}
+						}
 					}
 				}
 			});
@@ -765,20 +780,13 @@
 				try {
 					// Load existing logs from disk
 					const savedLogs = await loadLogsFromDisk();
+					fileContent = savedLogs;
 
-					if (savedLogs.length > 0) {
-						// We have saved logs - use them and skip reprocessing
-						fileContent = savedLogs;
-						const linesText = await readTextFile(file);
-						prevLineCount = linesText.split('\n').length;
-						lineCount = savedLogs.length;
-					} else {
-						// No saved logs - parse the entire file
-						fileContent = [];
-						prevLineCount = 0;
-						lineCount = 0;
-						await handleFile(file);
-					}
+					// Always re-parse the entire Game.log to ensure we have all logs
+					// This handles cases where logs.json might be out of sync
+					prevLineCount = 0;
+					lineCount = 0;
+					await handleFile(file);
 
 					handleInitialiseWatch(file);
 					// playerId will be extracted from Game.log when parsing
