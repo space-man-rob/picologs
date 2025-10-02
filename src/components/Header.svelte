@@ -194,7 +194,7 @@
 					<div class="relative flex items-center justify-center">
 						{#if discordUser.avatar && discordUser.id}
 							<img
-								src={`https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png?size=64`}
+								src={`${import.meta.env.VITE_DISCORD_CDN_URL}/avatars/${discordUser.id}/${discordUser.avatar}.png?size=64`}
 								alt={discordUser.username}
 								class="w-9 h-9 rounded-full border-2 transition-[border-color] duration-300"
 								class:border-[#4caf50]={connectionStatus === 'connected'}
@@ -261,13 +261,25 @@
 {#if showConnectionDialog && isSignedIn && discordUser}
 	<div
 		class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm"
-		onclick={handleDismiss}>
+		role="button"
+		tabindex="0"
+		onclick={handleDismiss}
+		onkeydown={(e) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				handleDismiss();
+			}
+		}}>
 		<div
 			class="bg-[rgb(15,35,47)] border border-[#f44336]/50 rounded-lg shadow-[0_8px_32px_rgba(244,67,54,0.3)] max-w-md w-full mx-4"
-			onclick={(e) => e.stopPropagation()}>
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="dialog-title"
+			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.stopPropagation()}>
 			<div class="px-6 py-4 border-b border-white/10 flex items-center gap-3">
 				<span class="text-2xl">⚠️</span>
-				<h2 class="text-xl font-semibold text-white m-0">Connection Lost</h2>
+				<h2 id="dialog-title" class="text-xl font-semibold text-white m-0">Connection Lost</h2>
 			</div>
 			<div class="px-6 py-5">
 				<p class="text-white/80 text-base leading-relaxed m-0">

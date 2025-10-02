@@ -98,7 +98,7 @@
 	let shipData = $state(getShipData(metadata));
 	let shipImage = $derived(
 		shipData?.slug && shipData?.fleetData?.variants[0]?.iso_l?.hash
-			? `https://fleetviewer.link/fleetpics%2F${shipData.slug}__iso_l_${shipData.fleetData.variants[0]?.iso_l?.hash}.png?alt=media`
+			? `${import.meta.env.VITE_FLEET_VIEWER_URL}/fleetpics%2F${shipData.slug}__iso_l_${shipData.fleetData.variants[0]?.iso_l?.hash}.png?alt=media`
 			: null
 	);
 	let shipName = $derived(shipData ? shipData.name : null);

@@ -14,7 +14,7 @@
 	let isDev = $state(false);
 
 	// Determine website URL based on environment
-	const websiteUrl = isDev ? 'http://localhost:5173' : 'https://picologs.com';
+	const websiteUrl = $derived(isDev ? import.meta.env.VITE_WEBSITE_URL_DEV : import.meta.env.VITE_WEBSITE_URL_PROD);
 
 	onMount(() => {
 		// Check if we're in development mode
@@ -30,7 +30,7 @@
 
 	function handleMessage(event: MessageEvent) {
 		// Security: Verify origin
-		const allowedOrigins = ['https://picologs.com', 'http://localhost:5173'];
+		const allowedOrigins = [import.meta.env.VITE_WEBSITE_URL_PROD, import.meta.env.VITE_WEBSITE_URL_DEV];
 		if (!allowedOrigins.includes(event.origin)) {
 			console.warn('Ignored message from unauthorized origin:', event.origin);
 			return;

@@ -3,8 +3,9 @@ import { load as loadStore } from '@tauri-apps/plugin-store';
 import { fetch } from '@tauri-apps/plugin-http';
 
 const DISCORD_CLIENT_ID = import.meta.env.VITE_DISCORD_CLIENT_ID;
-const DISCORD_API_ENDPOINT = 'https://discord.com/api/v10';
-const AUTH_CALLBACK_URL = import.meta.env.VITE_AUTH_BRIDGE_URL || 'https://picologs.com/auth/callback';
+const DISCORD_API_ENDPOINT = import.meta.env.VITE_DISCORD_API_ENDPOINT;
+const DISCORD_OAUTH_URL = import.meta.env.VITE_DISCORD_OAUTH_URL;
+const AUTH_CALLBACK_URL = import.meta.env.VITE_AUTH_BRIDGE_URL;
 
 interface DiscordTokenResponse {
 	access_token: string;
@@ -60,7 +61,9 @@ export function handleAuthComplete(data: {
 					const store = await loadStore('auth.json', { defaults: {}, autoSave: false });
 					await store.set('db_user_info', data.dbUser);
 					await store.save();
-					console.log('[OAuth] Stored database user info with friend code:', data.dbUser.friendCode);
+					if (data.dbUser) {
+						console.log('[OAuth] Stored database user info with friend code:', data.dbUser.friendCode);
+					}
 				} catch (error) {
 					console.error('[OAuth] Error storing database user info:', error);
 				}
@@ -126,7 +129,7 @@ export async function loginWithDiscord(userId: string): Promise<AuthResult> {
 			};
 
 			// Build Discord OAuth URL with userId as state parameter
-			const authUrl = new URL('https://discord.com/oauth2/authorize');
+			const authUrl = new URL(DISCORD_OAUTH_URL);
 			authUrl.searchParams.set('client_id', DISCORD_CLIENT_ID);
 			authUrl.searchParams.set('response_type', 'code');
 			authUrl.searchParams.set('redirect_uri', AUTH_CALLBACK_URL);

@@ -1,13 +1,13 @@
 /**
- * API client for communicating with the Picologs website backend
- * Uses Discord OAuth tokens for authentication
+ * API client for communicating with the Picologs backend via WebSocket
+ * All communication happens through WebSocket messages instead of HTTP
  */
 
-import { fetch } from '@tauri-apps/plugin-http';
+import WebSocket from '@tauri-apps/plugin-websocket';
 
-const API_URL = import.meta.env.DEV
-	? 'http://localhost:5173'
-	: 'https://picologs.com';
+const WS_URL = import.meta.env.DEV
+	? import.meta.env.VITE_WS_URL_DEV
+	: import.meta.env.VITE_WS_URL_PROD;
 
 /**
  * Friend data from API
@@ -58,274 +58,254 @@ export interface ApiUserProfile {
 	updatedAt: string;
 }
 
+// WebSocket singleton and state
+let ws: any = null;
+let isConnected = false;
+let messageHandlers = new Map<string, (data: any) => void>();
+let pendingRequests = new Map<string, { resolve: (value: any) => void; reject: (reason?: any) => void }>();
+let requestIdCounter = 0;
+
 /**
- * Get authentication cookies for API requests
+ * Generate unique request ID
  */
-async function getAuthCookies(): Promise<string | null> {
-	// In Tauri, we need to get both the Discord token AND database user info from the auth store
-	// This is populated during the OAuth flow
+function generateRequestId(): string {
+	return `req_${Date.now()}_${++requestIdCounter}`;
+}
+
+/**
+ * Connect to WebSocket server
+ */
+export async function connectWebSocket(discordUserId: string, onConnected?: () => void): Promise<any> {
+	if (ws && isConnected) {
+		console.log('[WS API] Already connected');
+		return ws;
+	}
+
 	try {
-		const { load } = await import('@tauri-apps/plugin-store');
-		const authStore = await load('auth.json', { defaults: {} });
-		const discordAccessToken = await authStore.get<string>('discord_access_token');
-		const dbUserInfo = await authStore.get<any>('db_user_info');
+		console.log('[WS API] Connecting to:', WS_URL);
+		const socket = await WebSocket.connect(WS_URL);
 
-		if (!discordAccessToken) {
-			console.warn('[API] No Discord token found in auth store');
-			return null;
+		ws = socket;
+		isConnected = true;
+
+		// Set up message handler
+		socket.addListener((msg: any) => {
+			try {
+				const messageStr = typeof msg === 'string' ? msg : msg.data || JSON.stringify(msg);
+				const message = JSON.parse(messageStr);
+
+				console.log('[WS API] Received message:', message.type);
+
+				// Handle request-response pattern
+				if (message.requestId && pendingRequests.has(message.requestId)) {
+					const { resolve, reject } = pendingRequests.get(message.requestId)!;
+					pendingRequests.delete(message.requestId);
+
+					if (message.type === 'error') {
+						reject(new Error(message.error || 'Unknown error'));
+					} else {
+						resolve(message.data);
+					}
+					return;
+				}
+
+				// Handle subscribed messages
+				if (messageHandlers.has(message.type)) {
+					messageHandlers.get(message.type)!(message);
+				}
+			} catch (error) {
+				console.error('[WS API] Error handling message:', error);
+			}
+		});
+
+		// Register with server
+		await socket.send(JSON.stringify({
+			type: 'register',
+			userId: discordUserId
+		}));
+
+		console.log('[WS API] Connected and registered');
+
+		// Call onConnected callback if provided
+		if (onConnected) {
+			onConnected();
 		}
 
-		if (!dbUserInfo) {
-			console.warn('[API] No database user info found in auth store');
-			return null;
-		}
-
-		// Return cookies string for fetch requests
-		// Need BOTH discord_token and discord_info cookies (matching website auth)
-		const discordTokenCookie = `discord_token=${JSON.stringify(discordAccessToken)}`;
-		const discordInfoCookie = `discord_info=${JSON.stringify({
-			id: dbUserInfo.id,
-			discordId: dbUserInfo.discordId,
-			username: dbUserInfo.username,
-			avatar: dbUserInfo.avatar,
-			player: dbUserInfo.player,
-			friendCode: dbUserInfo.friendCode
-		})}`;
-
-		return `${discordTokenCookie}; ${discordInfoCookie}`;
+		return socket;
 	} catch (error) {
-		console.error('[API] Error loading auth cookies:', error);
-		return null;
+		console.error('[WS API] Connection failed:', error);
+		ws = null;
+		isConnected = false;
+		throw error;
 	}
 }
 
 /**
- * Fetch current user's profile from API
+ * Disconnect from WebSocket
+ */
+export async function disconnectWebSocket(): Promise<void> {
+	if (ws) {
+		try {
+			await ws.disconnect();
+		} catch (error) {
+			console.error('[WS API] Error disconnecting:', error);
+		}
+		ws = null;
+		isConnected = false;
+		messageHandlers.clear();
+		pendingRequests.clear();
+	}
+}
+
+/**
+ * Subscribe to WebSocket message types
+ */
+export function subscribe(messageType: string, handler: (data: any) => void): () => void {
+	messageHandlers.set(messageType, handler);
+	return () => messageHandlers.delete(messageType);
+}
+
+/**
+ * Send request via WebSocket and wait for response
+ */
+async function sendRequest<T>(type: string, data?: any): Promise<T> {
+	if (!ws || !isConnected) {
+		throw new Error('WebSocket not connected');
+	}
+
+	const requestId = generateRequestId();
+
+	return new Promise((resolve, reject) => {
+		// Set timeout for request
+		const timeout = setTimeout(() => {
+			pendingRequests.delete(requestId);
+			reject(new Error(`Request timeout: ${type}`));
+		}, 30000); // 30 second timeout
+
+		pendingRequests.set(requestId, {
+			resolve: (value) => {
+				clearTimeout(timeout);
+				resolve(value);
+			},
+			reject: (error) => {
+				clearTimeout(timeout);
+				reject(error);
+			}
+		});
+
+		ws.send(JSON.stringify({
+			type,
+			requestId,
+			data: data || {}
+		})).catch((error: any) => {
+			clearTimeout(timeout);
+			pendingRequests.delete(requestId);
+			reject(error);
+		});
+	});
+}
+
+/**
+ * Fetch current user's profile from API via WebSocket
  */
 export async function fetchUserProfile(): Promise<ApiUserProfile | null> {
 	try {
-		const cookies = await getAuthCookies();
-		if (!cookies) {
-			console.warn('[API] Cannot fetch user profile - not authenticated');
-			return null;
-		}
-
-		const response = await fetch(`${API_URL}/api/user/getProfile`, {
-			method: 'GET',
-			headers: {
-				'Cookie': cookies
-			},
-			credentials: 'include'
-		});
-
-		if (!response.ok) {
-			console.error('[API] Failed to fetch user profile:', response.status, response.statusText);
-			return null;
-		}
-
-		const data = await response.json();
-		return data;
+		const profile = await sendRequest<ApiUserProfile>('get_user_profile');
+		return profile;
 	} catch (error) {
-		console.error('[API] Error fetching user profile:', error);
+		console.error('[WS API] Error fetching user profile:', error);
 		return null;
 	}
 }
 
 /**
- * Fetch friends list from API
+ * Fetch friends list from API via WebSocket
  */
 export async function fetchFriends(): Promise<ApiFriend[]> {
 	try {
-		const cookies = await getAuthCookies();
-		if (!cookies) {
-			console.warn('[API] Cannot fetch friends - not authenticated');
-			return [];
-		}
-
-		const response = await fetch(`${API_URL}/api/friends/getFriends`, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				'Cookie': cookies
-			},
-			credentials: 'include'
-		});
-
-		if (!response.ok) {
-			console.error('[API] Failed to fetch friends:', response.status, response.statusText);
-			return [];
-		}
-
-		const data = await response.json();
-		return data || [];
+		const friends = await sendRequest<ApiFriend[]>('get_friends');
+		return friends || [];
 	} catch (error) {
-		console.error('[API] Error fetching friends:', error);
+		console.error('[WS API] Error fetching friends:', error);
 		return [];
 	}
 }
 
 /**
- * Fetch pending friend requests from API
+ * Fetch pending friend requests from API via WebSocket
  */
 export async function fetchFriendRequests(): Promise<ApiFriendRequest[]> {
 	try {
-		const cookies = await getAuthCookies();
-		if (!cookies) {
-			console.warn('[API] Cannot fetch friend requests - not authenticated');
-			return [];
-		}
-
-		const response = await fetch(`${API_URL}/api/friends/getPendingFriendRequests`, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				'Cookie': cookies
-			},
-			credentials: 'include'
-		});
-
-		if (!response.ok) {
-			console.error('[API] Failed to fetch friend requests:', response.status, response.statusText);
-			return [];
-		}
-
-		const data = await response.json();
-		return data || [];
+		const requests = await sendRequest<ApiFriendRequest[]>('get_friend_requests');
+		return requests || [];
 	} catch (error) {
-		console.error('[API] Error fetching friend requests:', error);
+		console.error('[WS API] Error fetching friend requests:', error);
 		return [];
 	}
 }
 
 /**
- * Send friend request by friend code
+ * Send friend request by friend code via WebSocket
  */
 export async function sendFriendRequest(friendCode: string): Promise<boolean> {
 	try {
-		const cookies = await getAuthCookies();
-		if (!cookies) {
-			console.warn('[API] Cannot send friend request - not authenticated');
-			return false;
-		}
-
-		const response = await fetch(`${API_URL}/api/friends/sendFriendRequest`, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				'Cookie': cookies
-			},
-			credentials: 'include',
-			body: JSON.stringify({ friendCode })
-		});
-
-		if (!response.ok) {
-			const error = await response.json();
-			console.error('[API] Failed to send friend request:', error);
-			return false;
-		}
-
+		await sendRequest('send_friend_request', { friendCode });
 		return true;
 	} catch (error) {
-		console.error('[API] Error sending friend request:', error);
+		console.error('[WS API] Error sending friend request:', error);
 		return false;
 	}
 }
 
 /**
- * Accept friend request
+ * Accept friend request via WebSocket
  */
 export async function acceptFriendRequest(friendshipId: string): Promise<boolean> {
 	try {
-		const cookies = await getAuthCookies();
-		if (!cookies) {
-			console.warn('[API] Cannot accept friend request - not authenticated');
-			return false;
-		}
-
-		const response = await fetch(`${API_URL}/api/friends/acceptFriendRequest`, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				'Cookie': cookies
-			},
-			credentials: 'include',
-			body: JSON.stringify({ friendshipId })
-		});
-
-		if (!response.ok) {
-			console.error('[API] Failed to accept friend request:', response.status);
-			return false;
-		}
-
+		await sendRequest('accept_friend_request', { friendshipId });
 		return true;
 	} catch (error) {
-		console.error('[API] Error accepting friend request:', error);
+		console.error('[WS API] Error accepting friend request:', error);
 		return false;
 	}
 }
 
 /**
- * Deny friend request
+ * Deny friend request via WebSocket
  */
 export async function denyFriendRequest(friendshipId: string): Promise<boolean> {
 	try {
-		const cookies = await getAuthCookies();
-		if (!cookies) {
-			console.warn('[API] Cannot deny friend request - not authenticated');
-			return false;
-		}
-
-		const response = await fetch(`${API_URL}/api/friends/denyFriendRequest`, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				'Cookie': cookies
-			},
-			credentials: 'include',
-			body: JSON.stringify({ friendshipId })
-		});
-
-		if (!response.ok) {
-			console.error('[API] Failed to deny friend request:', response.status);
-			return false;
-		}
-
+		await sendRequest('deny_friend_request', { friendshipId });
 		return true;
 	} catch (error) {
-		console.error('[API] Error denying friend request:', error);
+		console.error('[WS API] Error denying friend request:', error);
 		return false;
 	}
 }
 
 /**
- * Remove friend
+ * Remove friend via WebSocket
  */
 export async function removeFriend(friendshipId: string): Promise<boolean> {
 	try {
-		const cookies = await getAuthCookies();
-		if (!cookies) {
-			console.warn('[API] Cannot remove friend - not authenticated');
-			return false;
-		}
-
-		const response = await fetch(`${API_URL}/api/friends/removeFriend`, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				'Cookie': cookies
-			},
-			credentials: 'include',
-			body: JSON.stringify({ friendshipId })
-		});
-
-		if (!response.ok) {
-			console.error('[API] Failed to remove friend:', response.status);
-			return false;
-		}
-
+		await sendRequest('remove_friend', { friendshipId });
 		return true;
 	} catch (error) {
-		console.error('[API] Error removing friend:', error);
+		console.error('[WS API] Error removing friend:', error);
 		return false;
 	}
+}
+
+/**
+ * Get WebSocket instance (for backward compatibility)
+ */
+export function getWebSocket(): any {
+	return ws;
+}
+
+/**
+ * Check if WebSocket is connected
+ */
+export function isWebSocketConnected(): boolean {
+	return isConnected;
 }

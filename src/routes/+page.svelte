@@ -3,7 +3,7 @@
 	import { load } from '@tauri-apps/plugin-store';
 	import { open } from '@tauri-apps/plugin-dialog';
 	import Item from '../components/Item.svelte';
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount } from 'svelte';
 	import { ArrowDown } from '@lucide/svelte';
 	import { fade } from 'svelte/transition';
 	import Friends from '../components/Friends.svelte';
@@ -12,22 +12,20 @@
 	import type { Log, Friend as FriendType } from '../types';
 	import { appDataDir } from '@tauri-apps/api/path';
 	import Header from '../components/Header.svelte';
-	import { ask } from '@tauri-apps/plugin-dialog';
 	import { check } from '@tauri-apps/plugin-updater';
 	import { loginWithDiscord, loadAuthData, signOut, handleAuthComplete } from '$lib/oauth';
 	import { onOpenUrl } from '@tauri-apps/plugin-deep-link';
-	import WebSocket from '@tauri-apps/plugin-websocket';
 	import {
+		connectWebSocket as apiConnectWebSocket,
+		disconnectWebSocket as apiDisconnectWebSocket,
 		fetchFriends,
 		fetchFriendRequests,
 		fetchUserProfile,
 		sendFriendRequest as apiSendFriendRequest,
-		acceptFriendRequest as apiAcceptFriendRequest,
-		denyFriendRequest as apiDenyFriendRequest,
 		removeFriend as apiRemoveFriend,
-		type ApiFriend,
-		type ApiFriendRequest,
-		type ApiUserProfile
+		subscribe as apiSubscribe,
+		getWebSocket,
+		type ApiFriend
 	} from '$lib/api';
 
 	// Authentication state
@@ -38,7 +36,6 @@
 	let ws = $state<any>(null); // Tauri WebSocket type
 	let file = $state<string | null>(null);
 	let fileContent = $state<Log[]>([]);
-	let friendCode = $state<string | null>(null);
 	let playerName = $state<string | null>(null);
 	let playerId = $state<string | null>(null); // Star Citizen player ID from Game.log
 	let isLoadingFile = $state(true); // Prevent flash of welcome screen
@@ -49,10 +46,7 @@
 	let lineCount = $state<number>(0);
 	let connectionStatus = $state<'connected' | 'disconnected' | 'connecting'>('disconnected');
 	let copiedStatusVisible = $state(false);
-	let autoConnectionAttempted = $state(false);
-	let reconnectAttempts = $state(0);
 	let reconnectTimer = $state<ReturnType<typeof setTimeout> | null>(null);
-	const MAX_RECONNECT_ATTEMPTS = 5;
 	let connectionError = $state<string | null>(null);
 	let friendsList = $state<FriendType[]>([]);
 	let currentUserDisplayData = $state<FriendType | null>(null);
@@ -60,8 +54,12 @@
 
 	// API-fetched friend data
 	let apiFriends = $state<ApiFriend[]>([]);
-	let apiFriendRequests = $state<ApiFriendRequest[]>([]);
-	let apiUserProfile = $state<ApiUserProfile | null>(null);
+	let apiFriendRequests = $state<any[]>([]);
+	let apiUserProfile = $state<{ friendCode: string | null } | null>(null);
+
+	// WebSocket reconnection state
+	let reconnectAttempts = $state(0);
+	let autoConnectionAttempted = $state(false);
 
 	// Sync user profile from API (includes friend code)
 	async function syncUserProfileFromAPI() {
@@ -74,19 +72,7 @@
 		const profile = await fetchUserProfile();
 		if (profile) {
 			apiUserProfile = profile;
-			// Update local friendCode to match database
-			if (profile.friendCode) {
-				friendCode = profile.friendCode;
-				console.log('[API] Synced friend code from database:', friendCode);
-
-				// Save to local store for display
-				const store = await load('store.json', {
-					defaults: {},
-					autoSave: false
-				});
-				await store.set('friendCode', friendCode);
-				await store.save();
-			}
+			console.log('[API] Synced user profile from database');
 		}
 	}
 
@@ -132,13 +118,7 @@
 	}
 
 	async function disconnectWebSocket() {
-		if (ws) {
-			try {
-				await ws.disconnect();
-			} catch (error) {
-				console.error('[WebSocket] Error disconnecting:', error);
-			}
-		}
+		await apiDisconnectWebSocket();
 		connectionStatus = 'disconnected';
 		ws = null;
 	}
@@ -290,7 +270,19 @@
 	async function clearLogs() {
 		await saveLogsToDisk([]);
 		fileContent = [];
-		prevLineCount = 0;
+
+		// Read current file to get line count for tracking position
+		if (file) {
+			try {
+				const linesText = await readTextFile(file);
+				const currentLineCount = linesText.split('\n').length;
+				prevLineCount = currentLineCount;
+			} catch (error) {
+				prevLineCount = 0;
+			}
+		}
+
+		// Reset displayed line count to 0
 		lineCount = 0;
 		onlyProcessLogsAfterThisDateTimeStamp = new Date().getTime();
 	}
@@ -422,47 +414,61 @@
 		connectionError = null;
 
 		try {
-			// Use local WebSocket server for development
-			const wsUrl = import.meta.env.DEV
-				? 'ws://localhost:8080/ws'
-				: 'wss://picologs-server.fly.dev/ws';
-			console.log('[WebSocket] Connecting to:', wsUrl);
-
-			// Connect using Tauri WebSocket plugin
-			const socket = await WebSocket.connect(wsUrl);
-			ws = socket;
-
-			// Add message listener
-			await socket.addListener((msg) => {
-				handleWebSocketMessage(msg);
+			// Set up subscriptions BEFORE connecting
+			apiSubscribe('registered', async (message: any) => {
+				console.log('[WebSocket] ✅ Successfully registered with server');
+				// Initial sync after registration
+				await syncUserProfileFromAPI();
+				await syncFriendsFromAPI();
+				await syncFriendRequestsFromAPI();
 			});
 
-			// Connection is established, send registration
+			apiSubscribe('refetch_friends', async () => {
+				console.log('[WebSocket] 🔄 Received refetch_friends notification');
+				await syncFriendsFromAPI();
+			});
+
+			apiSubscribe('refetch_friend_requests', async () => {
+				console.log('[WebSocket] 🔄 Received refetch_friend_requests notification');
+				await syncFriendRequestsFromAPI();
+			});
+
+			apiSubscribe('user_online', (message: any) => {
+				if (message.userId) {
+					const friendIndex = friendsList.findIndex((f) => f.id === message.userId);
+					if (friendIndex !== -1) {
+						friendsList = [
+							...friendsList.slice(0, friendIndex),
+							{ ...friendsList[friendIndex], isOnline: true },
+							...friendsList.slice(friendIndex + 1)
+						];
+					}
+				}
+			});
+
+			apiSubscribe('user_offline', (message: any) => {
+				if (message.userId) {
+					const friendIndex = friendsList.findIndex((f) => f.id === message.userId);
+					if (friendIndex !== -1) {
+						friendsList = [
+							...friendsList.slice(0, friendIndex),
+							{ ...friendsList[friendIndex], isOnline: false },
+							...friendsList.slice(friendIndex + 1)
+						];
+					}
+				}
+			});
+
+			// Connect using API module (subscriptions are now set up)
+			const socket = await apiConnectWebSocket(discordUserId);
+			ws = socket;
+
 			connectionStatus = 'connected';
 			connectionError = null;
 			reconnectAttempts = 0;
 			if (reconnectTimer) {
 				clearTimeout(reconnectTimer);
 				reconnectTimer = null;
-			}
-			console.log('[WebSocket] Connected, registering with Discord user ID:', discordUserId);
-
-			try {
-				if (discordUserId && friendCode) {
-					await socket.send(
-						JSON.stringify({
-							type: 'register',
-							userId: discordUserId, // Use Discord user ID instead of Star Citizen player ID
-							friendCode: friendCode,
-							playerName: playerName || playerId, // Use SC player ID as display name if no custom name
-							timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-						})
-					);
-				} else {
-					console.log('[WebSocket] Cannot register - missing discordUserId or friendCode');
-				}
-			} catch (sendError) {
-				console.error('[WebSocket] Registration error:', sendError);
 			}
 
 			return Promise.resolve();
@@ -708,7 +714,6 @@
 				autoSave: false
 			});
 			const savedFile = await store.get<string>('lastFile');
-			const savedFriendCode = await store.get<string>('friendCode');
 			const savedFriendsList = await store.get<FriendType[]>('friendsList');
 			const savedPlayerName = await store.get<string>('playerName');
 			const savedEnvironment = await store.get<'LIVE' | 'PTU' | 'HOTFIX'>(
@@ -752,21 +757,29 @@
 				}
 			}
 
-			// Friend code is loaded from database via syncUserProfileFromAPI()
-			// Only use saved value as fallback display until API loads
-			if (savedFriendCode) {
-				friendCode = savedFriendCode;
-			}
 
 			await store.save();
 
 			// Load the Game.log file if previously selected
-			if (savedFile) {
+			if (savedFile && file) {
 				try {
-					fileContent = [];
-					prevLineCount = 0;
-					// Parse entire log file from the beginning
-					await handleFile(file);
+					// Load existing logs from disk
+					const savedLogs = await loadLogsFromDisk();
+
+					if (savedLogs.length > 0) {
+						// We have saved logs - use them and skip reprocessing
+						fileContent = savedLogs;
+						const linesText = await readTextFile(file);
+						prevLineCount = linesText.split('\n').length;
+						lineCount = savedLogs.length;
+					} else {
+						// No saved logs - parse the entire file
+						fileContent = [];
+						prevLineCount = 0;
+						lineCount = 0;
+						await handleFile(file);
+					}
+
 					handleInitialiseWatch(file);
 					// playerId will be extracted from Game.log when parsing
 				} catch (error) {}
@@ -775,12 +788,8 @@
 			// Mark loading complete
 			isLoadingFile = false;
 
-			// Sync user profile from API if signed in (to get friend code)
-			if (isSignedIn && discordUserId) {
-				await syncUserProfileFromAPI();
-			}
-
 			// Connect WebSocket only if signed in with Discord
+			// (this will trigger syncs after registration via the 'registered' event)
 			if (isSignedIn && discordUserId && !ws) {
 				connectWebSocket();
 			}
@@ -815,7 +824,6 @@
 			});
 			// Add scroll event listener
 			if (fileContentContainer) {
-				console.log('Adding scroll listener to:', fileContentContainer);
 				fileContentContainer.addEventListener('scroll', handleScroll, { passive: true });
 			}
 		})();
@@ -875,6 +883,7 @@
 			// If file was truncated (e.g., new game session), reset
 			if (currentLineCount < prevLineCount) {
 				prevLineCount = 0;
+				lineCount = 0;
 				fileContent = [];
 			}
 
@@ -885,8 +894,9 @@
 
 			// Process only new lines since last read
 			const newLines = lineBreak.slice(prevLineCount, currentLineCount);
+			const newLinesCount = currentLineCount - prevLineCount;
 			prevLineCount = currentLineCount;
-			lineCount = currentLineCount;
+			lineCount += newLinesCount;
 
 			const newContent = newLines
 				.map((line) => {
@@ -926,13 +936,12 @@
 						}
 
 						if (playerName && playerName !== oldPlayerName) {
-							if (ws && discordUserId && friendCode) {
+							if (ws && discordUserId) {
 								// Fire-and-forget WebSocket send (don't block log parsing)
 								ws.send(
 									JSON.stringify({
 										type: 'update_my_details',
 										userId: discordUserId, // Use Discord ID for WebSocket
-										friendCode: friendCode,
 										playerName: playerName,
 										playerId: playerId, // Include SC player ID as metadata
 										timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -1079,7 +1088,7 @@
 							eventType: 'destruction',
 							metadata: {
 								vehicleName: vehicle,
-								destroyer: destroyer,
+								causeName: destroyer,
 								destroyLevelFrom: destroyLevelMatch?.[1],
 								destroyLevelTo: destroyLevelMatch?.[2]
 							}
@@ -1215,7 +1224,6 @@
 		await store.clear();
 		await store.delete('friendsList');
 		await store.delete('lastFile');
-		await store.delete('friendCode');
 		await store.delete('playerName');
 
 		// Restore Discord auth
@@ -1232,7 +1240,6 @@
 		prevLineCount = 0;
 		lineCount = 0;
 		playerId = null; // Will be re-extracted from Game.log
-		friendCode = null; // Friend code now comes from database
 		friendsList = [];
 		currentUserDisplayData = null;
 		autoConnectionAttempted = false;
@@ -1268,16 +1275,6 @@
 
 		hasScrollbar = hasContent && !isAtBottom;
 		atTheBottom = isAtBottom;
-
-		console.log('Scroll:', {
-			scrollTop: target.scrollTop,
-			clientHeight: target.clientHeight,
-			scrollHeight: target.scrollHeight,
-			hasContent,
-			isAtBottom,
-			hasScrollbar,
-			atTheBottom
-		});
 	}
 
 	const shipTypes = [
@@ -1453,18 +1450,12 @@
 
 <main class="p-0 text-white grid grid-cols-1 grid-rows-[auto_1fr] h-dvh overflow-hidden">
 	<Header
-		{playerId}
-		{friendCode}
-		{friendsList}
-		{saveFriendsListToStore}
+		friendCode={apiUserProfile?.friendCode}
 		{connectWebSocket}
-		{disconnectWebSocket}
 		{connectionStatus}
-		{ws}
 		{copiedStatusVisible}
 		{selectFile}
 		bind:logLocation
-		{playerName}
 		{clearLogs}
 		{updateInfo}
 		{installUpdate}
@@ -1552,7 +1543,8 @@
 			<button
 				in:fade={{ duration: 200, delay: 400 }}
 				out:fade={{ duration: 200 }}
-				class="fixed bottom-[80px] left-1/2 -translate-x-1/2 w-10 h-10 rounded-full bg-white/10 border border-white/20 backdrop-blur-[10px] shadow-[0_0_10px_rgba(0,0,0,0.1)] flex items-center justify-center text-white cursor-pointer z-50"
+				class="fixed bottom-[60px] w-10 h-10 rounded-full bg-white/10 border border-white/20 backdrop-blur-[10px] shadow-[0_0_10px_rgba(0,0,0,0.1)] flex items-center justify-center text-white cursor-pointer z-50"
+				style="left: calc({isSignedIn && discordUser ? '290px + (100% - 290px) / 2' : '50%'}); transform: translateX(-50%);"
 				onclick={() =>
 					fileContentContainer?.scrollTo({
 						top: fileContentContainer.scrollHeight,

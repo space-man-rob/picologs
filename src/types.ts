@@ -34,6 +34,7 @@ export type Log = {
 		direction?: { x: string; y: string; z: string };
 		location?: string;
 		destroyLevel?: string;
+		destroyLevelFrom?: string;
 		destroyLevelTo?: string;
 		causeName?: string;
 		causeId?: string;
