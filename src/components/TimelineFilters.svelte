@@ -97,65 +97,74 @@
 	});
 </script>
 
-<div class="filters">
-	<div class="search">
+<div class="flex items-center gap-4 px-4 h-full justify-start">
+	<div class="flex-1 max-w-[300px]">
 		<input
 			type="text"
 			placeholder="Search logs..."
 			bind:value={filters.search}
-			oninput={handleFilterChange} />
+			oninput={handleFilterChange}
+			class="w-full px-2 py-2 rounded border border-white/20 bg-white/10 text-white placeholder:text-white/50" />
 	</div>
-	<div class="filters-dropdown">
-		<button class="filter-button" onclick={toggleDropdown}>
+	<div class="relative filters-dropdown">
+		<button
+			onclick={toggleDropdown}
+			class="flex items-center gap-2 px-4 py-2 rounded border border-white/20 bg-white/10 text-white cursor-pointer text-sm hover:bg-white/15">
 			<Funnel size={16} />
 			<span>Filters</span>
-			<div class="chevron-container" class:rotated={isOpen}>
+			<div class="flex items-center justify-center w-4 h-4 transition-transform duration-200 {isOpen ? 'rotate-180' : ''}">
 				<ChevronDown />
 			</div>
 		</button>
 		{#if isOpen}
-			<div class="dropdown-content">
-				<div class="event-types">
-					<label>
+			<div class="absolute top-full right-0 mt-2 bg-[rgb(10,30,42)] border border-white/20 rounded p-4 shadow-md z-[1000]">
+				<div class="flex flex-col gap-3 min-w-[220px]">
+					<label class="flex items-center text-white/80 cursor-pointer gap-2">
 						<input
 							type="checkbox"
 							bind:checked={filters.eventTypes.vehicle_control_flow}
-							onchange={handleFilterChange} />
+							onchange={handleFilterChange}
+							class="flex-shrink-0 w-4 h-4 border border-white appearance-none bg-white/10 cursor-pointer checked:bg-[#2196f3] checked:border-[#2196f3] relative checked:after:content-[''] checked:after:absolute checked:after:left-1 checked:after:top-0.5 checked:after:w-1.5 checked:after:h-2.5 checked:after:border-white checked:after:border-r-2 checked:after:border-b-2 checked:after:rotate-45" />
 						🚀 Vehicle Control
 					</label>
-					<label>
+					<label class="flex items-center text-white/80 cursor-pointer gap-2">
 						<input
 							type="checkbox"
 							bind:checked={filters.eventTypes.actor_death}
-							onchange={handleFilterChange} />
+							onchange={handleFilterChange}
+							class="flex-shrink-0 w-4 h-4 border border-white appearance-none bg-white/10 cursor-pointer checked:bg-[#2196f3] checked:border-[#2196f3] relative checked:after:content-[''] checked:after:absolute checked:after:left-1 checked:after:top-0.5 checked:after:w-1.5 checked:after:h-2.5 checked:after:border-white checked:after:border-r-2 checked:after:border-b-2 checked:after:rotate-45" />
 						💀 Deaths
 					</label>
-					<label>
+					<label class="flex items-center text-white/80 cursor-pointer gap-2">
 						<input
 							type="checkbox"
 							bind:checked={filters.eventTypes.destruction}
-							onchange={handleFilterChange} />
+							onchange={handleFilterChange}
+							class="flex-shrink-0 w-4 h-4 border border-white appearance-none bg-white/10 cursor-pointer checked:bg-[#2196f3] checked:border-[#2196f3] relative checked:after:content-[''] checked:after:absolute checked:after:left-1 checked:after:top-0.5 checked:after:w-1.5 checked:after:h-2.5 checked:after:border-white checked:after:border-r-2 checked:after:border-b-2 checked:after:rotate-45" />
 						💥 Destruction
 					</label>
-					<label>
+					<label class="flex items-center text-white/80 cursor-pointer gap-2">
 						<input
 							type="checkbox"
 							bind:checked={filters.eventTypes.location_change}
-							onchange={handleFilterChange} />
+							onchange={handleFilterChange}
+							class="flex-shrink-0 w-4 h-4 border border-white appearance-none bg-white/10 cursor-pointer checked:bg-[#2196f3] checked:border-[#2196f3] relative checked:after:content-[''] checked:after:absolute checked:after:left-1 checked:after:top-0.5 checked:after:w-1.5 checked:after:h-2.5 checked:after:border-white checked:after:border-r-2 checked:after:border-b-2 checked:after:rotate-45" />
 						🔍 Location Changes
 					</label>
-					<label>
+					<label class="flex items-center text-white/80 cursor-pointer gap-2">
 						<input
 							type="checkbox"
 							bind:checked={filters.eventTypes.corpsify}
-							onchange={handleFilterChange} />
+							onchange={handleFilterChange}
+							class="flex-shrink-0 w-4 h-4 border border-white appearance-none bg-white/10 cursor-pointer checked:bg-[#2196f3] checked:border-[#2196f3] relative checked:after:content-[''] checked:after:absolute checked:after:left-1 checked:after:top-0.5 checked:after:w-1.5 checked:after:h-2.5 checked:after:border-white checked:after:border-r-2 checked:after:border-b-2 checked:after:rotate-45" />
 						🧟 Corpsify
 					</label>
-					<label>
+					<label class="flex items-center text-white/80 cursor-pointer gap-2">
 						<input
 							type="checkbox"
 							bind:checked={filters.eventTypes.other}
-							onchange={handleFilterChange} />
+							onchange={handleFilterChange}
+							class="flex-shrink-0 w-4 h-4 border border-white appearance-none bg-white/10 cursor-pointer checked:bg-[#2196f3] checked:border-[#2196f3] relative checked:after:content-[''] checked:after:absolute checked:after:left-1 checked:after:top-0.5 checked:after:w-1.5 checked:after:h-2.5 checked:after:border-white checked:after:border-r-2 checked:after:border-b-2 checked:after:rotate-45" />
 						📝 Other Events
 					</label>
 				</div>
@@ -163,26 +172,36 @@
 		{/if}
 	</div>
 
-    <!-- filter players -->
-	<div class="filters-dropdown">
-		<button class="filter-button" onclick={togglePlayersDropdown}>
+	<!-- filter players -->
+	<div class="relative filters-dropdown">
+		<button
+			onclick={togglePlayersDropdown}
+			class="flex items-center gap-2 px-4 py-2 rounded border border-white/20 bg-white/10 text-white cursor-pointer text-sm hover:bg-white/15">
 			<Funnel size={16} />
 			<span>Players</span>
-			<div class="chevron-container" class:rotated={isPlayersOpen}>
+			<div class="flex items-center justify-center w-4 h-4 transition-transform duration-200 {isPlayersOpen ? 'rotate-180' : ''}">
 				<ChevronDown />
 			</div>
 		</button>
 		{#if isPlayersOpen}
-			<div class="dropdown-content">
-				<div class="event-types">
-					<label>
-                        <input type="checkbox" onchange={handleFilterChange} bind:checked={filters.players.self} />
-                        {playerName} (Self)
-                    </label>
-					
-                    {#each onlinePlayers as player (player.id)}
-						<label>
-							<input type="checkbox" onchange={handleFilterChange} bind:checked={player.checked} />
+			<div class="absolute top-full right-0 mt-2 bg-[rgb(10,30,42)] border border-white/20 rounded p-4 shadow-md z-[1000]">
+				<div class="flex flex-col gap-3 min-w-[220px]">
+					<label class="flex items-center text-white/80 cursor-pointer gap-2">
+						<input
+							type="checkbox"
+							onchange={handleFilterChange}
+							bind:checked={filters.players.self}
+							class="flex-shrink-0 w-4 h-4 border border-white appearance-none bg-white/10 cursor-pointer checked:bg-[#2196f3] checked:border-[#2196f3] relative checked:after:content-[''] checked:after:absolute checked:after:left-1 checked:after:top-0.5 checked:after:w-1.5 checked:after:h-2.5 checked:after:border-white checked:after:border-r-2 checked:after:border-b-2 checked:after:rotate-45" />
+						{playerName} (Self)
+					</label>
+
+					{#each onlinePlayers as player (player.id)}
+						<label class="flex items-center text-white/80 cursor-pointer gap-2">
+							<input
+								type="checkbox"
+								onchange={handleFilterChange}
+								bind:checked={player.checked}
+								class="flex-shrink-0 w-4 h-4 border border-white appearance-none bg-white/10 cursor-pointer checked:bg-[#2196f3] checked:border-[#2196f3] relative checked:after:content-[''] checked:after:absolute checked:after:left-1 checked:after:top-0.5 checked:after:w-1.5 checked:after:h-2.5 checked:after:border-white checked:after:border-r-2 checked:after:border-b-2 checked:after:rotate-45" />
 							{player.name}
 						</label>
 					{/each}
@@ -191,132 +210,10 @@
 		{/if}
 	</div>
 
-	<button class="filter-button" onclick={resetFilters}>
+	<button
+		onclick={resetFilters}
+		class="flex items-center gap-2 px-4 py-2 rounded border border-white/20 bg-white/10 text-white cursor-pointer text-sm hover:bg-white/15">
 		<RotateCcw size={16} />
 		<span>Reset</span>
 	</button>
 </div>
-
-<style>
-	.filters {
-		display: flex;
-		align-items: center;
-		gap: 1rem;
-		padding: 0 1rem;
-		height: 100%;
-		justify-content: flex-start;
-	}
-
-	.search {
-		flex: 1;
-		max-width: 300px;
-	}
-
-	.search input {
-		width: 100%;
-		padding: 0.5rem;
-		border-radius: 4px;
-		border: 1px solid rgba(255, 255, 255, 0.2);
-		background: rgba(255, 255, 255, 0.1);
-		color: white;
-	}
-
-	.search input::placeholder {
-		color: rgba(255, 255, 255, 0.5);
-	}
-
-	.filters-dropdown {
-		position: relative;
-	}
-
-	.filter-button {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		padding: 0.5rem 1rem;
-		border-radius: 4px;
-		border: 1px solid rgba(255, 255, 255, 0.2);
-		background: rgba(255, 255, 255, 0.1);
-		color: white;
-		cursor: pointer;
-		font-size: 0.9rem;
-	}
-
-	.filter-button:hover {
-		background: rgba(255, 255, 255, 0.15);
-	}
-
-	.chevron-container {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 16px;
-		height: 16px;
-	}
-
-	.rotated {
-		transform: rotate(180deg);
-		transition: transform 0.2s ease;
-	}
-
-	.dropdown-content {
-		position: absolute;
-		top: 100%;
-		right: 0;
-		margin-top: 0.5rem;
-		background: rgb(10, 30, 42);
-		border: 1px solid rgba(255, 255, 255, 0.2);
-		border-radius: 4px;
-		padding: 1rem;
-		
-		box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-		z-index: 1000;
-	}
-
-	.event-types {
-		display: flex;
-		flex-direction: column;
-		gap: 0.75rem;
-		min-width: 220px;
-	}
-
-	.event-types label {
-		display: flex;
-		align-items: center;
-		color: rgba(255, 255, 255, 0.8);
-		cursor: pointer;
-		gap: 0.5rem;
-	}
-
- input[type="checkbox"] {
-		flex-shrink: 0;
-		border: 1px solid rgba(255, 255, 255, 1);
-		width: 16px;
-		height: 16px;
-		color: white;
-		background: rgba(255, 255, 255, 0.1);
-		appearance: none;
-		-webkit-appearance: none;
-		position: relative;
-		cursor: pointer;
-	}
-
-	 input[type="checkbox"]:checked {
-		background: #2196f3;
-		border-color: #2196f3;
-	}
-
-	 input[type="checkbox"]:checked::after {
-		content: '';
-		position: absolute;
-		left: 4px;
-		top: 1px;
-		width: 6px;
-		height: 10px;
-		border: solid white;
-		border-width: 0 2px 2px 0;
-		transform: rotate(45deg);
-	}
-
-	
-</style>

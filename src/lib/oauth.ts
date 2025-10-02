@@ -49,7 +49,10 @@ export function handleAuthComplete(data: { user: DiscordUser; tokens: DiscordTok
  * Store authentication data in Tauri store
  */
 async function storeAuthData(user: DiscordUser, tokens: DiscordTokenResponse): Promise<void> {
-	const store = await loadStore('auth.json', { autoSave: false });
+	const store = await loadStore('auth.json', {
+		defaults: {},
+		autoSave: false
+	});
 	await store.set('discord_access_token', tokens.access_token);
 	await store.set('discord_refresh_token', tokens.refresh_token);
 	await store.set('discord_user', user);
@@ -133,7 +136,7 @@ export async function refreshAccessToken(refreshToken: string): Promise<DiscordT
  */
 export async function loadAuthData(): Promise<{ user: DiscordUser; expiresAt: number } | null> {
 	try {
-		const store = await loadStore('auth.json');
+		const store = await loadStore('auth.json', { defaults: {} });
 		const accessToken = (await store.get('discord_access_token')) as string;
 		const refreshToken = (await store.get('discord_refresh_token')) as string;
 		const user = (await store.get('discord_user')) as DiscordUser;
@@ -174,7 +177,7 @@ export async function loadAuthData(): Promise<{ user: DiscordUser; expiresAt: nu
  * Sign out and clear stored tokens
  */
 export async function signOut(): Promise<void> {
-	const store = await loadStore('auth.json');
+	const store = await loadStore('auth.json', { defaults: {} });
 	const accessToken = (await store.get('discord_access_token')) as string;
 
 	// Revoke Discord token (optional but recommended)
@@ -205,7 +208,7 @@ export async function signOut(): Promise<void> {
  */
 export async function getAccessToken(): Promise<string | null> {
 	try {
-		const store = await loadStore('auth.json');
+		const store = await loadStore('auth.json', { defaults: {} });
 		return (await store.get('discord_access_token')) as string;
 	} catch (error) {
 		console.error('Failed to get access token:', error);

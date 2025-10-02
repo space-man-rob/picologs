@@ -24,75 +24,22 @@
 	);
 </script>
 
-<div class="friends-list-container">
-	<h4>Friends ({friendsList.filter((f: Friend) => f.status === 'confirmed').length})</h4>
+<div class="flex flex-col px-2 pb-2 pt-0 flex-grow overflow-y-auto min-w-[200px] [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.3)_rgba(0,0,0,0.2)]">
+	<h4 class="my-2 text-white/70 font-medium text-[0.9em] pb-1.5 border-b border-white/10">
+		Friends ({friendsList.filter((f: Friend) => f.status === 'confirmed').length})
+	</h4>
 	{#if friendsList.filter((f: Friend) => f.status === 'confirmed').length === 0}
-		<p class="no-friends-text">No friends yet. Add some!</p>
+		<p class="text-[0.85em] text-white/50 text-center mt-4">No friends yet. Add some!</p>
 	{:else}
-		<div class="friends-list">
+		<div class="flex flex-col gap-2">
 		{#each orderByOnlineAlphabetically as friend (friend.id)}
-			<div class="friend-card">
+			<div class="relative rounded-lg transition-colors duration-200 flex items-center justify-between">
 					<User user={friend} {handleRemoveClick} />
 					{#if friend.status !== 'confirmed'}
-						<span class="pending-label">Pending...</span>
+						<span class="inline-block ml-[0.7em] px-[0.6em] py-[0.1em] bg-[rgba(255,200,80,0.13)] text-[#ffc850] rounded-[5px] text-[0.85em] font-medium align-middle tracking-[0.01em]">Pending...</span>
 					{/if}
 				</div>
 			{/each}
 		</div>
 	{/if}
 </div>
-
-<style>
-	.friends-list-container {
-		display: flex;
-		flex-direction: column;
-		padding: 0 0.5rem 0.5rem 0.5rem;
-		flex-grow: 1;
-		overflow-y: auto;
-		scrollbar-width: thin;
-		scrollbar-color: rgba(255, 255, 255, 0.3) rgba(0, 0, 0, 0.2);
-		min-width: 200px;
-	}
-	h4 {
-		margin: 0.5rem 0;
-		color: rgba(255, 255, 255, 0.7);
-		font-weight: 500;
-		font-size: 0.9em;
-		padding-bottom: 0.3rem;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-	}
-	.no-friends-text {
-		font-size: 0.85em;
-		color: rgba(255, 255, 255, 0.5);
-		text-align: center;
-		margin-top: 1rem;
-	}
-
-	.friend-card {
-		position: relative;
-		border-radius: 0.5rem;
-		transition: background-color 0.2s ease;
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-	}
-
-	.pending-label {
-		display: inline-block;
-		margin-left: 0.7em;
-		padding: 0.1em 0.6em;
-		background: rgba(255, 200, 80, 0.13);
-		color: #ffc850;
-		border-radius: 5px;
-		font-size: 0.85em;
-		font-weight: 500;
-		vertical-align: middle;
-		letter-spacing: 0.01em;
-	}
-
-	.friends-list {
-		display: flex;
-		flex-direction: column;
-		gap: .5rem;
-	}
-</style>

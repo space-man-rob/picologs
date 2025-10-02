@@ -159,24 +159,25 @@
 </script>
 
 <!-- Component HTML Template -->
-<div class="resizable-grid-component-container">
+<div class="flex flex-col items-stretch h-full w-full">
 	<div
-		class="grid-container"
+		class="grid gap-0 grid-rows-[1fr] overflow-hidden {isDragging ? 'dragging' : ''}"
 		bind:this={gridContainerRef}
-		style:grid-template-columns={gridTemplateColumnsStyle}
-		class:dragging={isDragging}>
+		style:grid-template-columns={gridTemplateColumnsStyle}>
 		{#each columns as col, i (col.id)}
-			<div class="grid-item" class:collapsed={col.collapsed}>
+			<div class="flex overflow-hidden transition-[padding,font-size] duration-100 ease-out h-full {col.collapsed ? '!p-0 !text-[0px]' : ''}">
 				{#if !col.collapsed}
-					<div class="grid-item-content-wrapper">
+					<div class="overflow-auto w-full h-full box-border">
 						{@render col.content()}
 					</div>
+				{:else}
+					<div class="hidden"></div>
 				{/if}
 			</div>
 
 			{#if i < columns.length - 1}
 				<button
-					class="resizer"
+					class="bg-white/20 cursor-ew-resize select-none transition-colors duration-200 z-10 hover:bg-white/40"
 					onmousedown={(event) => handleResizerMouseDown(event, i)}
 					aria-label={`Resize columns ${col.id} and ${columns[i + 1].id}`}>
 				</button>
@@ -185,74 +186,11 @@
 	</div>
 </div>
 
-<!-- Component Styles (No Tailwind) -->
+<!-- Minimal custom CSS for dragging cursor on all descendants -->
 <style>
-	/* General container for the whole component for centering and padding */
-	.resizable-grid-component-container {
-		display: flex;
-		flex-direction: column;
-		align-items: stretch;
-		height: 100%;
-		width: 100%;
-	}
-
-	/* Grid container styling */
-	.grid-container {
-		display: grid;
-		gap: 0; /* Resizers are their own tracks */
-		grid-template-rows: 1fr;
-		overflow: hidden;
-	}
-
-	/* When dragging, apply cursor styles to the container and its children */
-	.grid-container.dragging,
-	.grid-container.dragging :global(*) {
+	.dragging,
+	.dragging :global(*) {
 		cursor: ew-resize !important;
 		user-select: none !important;
-		-webkit-user-select: none !important;
-		-moz-user-select: none !important;
-		-ms-user-select: none !important;
-	}
-
-	/* Grid item styling */
-	.grid-item {
-		display: flex;
-		overflow: hidden;
-		transition:
-			padding 0.1s ease-out,
-			font-size 0.1s ease-out;
-		height: 100%;
-	}
-
-	.grid-item-content-wrapper {
-		overflow: auto;
-		width: 100%;
-		height: 100%;
-		box-sizing: border-box;
-	}
-
-	.grid-item.collapsed {
-		padding: 0 !important;
-		font-size: 0 !important;
-	}
-
-	.grid-item.collapsed > * {
-		display: none;
-	}
-
-	/* Resizer styling */
-	.resizer {
-		background-color: rgba(255, 255, 255, 0.2);
-		cursor: ew-resize;
-		user-select: none;
-		-webkit-user-select: none;
-		-moz-user-select: none;
-		-ms-user-select: none;
-		transition: background-color 0.2s ease;
-		z-index: 10;
-	}
-    
-	.resizer:hover {
-		background-color: rgba(255, 255, 255, 0.4);
 	}
 </style>

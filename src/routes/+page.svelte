@@ -18,7 +18,7 @@
 
 	// Authentication state
 	let isSignedIn = $state(false);
-	let discordUser = $state<{ username: string; avatar: string | null } | null>(null);
+	let discordUser = $state<{ id: string; username: string; avatar: string | null } | null>(null);
 	let discordUserId = $state<string | null>(null); // Discord user ID for WebSocket auth
 
 	let ws = $state<WebSocket | null>(null);
@@ -29,6 +29,7 @@
 	let playerId = $state<string | null>(null); // Star Citizen player ID from Game.log
 	let tick = $state(0);
 	let logLocation = $state<string | null>(null);
+	let selectedEnvironment = $state<'LIVE' | 'PTU' | 'HOTFIX'>('LIVE');
 	let prevLineCount = $state<number>(0);
 	let lineCount = $state<number>(0);
 	let connectionStatus = $state<'connected' | 'disconnected' | 'connecting'>('disconnected');
@@ -48,13 +49,31 @@
 	} | null>(null);
 	let currentUserDisplayData = $state<FriendType | null>(null);
 	let lastPendingRequestId = $state<string | null>(null);
+	let updateInfo = $state<any>(null);
+
+	function disconnectWebSocket() {
+		if (ws && ws.readyState === WebSocket.OPEN) {
+			ws.close();
+		}
+		connectionStatus = 'disconnected';
+		ws = null;
+	}
+
+	async function installUpdate() {
+		if (updateInfo) {
+			await updateInfo.downloadAndInstall();
+		}
+	}
 
 	// Authentication functions
 	async function handleSignIn() {
 		// Ensure friendCode exists
 		if (!friendCode) {
 			friendCode = crypto.randomUUID().substring(0, 6);
-			const store = await load('store.json', { autoSave: false });
+			const store = await load('store.json', {
+				defaults: {},
+				autoSave: false
+			});
 			await store.set('friendCode', friendCode);
 			await store.save();
 			console.log('[Auth] Generated friend code:', friendCode);
@@ -89,6 +108,7 @@
 			discordUserId = user.id; // Use Discord's user ID
 			isSignedIn = true;
 			discordUser = {
+				id: user.id,
 				username: user.global_name || user.username,
 				avatar: user.avatar
 			};
@@ -97,7 +117,10 @@
 			console.log('[Auth] Discord user ID:', discordUserId);
 
 			// Save Discord user ID to store
-			const store = await load('store.json', { autoSave: false });
+			const store = await load('store.json', {
+				defaults: {},
+				autoSave: false
+			});
 			await store.set('discordUserId', discordUserId);
 			await store.save();
 
@@ -120,7 +143,10 @@
 			discordUserId = null;
 
 			// Clear Discord user ID from store
-			const store = await load('store.json', { autoSave: false });
+			const store = await load('store.json', {
+				defaults: {},
+				autoSave: false
+			});
 			await store.delete('discordUserId');
 			await store.save();
 
@@ -207,16 +233,16 @@
 		}
 	}
 
-	async function connectWebSocket() {
+	async function connectWebSocket(): Promise<void> {
 		// Need at least a discordUserId to connect (can be temporary for OAuth)
 		if (!discordUserId) {
 			console.log('[WebSocket] Not connecting - no user ID available');
 			connectionError = 'Please sign in with Discord to connect';
-			return;
+			return Promise.reject(new Error('No user ID available'));
 		}
 
 		if (ws && ws.readyState === WebSocket.OPEN) {
-			return;
+			return Promise.resolve();
 		}
 
 		// Clear any existing reconnection timer
@@ -228,40 +254,44 @@
 		connectionStatus = 'connecting';
 		connectionError = null;
 
-		try {
-			// Use local WebSocket server for development
-		const wsUrl = import.meta.env.DEV ? 'ws://localhost:8080/ws' : 'wss://picologs-server.fly.dev/ws';
-		console.log('[WebSocket] Connecting to:', wsUrl);
-		const socket = new WebSocket(wsUrl);
-			ws = socket;
+		return new Promise((resolve, reject) => {
+			try {
+				// Use local WebSocket server for development
+				const wsUrl = import.meta.env.DEV
+					? 'ws://localhost:8080/ws'
+					: 'wss://picologs-server.fly.dev/ws';
+				console.log('[WebSocket] Connecting to:', wsUrl);
+				const socket = new WebSocket(wsUrl);
+				ws = socket;
 
-			socket.onopen = () => {
-				connectionStatus = 'connected';
-				connectionError = null;
-				reconnectAttempts = 0;
-				if (reconnectTimer) {
-					clearTimeout(reconnectTimer);
-					reconnectTimer = null;
-				}
-				console.log('[WebSocket] Connected, registering with Discord user ID:', discordUserId);
-				try {
-					if (discordUserId && friendCode) {
-						socket.send(
-							JSON.stringify({
-								type: 'register',
-								userId: discordUserId, // Use Discord user ID instead of Star Citizen player ID
-								friendCode: friendCode,
-								playerName: playerName || playerId, // Use SC player ID as display name if no custom name
-								timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-							})
-						);
-					} else {
-						console.log('[WebSocket] Cannot register - missing discordUserId or friendCode');
+				socket.onopen = () => {
+					connectionStatus = 'connected';
+					connectionError = null;
+					reconnectAttempts = 0;
+					if (reconnectTimer) {
+						clearTimeout(reconnectTimer);
+						reconnectTimer = null;
 					}
-				} catch (sendError) {
-					console.error('[WebSocket] Registration error:', sendError);
-				}
-			};
+					console.log('[WebSocket] Connected, registering with Discord user ID:', discordUserId);
+					try {
+						if (discordUserId && friendCode) {
+							socket.send(
+								JSON.stringify({
+									type: 'register',
+									userId: discordUserId, // Use Discord user ID instead of Star Citizen player ID
+									friendCode: friendCode,
+									playerName: playerName || playerId, // Use SC player ID as display name if no custom name
+									timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+								})
+							);
+						} else {
+							console.log('[WebSocket] Cannot register - missing discordUserId or friendCode');
+						}
+					} catch (sendError) {
+						console.error('[WebSocket] Registration error:', sendError);
+					}
+					resolve();
+				};
 
 			socket.onmessage = async (event) => {
 				if (typeof event.data === 'string') {
@@ -273,7 +303,10 @@
 								console.log('[WebSocket] ✅ Received welcome message from server');
 								break;
 							case 'registered':
-								console.log('[WebSocket] ✅ Successfully registered with server as:', discordUserId);
+								console.log(
+									'[WebSocket] ✅ Successfully registered with server as:',
+									discordUserId
+								);
 								break;
 							case 'registration_success':
 								console.log('[WebSocket] ✅ Successfully registered with server');
@@ -332,7 +365,10 @@
 									pendingFriendRequests = pendingFriendRequests.filter(
 										(req) => req.friendCode !== message.friend.friendCode
 									);
-									const store = await load('store.json', { autoSave: false });
+									const store = await load('store.json', {
+										defaults: {},
+										autoSave: false
+									});
 									await store.set('pendingFriendRequests', pendingFriendRequests);
 									await store.save();
 									addFriendToList(message.friend);
@@ -362,7 +398,10 @@
 									pendingFriendRequests = pendingFriendRequests.map((req) =>
 										req.friendCode === message.fromFriendCode ? { ...req, status: 'denied' } : req
 									);
-									const store = await load('store.json', { autoSave: false });
+									const store = await load('store.json', {
+										defaults: {},
+										autoSave: false
+									});
 									await store.set('pendingFriendRequests', pendingFriendRequests);
 									await store.save();
 									alert(`Your friend request to ${message.fromFriendCode} was denied.`);
@@ -465,7 +504,10 @@
 										...pendingFriendRequests,
 										{ friendCode: message.targetFriendCode }
 									];
-									const store = await load('store.json', { autoSave: false });
+									const store = await load('store.json', {
+										defaults: {},
+										autoSave: false
+									});
 									await store.set('pendingFriendRequests', pendingFriendRequests);
 									await store.save();
 								}
@@ -518,130 +560,150 @@
 
 				friendsList = friendsList.map((friend) => ({ ...friend, isOnline: false }));
 				saveFriendsListToStore();
+				reject(new Error('Failed to connect to WebSocket server'));
 			};
-		} catch (error) {
-			console.error('[WebSocket] Failed to connect:', error);
-			connectionError = 'Unable to connect to server. Check your internet connection.';
-		}
+			} catch (error) {
+				console.error('[WebSocket] Failed to connect:', error);
+				connectionError = 'Unable to connect to server. Check your internet connection.';
+				reject(error instanceof Error ? error : new Error('Failed to connect'));
+			}
+		});
 	}
 
-	onMount(async () => {
-		// Load authentication data
-		const authData = await loadAuthData();
-		if (authData) {
-			isSignedIn = true;
-			discordUser = {
-				username: authData.user.global_name || authData.user.username,
-				avatar: authData.user.avatar
-			};
-		}
+	onMount(() => {
+		let unlisten: (() => void) | null = null;
 
-		const store = await load('store.json', { autoSave: false });
-		const savedFile = await store.get<string>('lastFile');
-		const savedFriendCode = await store.get<string>('friendCode');
-		const savedFriendsList = await store.get<FriendType[]>('friendsList');
-		const savedPlayerName = await store.get<string>('playerName');
-		const savedPendingFriendRequests =
-			await store.get<{ friendCode: string }[]>('pendingFriendRequests');
-
-		if (savedPlayerName) {
-			playerName = savedPlayerName;
-		}
-
-		if (savedFriendsList) {
-			friendsList = savedFriendsList.map((friend) => ({ ...friend, isOnline: false }));
-		}
-
-		if (savedPendingFriendRequests) {
-			pendingFriendRequests = savedPendingFriendRequests;
-		}
-
-		// Load Discord authentication state
-		const storedDiscordUserId = await store.get<string>('discordUserId');
-		if (storedDiscordUserId) {
-			discordUserId = storedDiscordUserId;
-			console.log('[Init] Loaded Discord user ID:', discordUserId);
-
-			// Load Discord user data from auth store
+		// Async initialization
+		(async () => {
+			// Load authentication data
 			const authData = await loadAuthData();
 			if (authData) {
 				isSignedIn = true;
 				discordUser = {
+					id: authData.user.id,
 					username: authData.user.global_name || authData.user.username,
 					avatar: authData.user.avatar
 				};
-				console.log('[Init] Restored Discord auth session');
 			}
-		}
 
-		if (!savedFriendCode) {
-			friendCode = generateId(6);
-			await store.set('friendCode', friendCode);
-		} else {
-			friendCode = savedFriendCode;
-		}
+			const store = await load('store.json', {
+				defaults: {},
+				autoSave: false
+			});
+			const savedFile = await store.get<string>('lastFile');
+			const savedFriendCode = await store.get<string>('friendCode');
+			const savedFriendsList = await store.get<FriendType[]>('friendsList');
+			const savedPlayerName = await store.get<string>('playerName');
+			const savedPendingFriendRequests =
+				await store.get<{ friendCode: string }[]>('pendingFriendRequests');
+			const savedEnvironment = await store.get<'LIVE' | 'PTU' | 'HOTFIX'>(
+				'selectedEnvironment'
+			);
 
-		await store.save();
-
-		// Load the Game.log file if previously selected
-		try {
-			logLocation = savedFile?.split('/').slice(-2, -1)[0] || null;
-
-			if (savedFile) {
-				file = savedFile;
-				fileContent = [];
-				prevLineCount = 0;
-				await handleFile(file);
-				handleInitialiseWatch(file);
-				// playerId will be extracted from Game.log when parsing
+			if (savedEnvironment) {
+				selectedEnvironment = savedEnvironment;
 			}
-		} catch (error) {}
 
-		// Connect WebSocket only if signed in with Discord
-		if (isSignedIn && discordUserId && friendCode && (!ws || ws.readyState !== WebSocket.OPEN)) {
-			connectWebSocket();
-		}
+			if (savedPlayerName) {
+				playerName = savedPlayerName;
+			}
 
-		// Load logs from disk and display them
-		const storedLogs = await loadLogsFromDisk();
-		if (storedLogs && Array.isArray(storedLogs)) {
-			fileContent = dedupeAndSortLogs(storedLogs);
-		}
+			if (savedFriendsList) {
+				friendsList = savedFriendsList.map((friend) => ({ ...friend, isOnline: false }));
+			}
 
-		check().then((update: any) => {
-			if (update?.available) {
-				if (confirm('A new update is available. Would you like to download and install it now?')) {
-					update.downloadAndInstall();
+			if (savedPendingFriendRequests) {
+				pendingFriendRequests = savedPendingFriendRequests;
+			}
+
+			// Load Discord authentication state
+			const storedDiscordUserId = await store.get<string>('discordUserId');
+			if (storedDiscordUserId) {
+				discordUserId = storedDiscordUserId;
+				console.log('[Init] Loaded Discord user ID:', discordUserId);
+
+				// Load Discord user data from auth store
+				const authData = await loadAuthData();
+				if (authData) {
+					isSignedIn = true;
+					discordUser = {
+						id: authData.user.id,
+						username: authData.user.global_name || authData.user.username,
+						avatar: authData.user.avatar
+					};
+					console.log('[Init] Restored Discord auth session');
 				}
 			}
-		});
 
-		// Setup deep link listener for OAuth callbacks
-		const unlisten = await onOpenUrl((urls) => {
-			console.log('[Deep Link] Received URLs:', urls);
+			if (!savedFriendCode) {
+				friendCode = generateId(6);
+				await store.set('friendCode', friendCode);
+			} else {
+				friendCode = savedFriendCode;
+			}
 
-			for (const url of urls) {
-				try {
-					const urlObj = new URL(url);
+			await store.save();
 
-					// Handle picologs://auth?data=...
-					if (urlObj.protocol === 'picologs:' && urlObj.hostname === 'auth') {
-						const authDataEncoded = urlObj.searchParams.get('data');
-						if (authDataEncoded) {
-							const authData = JSON.parse(decodeURIComponent(authDataEncoded));
-							console.log('[Deep Link] Received auth data');
-							handleAuthComplete(authData);
+			// Load the Game.log file if previously selected
+			try {
+				logLocation = savedFile?.split('/').slice(-2, -1)[0] || null;
+
+				if (savedFile) {
+					file = savedFile;
+					fileContent = [];
+					prevLineCount = 0;
+					await handleFile(file);
+					handleInitialiseWatch(file);
+					// playerId will be extracted from Game.log when parsing
+				}
+			} catch (error) {}
+
+			// Connect WebSocket only if signed in with Discord
+			if (isSignedIn && discordUserId && friendCode && (!ws || ws.readyState !== WebSocket.OPEN)) {
+				connectWebSocket();
+			}
+
+			// Load logs from disk and display them
+			const storedLogs = await loadLogsFromDisk();
+			if (storedLogs && Array.isArray(storedLogs)) {
+				fileContent = dedupeAndSortLogs(storedLogs);
+			}
+
+			check().then((update: any) => {
+				if (update?.available) {
+					updateInfo = update;
+				}
+			});
+
+			// Setup deep link listener for OAuth callbacks
+			unlisten = await onOpenUrl((urls) => {
+				console.log('[Deep Link] Received URLs:', urls);
+
+				for (const url of urls) {
+					try {
+						const urlObj = new URL(url);
+
+						// Handle picologs://auth?data=...
+						if (urlObj.protocol === 'picologs:' && urlObj.hostname === 'auth') {
+							const authDataEncoded = urlObj.searchParams.get('data');
+							if (authDataEncoded) {
+								const authData = JSON.parse(decodeURIComponent(authDataEncoded));
+								console.log('[Deep Link] Received auth data');
+								handleAuthComplete(authData);
+							}
 						}
+					} catch (error) {
+						console.error('[Deep Link] Error parsing URL:', error);
 					}
-				} catch (error) {
-					console.error('[Deep Link] Error parsing URL:', error);
 				}
-			}
-		});
+			});
+		})();
 
 		// Cleanup on unmount
 		return () => {
-			unlisten();
+			if (unlisten) {
+				unlisten();
+			}
 		};
 	});
 
@@ -651,9 +713,13 @@
 		if (endWatch) {
 			endWatch();
 		}
-		endWatch = await watchImmediate(filePath, (event) => {
-			handleFile(filePath);
-		}, {recursive: false});
+		endWatch = await watchImmediate(
+			filePath,
+			(event) => {
+				handleFile(filePath);
+			},
+			{ recursive: false }
+		);
 	}
 
 	function parseLogTimestamp(raw: string): string {
@@ -710,7 +776,10 @@
 							timestamp = parseLogTimestamp(raw);
 						}
 					}
-					if (onlyProcessLogsAfterThisDateTimeStamp && new Date(timestamp).getTime() < onlyProcessLogsAfterThisDateTimeStamp) {
+					if (
+						onlyProcessLogsAfterThisDateTimeStamp &&
+						new Date(timestamp).getTime() < onlyProcessLogsAfterThisDateTimeStamp
+					) {
 						return null;
 					}
 					let logEntry: Log | null = null;
@@ -881,13 +950,19 @@
 		} catch (error) {}
 	}
 
-	async function selectFile() {
-		const store = await load('store.json', { autoSave: false });
+	async function selectFile(environment?: 'LIVE' | 'PTU' | 'HOTFIX') {
+		const store = await load('store.json', {
+			defaults: {},
+			autoSave: false
+		});
+		const env = environment || selectedEnvironment;
+		const defaultPath = environment ? `C:\\Program Files\\Roberts Space Industries\\StarCitizen\\${env}\\` : undefined;
+
 		const selectedPath = await open({
 			multiple: false,
 			directory: false,
 			filters: [{ name: 'Game.log', extensions: ['log'] }],
-			defaultPath: 'C:\\Program Files\\Roberts Space Industries\\StarCitizen\\LIVE\\'
+			defaultPath
 		});
 
 		if (typeof selectedPath === 'string' && selectedPath) {
@@ -896,6 +971,12 @@
 			prevLineCount = 0;
 			onlyProcessLogsAfterThisDateTimeStamp = null;
 			await store.set('lastFile', selectedPath);
+
+			// Store the environment
+			if (environment) {
+				selectedEnvironment = environment;
+				await store.set('selectedEnvironment', environment);
+			}
 
 			let storedPlayerId = await store.get<string>('id');
 			if (!storedPlayerId) {
@@ -915,7 +996,10 @@
 	}
 
 	async function clearSettings() {
-		const store = await load('store.json', { autoSave: false });
+		const store = await load('store.json', {
+			defaults: {},
+			autoSave: false
+		});
 
 		// Save Discord auth before clearing
 		const savedDiscordUserId = await store.get<string>('discordUserId');
@@ -1046,7 +1130,10 @@
 
 	async function saveFriendsListToStore() {
 		try {
-			const store = await load('store.json', { autoSave: false });
+			const store = await load('store.json', {
+				defaults: {},
+				autoSave: false
+			});
 			await store.set('friendsList', friendsList);
 			await store.save();
 		} catch (error) {}
@@ -1141,79 +1228,100 @@
 		pendingFriendRequests = pendingFriendRequests.filter(
 			(request: { friendCode: string }) => request.friendCode !== friendCode
 		);
-		const store = await load('store.json', { autoSave: false });
+		const store = await load('store.json', {
+			defaults: {},
+			autoSave: false
+		});
 		await store.set('pendingFriendRequests', pendingFriendRequests);
 		await store.save();
 	}
 </script>
 
-<main class="container">
+<main class="p-0 text-white grid grid-cols-1 grid-rows-[auto_1fr] h-dvh overflow-hidden">
 	<Header
 		{playerId}
 		{friendCode}
 		{friendsList}
 		{saveFriendsListToStore}
 		{connectWebSocket}
+		{disconnectWebSocket}
 		{connectionStatus}
 		{ws}
-		{currentUserDisplayData}
 		{copiedStatusVisible}
 		{selectFile}
-		{logLocation}
-		{file}
+		bind:logLocation
 		{playerName}
 		{clearLogs}
+		{updateInfo}
+		{installUpdate}
 		{isSignedIn}
 		{discordUser}
 		{handleSignIn}
 		{handleSignOut}
 		{connectionError} />
 
-	<div class="content">
-		<div class="friends-sidebar">
+	<div
+		class="grid grid-cols-[290px_1fr] grid-rows-[1fr_auto] h-[calc(100dvh-70px)] overflow-hidden">
+		<div
+			class="col-start-1 col-end-2 row-start-1 row-end-3 border-r border-white/20 flex flex-col gap-4 overflow-y-auto">
 			{#if currentUserDisplayData}
 				<User user={currentUserDisplayData} />
 			{/if}
 			{#if pendingFriendRequests.length > 0}
 				<PendingFriendRequests
 					{pendingFriendRequests}
-					removeFriendRequest={handleRemoveFriendRequest} />
+					removeFriendRequest={handleRemoveFriendRequest}
+					respondToFriendRequest={handleFriendRequestResponse} />
 			{/if}
 			<Friends {friendsList} removeFriend={handleRemoveFriend} />
-			<div class="add-friend-container">
+			<div class="mt-auto pt-4">
 				<AddFriend addFriend={handleAddFriend} />
 			</div>
 		</div>
-		<div class="file-content" bind:this={fileContentContainer}>
+		<div
+			class="col-start-2 col-end-3 row-start-1 row-end-2 overflow-y-auto flex flex-col bg-black/10 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.3)_rgba(0,0,0,0.2)]"
+			bind:this={fileContentContainer}>
 			{#if file}
 				{#each fileContent as item, index (item.id)}
 					{#if index === 0 || fileContent[index - 1]?.line !== item.line || fileContent[index - 1]?.timestamp !== item.timestamp}
 						<Item {...item} bind:open={item.open} />
 					{/if}
 				{:else}
-					<div class="item">
-						<div class="line-container">
-							<div class="line">No new logs yet. Waiting for game activity...</div>
+					<div class="flex items-start gap-4 px-4 py-3 border-b border-white/5">
+						<div class="flex flex-col gap-[0.3rem]">
+							<div class="text-[0.95rem] flex items-center gap-2 leading-[1.4]">
+								No new logs yet. Waiting for game activity...
+							</div>
 						</div>
 					</div>
 				{/each}
 			{:else}
-				<div class="welcome">
-					<h2>🚀 Getting started</h2>
-					<ol class="welcome-list">
-						<li>
-							Select your <code>Game.log</code>
+				<div
+					class="flex flex-col items-start gap-4 my-8 mx-auto p-8 rounded-lg bg-white/[0.03] border border-white/10 max-w-[600px]">
+					<h2 class="m-0 mb-2 text-[1.6rem] font-medium">🚀 Getting started</h2>
+					<ol class="list-none pl-0 [counter-reset:welcome-counter] flex flex-col gap-2 mt-4">
+						<li
+							class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 before:bg-[#4caf50] before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
+							Select your <code
+								class="bg-white/10 px-[0.3rem] py-[0.1rem] rounded-[3px] font-mono inline text-base">
+								Game.log
+							</code>
 							file. Usually found at the default path:
-							<code>C:\Program Files\Roberts Space Industries\StarCitizen\LIVE\Game.log</code>
+							<code
+								class="bg-white/10 px-[0.3rem] py-[0.1rem] rounded-[3px] font-mono inline text-base">
+								C:\Program Files\Roberts Space Industries\StarCitizen\LIVE\Game.log
+							</code>
 							<br />
 							(Or the equivalent path on your system if installed elsewhere.)
 						</li>
-						<li>
+						<li
+							class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 before:bg-[#4caf50] before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
 							Once a log file is selected and you go <strong>Online</strong>
 							(using the top-right button), Picologs automatically connects you with other friends for
 							real-time log sharing.
 						</li>
-						<li>
+						<li
+							class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 before:bg-[#4caf50] before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
 							To add friends use your <strong>Friend Code</strong>
 							displayed at the top. Share this with friends to connect with them.
 						</li>
@@ -1222,7 +1330,8 @@
 			{/if}
 		</div>
 		{#if file}
-			<div class="line-count">
+			<div
+				class="col-start-2 col-end-3 row-start-2 row-end-3 flex items-center justify-end gap-2 px-4 py-2 bg-[rgb(10,30,42)] border-t border-white/20 text-[0.8rem] text-white/70">
 				Log lines processed: {Number(lineCount).toLocaleString()}
 			</div>
 		{/if}
@@ -1230,195 +1339,7 @@
 </main>
 
 <style>
-	main {
-		padding: 0;
-		color: #fff;
-		display: grid;
-		grid-template-columns: 1fr;
-		grid-template-rows: auto 1fr;
-		height: 100dvh;
-		overflow: hidden;
-	}
-
-	.content {
-		display: grid;
-		grid-template-columns: 290px 1fr;
-		grid-template-rows: 1fr auto;
-		height: calc(100dvh - 70px);
-		overflow: hidden;
-	}
-
-	.file-content {
-		grid-column: 2 / 3;
-		grid-row: 1 / 2;
-		overflow-y: auto;
-		display: flex;
-		flex-direction: column;
-		scrollbar-width: thin;
-		scrollbar-color: rgba(255, 255, 255, 0.3) rgba(0, 0, 0, 0.2);
-		background: rgba(0, 0, 0, 0.1);
-	}
-
-	.item {
-		display: flex;
-		align-items: flex-start;
-		gap: 1rem;
-		padding: 0.75rem 1rem;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-	}
-
-	.item:last-child {
-		border-bottom: none;
-	}
-
-	.line-container {
-		display: flex;
-		flex-direction: column;
-		gap: 0.3rem;
-	}
-
-	.line {
-		font-size: 0.95rem;
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		line-height: 1.4;
-	}
-
 	:global(.item:nth-child(2n)) {
 		background-color: rgba(255, 255, 255, 0.05);
-	}
-
-	.line-count {
-		grid-column: 2 / 3;
-		grid-row: 2 / 3;
-		display: flex;
-		align-items: center;
-		justify-content: flex-end;
-		gap: 0.5rem;
-		padding: 0.5rem 1rem;
-		background: rgb(10, 30, 42);
-		border-top: 1px solid rgba(255, 255, 255, 0.2);
-		font-size: 0.8rem;
-		color: rgba(255, 255, 255, 0.7);
-	}
-
-	.welcome {
-		display: flex;
-		flex-direction: column;
-		align-items: flex-start;
-		gap: 1rem;
-		margin: 2rem auto;
-		padding: 2rem;
-		border-radius: 8px;
-		background: rgba(255, 255, 255, 0.03);
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		max-width: 600px;
-	}
-
-	.welcome h2 {
-		margin: 0 0 0.5rem 0;
-		font-size: 1.6rem;
-		font-weight: 500;
-	}
-
-	.welcome ol,
-	.welcome li {
-		margin: 0;
-		font-size: 1rem;
-		font-weight: 300;
-		line-height: 1.6;
-	}
-
-	.welcome .welcome-list {
-		list-style: none;
-		padding-left: 0;
-		counter-reset: welcome-counter;
-		display: flex;
-		flex-direction: column;
-		gap: 0.5rem;
-	}
-
-	.welcome .welcome-list li {
-		display: inline-block;
-
-		position: relative;
-		padding-left: 34px;
-	}
-
-	.welcome .welcome-list li::before {
-		counter-increment: welcome-counter;
-		content: counter(welcome-counter);
-		position: absolute;
-		left: 0;
-		top: 0;
-
-		width: 24px;
-		height: 24px;
-		background-color: #4caf50;
-		color: white;
-		border-radius: 50%;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		font-size: 0.85em;
-		font-weight: bold;
-		line-height: 24px;
-	}
-
-	.welcome code {
-		background: rgba(255, 255, 255, 0.1);
-		padding: 0.1rem 0.3rem;
-		border-radius: 3px;
-		font-family: monospace;
-	}
-
-	.friends-sidebar {
-		grid-column: 1 / 2;
-		grid-row: 1 / 3;
-		border-right: 1px solid rgba(255, 255, 255, 0.2);
-		display: flex;
-		flex-direction: column;
-		gap: 1rem;
-		overflow-y: auto;
-	}
-
-	.add-friend-container {
-		margin-top: auto;
-		padding-top: 1rem;
-	}
-
-	.welcome .welcome-list {
-		list-style: none;
-		padding-left: 0;
-		counter-reset: welcome-counter;
-		margin-top: 1em;
-	}
-
-	.welcome .welcome-list li::before {
-		counter-increment: welcome-counter;
-		content: counter(welcome-counter);
-		flex-shrink: 0;
-		width: 24px;
-		height: 24px;
-		background-color: #4caf50;
-		color: white;
-		border-radius: 50%;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		font-size: 0.85em;
-		font-weight: bold;
-		margin-right: 0.8em;
-		line-height: 24px;
-	}
-
-	.welcome code {
-		background: rgba(255, 255, 255, 0.1);
-		padding: 0.1rem 0.3rem;
-		border-radius: 3px;
-		font-family: monospace;
-		display: inline;
-		font-size: 1em;
 	}
 </style>

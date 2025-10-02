@@ -15,47 +15,17 @@
 	}
 </script>
 
-<div class="add-friend-wrapper">
-	<input type="text" placeholder="Enter Friend Code" bind:value={friendCodeInput} />
-	<button onclick={handleAddFriend}><CirclePlus size={18} /> Add Friend</button>
+<div class="flex flex-col gap-2 p-4 border-t border-white/10 overflow-hidden">
+	<input
+		type="text"
+		placeholder="Enter Friend Code"
+		bind:value={friendCodeInput}
+		class="w-full p-2 rounded border border-white/20 bg-black/20 text-white box-border"
+	/>
+	<button
+		onclick={handleAddFriend}
+		class="w-full bg-white/10 border border-white/20 px-4 py-2 rounded text-white flex items-center justify-center gap-1.5 cursor-pointer transition-colors duration-200 hover:bg-white/20"
+	>
+		<CirclePlus size={18} /> Add Friend
+	</button>
 </div>
-
-<style>
-	.add-friend-wrapper {
-		display: flex;
-		flex-direction: column; /* Stack input and button vertically */
-		gap: 0.5rem; /* Space between input and button */
-		padding: 1rem;
-		border-top: 1px solid rgba(255, 255, 255, 0.1); /* Adjusted from original style */
-		overflow: hidden;
-	}
-
-	input[type="text"] {
-		width: 100%;
-		padding: 0.5rem;
-		border-radius: 4px;
-		border: 1px solid rgba(255, 255, 255, 0.2);
-		background: rgba(0,0,0,0.2);
-		color: #fff;
-		box-sizing: border-box; /* Ensure padding doesn't make it overflow */
-	}
-
-	button {
-		width: 100%;
-		background: rgba(255, 255, 255, 0.1);
-		border: 1px solid rgba(255,255,255,0.2); /* Added border for consistency */
-		padding: 0.5rem 1rem;
-		border-radius: 4px;
-		color: #fff;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: .4rem;
-		cursor: pointer;
-		transition: background-color 0.2s ease-in-out;
-	}
-	
-	button:hover {
-		background: rgba(255,255,255,0.2);
-	}
-</style>

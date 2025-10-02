@@ -64,22 +64,26 @@
 </script>
 
 {#if user}
-	<button class="user-display-container" onclick={() => {
-		userModal?.showModal();
-	}}>
-		<div class="user-header">
+	<button
+		class="p-2.5 px-4 bg-white/[0.03] rounded flex flex-col items-start justify-between flex-grow flex-shrink-0 cursor-pointer transition-all duration-400 shadow-[0_0_4px_rgba(0,0,0,0)] hover:bg-white/10 hover:shadow-[0_4px_4px_rgba(0,0,0,0.1)]"
+		onclick={() => {
+			userModal?.showModal();
+		}}
+	>
+		<div class="flex items-center gap-2 mb-1.5">
 			<span
-				class={`status-indicator ${user.isOnline ? 'online' : 'offline'}`}
-				title={user.isOnline ? 'Online' : 'Offline'}>
+				class={`inline-block w-3 h-3 rounded-full flex-shrink-0 ${user.isOnline ? 'bg-[#4caf50]' : 'bg-[#757575]'}`}
+				title={user.isOnline ? 'Online' : 'Offline'}
+			>
 			</span>
-			<span class="user-name">
+			<span class="font-normal text-[0.9rem] text-white whitespace-nowrap overflow-hidden text-ellipsis">
 				{user.name || 'Unknown player'}
 			</span>
 		</div>
-		<div class="user-details">
+		<div>
 			<!-- <p class="user-fc">FC: {user.friendCode}</p> -->
 			{#if user.timezone}
-				<p class="user-timezone" title={user.timezone}>
+				<p class="text-[0.6em] text-white/60 pl-5" title={user.timezone}>
 					{getLocalTime(user.timezone)} ({getCityFromTimezone(user.timezone)})
 				</p>
 			{/if}
@@ -87,143 +91,31 @@
 	</button>
 {/if}
 
-<dialog id="user-modal" bind:this={userModal}>
-		<header>
-			<h3>{user.name}</h3>
-			<button class="close-modal" onclick={() => userModal?.close()}>
-				<X size={16} />
-			</button>
-		</header>
-		<div class="user-modal-body">
-			<div class="user-modal-section">
-				<p>Timezone: {user.timezone}</p>
-				<p>Friend Code: {user.friendCode}</p>
-				{#if handleRemoveClick}
-					<button class="remove-friend-btn" onclick={() => {
+<dialog
+	id="user-modal"
+	bind:this={userModal}
+	class="border border-white/10 shadow-[0_0_3px_rgba(0,0,0,0.4)] rounded p-4 bg-[rgb(10,30,42)] text-white"
+>
+	<header class="flex items-center justify-between mb-4">
+		<h3>{user.name}</h3>
+		<button class="hover:cursor-pointer" onclick={() => userModal?.close()}>
+			<X size={16} />
+		</button>
+	</header>
+	<div class="flex flex-col gap-4">
+		<div class="flex flex-col gap-4">
+			<p class="text-[0.9rem] text-white">Timezone: {user.timezone}</p>
+			<p class="text-[0.9rem] text-white">Friend Code: {user.friendCode}</p>
+			{#if handleRemoveClick}
+				<button
+					class="flex items-center justify-center gap-2 text-[0.9rem] text-white cursor-pointer transition-all duration-300 bg-red-500/45 rounded px-4 py-2 hover:bg-red-500/65"
+					onclick={() => {
 						handleRemoveClick(user);
-					}}>
-						<Trash size={16} /> Remove Friend
-					</button>
-				{/if}
-			</div>
+					}}
+				>
+					<Trash size={16} /> Remove Friend
+				</button>
+			{/if}
 		</div>
+	</div>
 </dialog>
-
-<style>
-	.user-display-container {
-		padding: .6rem 1rem;
-		background: rgba(255, 255, 255, 0.03);
-		border-radius: 0.25rem;
-		transition: all 0.4s ease;
-		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		flex-direction: column;
-		flex-grow: 1;
-		flex-shrink: 0;
-		cursor: pointer;
-		box-shadow: 0 0 4px rgba(0, 0, 0, 0);
-
-	}
-
-	.user-display-container:hover {
-		background: rgba(255, 255, 255, .1);
-		cursor: pointer;
-		box-shadow: 0 4px 4px rgba(0, 0, 0, .1);
-	}
-
-	.user-header {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		margin-bottom: 0.3rem;
-	}
-
-	.user-name {
-		font-weight: 400;
-		font-size: .9rem;
-		color: #fff;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-
-	.status-indicator {
-		display: inline-block;
-		width: 12px;
-		height: 12px;
-		border-radius: 50%;
-		flex-shrink: 0;
-	}
-
-	.status-indicator.online {
-		background-color: #4caf50;
-	}
-
-	.status-indicator.offline {
-		background-color: #757575;
-	}
-
-	
-	.user-timezone {
-		font-size: 0.6em;
-		color: rgba(255, 255, 255, 0.6);
-		padding-left: 1.2rem;
-	}
-
-	#user-modal {
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		box-shadow: 0 0 3px rgba(0, 0, 0, 0.4);
-		border-radius: 0.25rem;
-		padding: 1rem;
-		background-color: rgb(10, 30, 42);
-		color: #fff;
-	}
-
-	.user-modal-body {
-		display: flex;
-		flex-direction: column;
-		gap: 1rem;
-	}
-
-	header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		margin-bottom: 1rem;
-	}
-	
-	.user-modal-section {
-		display: flex;
-		flex-direction: column;
-		gap: 1rem;
-	}
-
-	.user-modal-section p {
-		font-size: 0.9rem;
-		color: #fff;
-	}
-
-	.remove-friend-btn {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 0.5rem;
-		font-size: 0.9rem;
-		color: #fff;
-		cursor: pointer;
-		transition: all 0.3s ease-in;
-		background-color: rgba(255, 0, 0, 0.45);
-		border-radius: 0.25rem;
-		padding: 0.5rem 1rem;
-	}
-
-	.remove-friend-btn:hover {
-		background-color: rgba(255, 0, 0, .65);
-
-	}
-
-	.close-modal:hover {
-		cursor: pointer;
-	}
-</style>

@@ -90,11 +90,11 @@
 	});
 </script>
 
-<div class="iframe-container">
+<div class="relative w-full h-full min-h-[400px] bg-[#1a1a1a]">
 	{#if isLoading}
-		<div class="loading">
-			<div class="spinner"></div>
-			<p>Loading Friends & Groups...</p>
+		<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center text-white z-10">
+			<div class="w-10 h-10 mx-auto mb-4 border-[3px] border-white/10 border-t-white rounded-full animate-spin"></div>
+			<p class="m-0 text-sm opacity-70">Loading Friends & Groups...</p>
 		</div>
 	{/if}
 	<iframe
@@ -102,60 +102,8 @@
 		src="{websiteUrl}?embedded=true"
 		title="Picologs Friends & Groups"
 		onload={handleIframeLoad}
-		class:loaded={!isLoading}
+		class="w-full h-full border-none transition-opacity duration-300 ease-in-out"
+		class:opacity-100={!isLoading}
+		class:opacity-0={isLoading}
 	></iframe>
 </div>
-
-<style>
-	.iframe-container {
-		position: relative;
-		width: 100%;
-		height: 100%;
-		min-height: 400px;
-		background: #1a1a1a;
-	}
-
-	iframe {
-		width: 100%;
-		height: 100%;
-		border: none;
-		opacity: 0;
-		transition: opacity 0.3s ease;
-	}
-
-	iframe.loaded {
-		opacity: 1;
-	}
-
-	.loading {
-		position: absolute;
-		top: 50%;
-		left: 50%;
-		transform: translate(-50%, -50%);
-		text-align: center;
-		color: #fff;
-		z-index: 10;
-	}
-
-	.spinner {
-		width: 40px;
-		height: 40px;
-		margin: 0 auto 16px;
-		border: 3px solid rgba(255, 255, 255, 0.1);
-		border-top-color: #fff;
-		border-radius: 50%;
-		animation: spin 0.8s linear infinite;
-	}
-
-	@keyframes spin {
-		to {
-			transform: rotate(360deg);
-		}
-	}
-
-	.loading p {
-		margin: 0;
-		font-size: 14px;
-		opacity: 0.7;
-	}
-</style>

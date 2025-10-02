@@ -309,23 +309,23 @@
 	$inspect(computedEvents);
 </script>
 
-<div class="timeline-container">
-	<div class="timeline-filters">
+<div class="grid grid-cols-1 grid-rows-[50px_1fr]">
+	<div class="h-[50px] bg-transparent border-b border-white/20 shadow-[0_4px_10px_rgba(0,0,0,0.4)]">
 		<TimelineFilters onfilterchange={handleFilterChange} {friendsList} {playerName} />
 	</div>
 
 	<div
-		class="file-content"
+		class="h-[calc(100dvh-50px-70px-40px)] relative overflow-y-auto flex flex-col [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.3)_rgba(0,0,0,0.2)] bg-black/10 file-content"
 		onscroll={handleScroll}
 		onresize={handleScroll}
 		bind:this={fileContentContainer}>
 		{#if file}
 			{#if displayedFileContent && displayedFileContent.length > 0}
 				{#each computedEvents as item (item.id)}
-					<div>
+					<div class="flex flex-col">
 						<Item {...item} open={item.open} />
 						{#if item.children && item.children.length > 0}
-							<div class="children">
+							<div class="ml-[2.8rem] border-l border-[#205d84] [border-image:linear-gradient(to_bottom,#205d84,transparent)_1] pb-4 flex flex-col gap-2 children">
 								{#each item.children as childItem (childItem.id)}
 									<Item {...childItem} child />
 								{/each}
@@ -334,29 +334,29 @@
 					</div>
 				{/each}
 			{:else}
-				<div class="item">
-					<div class="line-container">
-						<div class="line">No logs match the current filters.</div>
+				<div class="flex items-start gap-4 px-4 py-3 border-b border-white/5">
+					<div class="flex flex-col gap-1.5">
+						<div class="text-[0.95rem] flex items-center gap-2 leading-[1.4]">No logs match the current filters.</div>
 					</div>
 				</div>
 			{/if}
 		{:else}
-			<div class="welcome">
-				<h2>🚀 Getting started</h2>
-				<ol class="welcome-list">
-					<li>
-						Select your <code>Game.log</code>
+			<div class="flex flex-col items-start gap-4 my-8 mx-auto p-8 rounded-lg bg-white/[0.03] border border-white/10 max-w-[600px]">
+				<h2 class="m-0 mb-2 text-[1.6rem] font-medium">🚀 Getting started</h2>
+				<ol class="welcome-list list-none pl-0 [counter-reset:welcome-counter] flex flex-col gap-2 mt-4 m-0 text-base font-light leading-[1.6]">
+					<li class="inline-block relative pl-[34px] m-0">
+						Select your <code class="bg-white/10 px-1.5 py-0.5 rounded font-mono inline text-[1em]">Game.log</code>
 						file (sometimes just listed as Game). Usually found at the default path:
-						<code>C:\Program Files\Roberts Space Industries\StarCitizen\LIVE\Game.log</code>
+						<code class="bg-white/10 px-1.5 py-0.5 rounded font-mono inline text-[1em]">C:\Program Files\Roberts Space Industries\StarCitizen\LIVE\Game.log</code>
 						<br />
 						(Or the equivalent path on your system if installed elsewhere.)
 					</li>
-					<li>
+					<li class="inline-block relative pl-[34px] m-0">
 						Once a log file is selected and you go <strong>Online</strong>
 						(using the top-right button), Picologs automatically connects you with other friends for
 						real-time log sharing.
 					</li>
-					<li>
+					<li class="inline-block relative pl-[34px] m-0">
 						To add friends use your <strong>Friend Code</strong>
 						displayed at the top. Share this with friends to connect with them.
 					</li>
@@ -368,7 +368,7 @@
 			<button
 				in:fade={{ duration: 200, delay: 400 }}
 				out:fade={{ duration: 200 }}
-				class="scroll-to-bottom"
+				class="fixed bottom-[50px] w-10 h-10 rounded-full bg-white/10 border border-white/20 backdrop-blur-[10px] shadow-[0_0_10px_rgba(0,0,0,0.1)] flex items-center justify-center text-white cursor-pointer -translate-x-1/2"
 				style="left: {scrollButtonLeft};"
 				onclick={() =>
 					fileContentContainer?.scrollTo({
@@ -382,82 +382,13 @@
 </div>
 
 <style>
-	.timeline-filters {
-		height: 50px;
-		background-color: transparent;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-		box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
-	}
-
-	.timeline-container {
-		display: grid;
-		grid-template-columns: 1fr;
-		grid-template-rows: 50px 1fr;
-		grid-column-gap: 0px;
-		grid-row-gap: 0px;
-	}
-
-	.file-content {
-		height: calc(100dvh - 50px - 70px - 40px);
-		position: relative;
-		overflow-y: auto;
-		display: flex;
-		flex-direction: column;
-		scrollbar-width: thin;
-		scrollbar-color: rgba(255, 255, 255, 0.3) rgba(0, 0, 0, 0.2);
-		background: rgba(0, 0, 0, 0.1);
-	}
-
-	.welcome {
-		display: flex;
-		flex-direction: column;
-		align-items: flex-start;
-		gap: 1rem;
-		margin: 2rem auto;
-		padding: 2rem;
-		border-radius: 8px;
-		background: rgba(255, 255, 255, 0.03);
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		max-width: 600px;
-	}
-
-	.welcome h2 {
-		margin: 0 0 0.5rem 0;
-		font-size: 1.6rem;
-		font-weight: 500;
-	}
-
-	.welcome ol,
-	.welcome li {
-		margin: 0;
-		font-size: 1rem;
-		font-weight: 300;
-		line-height: 1.6;
-	}
-
-	.welcome .welcome-list {
-		list-style: none;
-		padding-left: 0;
-		counter-reset: welcome-counter;
-		display: flex;
-		flex-direction: column;
-		gap: 0.5rem;
-	}
-
-	.welcome .welcome-list li {
-		display: inline-block;
-
-		position: relative;
-		padding-left: 34px;
-	}
-
-	.welcome .welcome-list li::before {
+	/* Custom counter for welcome list */
+	.welcome-list li::before {
 		counter-increment: welcome-counter;
 		content: counter(welcome-counter);
 		position: absolute;
 		left: 0;
 		top: 0;
-
 		width: 24px;
 		height: 24px;
 		background-color: #4caf50;
@@ -471,120 +402,22 @@
 		line-height: 24px;
 	}
 
-	.welcome code {
-		background: rgba(255, 255, 255, 0.1);
-		padding: 0.1rem 0.3rem;
-		border-radius: 3px;
-		font-family: monospace;
-	}
-	.welcome .welcome-list {
-		list-style: none;
-		padding-left: 0;
-		counter-reset: welcome-counter;
-		margin-top: 1em;
-	}
-
-	.welcome .welcome-list li::before {
-		counter-increment: welcome-counter;
-		content: counter(welcome-counter);
-		flex-shrink: 0;
-		width: 24px;
-		height: 24px;
-		background-color: #4caf50;
-		color: white;
-		border-radius: 50%;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		font-size: 0.85em;
-		font-weight: bold;
-		margin-right: 0.8em;
-		line-height: 24px;
-	}
-
-	.welcome code {
-		background: rgba(255, 255, 255, 0.1);
-		padding: 0.1rem 0.3rem;
-		border-radius: 3px;
-		font-family: monospace;
-		display: inline;
-		font-size: 1em;
-	}
-
-	.scroll-to-bottom {
-		position: fixed;
-		bottom: 50px;
-		width: 40px;
-		height: 40px;
-		border-radius: 50%;
-		background-color: rgba(255, 255, 255, 0.1);
-		border: 1px solid rgba(255, 255, 255, 0.2);
-		backdrop-filter: blur(10px);
-		box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-		align-items: center;
-		justify-content: center;
-		display: flex;
-		color: white;
-		cursor: pointer;
-		/* left: calc(290px + (100vw - 290px) / 2); Removed, will be dynamic */
-		transform: translateX(-50%);
-	}
-
-	.item {
-		display: flex;
-		align-items: flex-start;
-		gap: 1rem;
-		padding: 0.75rem 1rem;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-	}
-
-	.item:last-child {
-		border-bottom: none;
-	}
-
-	.line-container {
-		display: flex;
-		flex-direction: column;
-		gap: 0.3rem;
-	}
-
-	.line {
-		font-size: 0.95rem;
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		line-height: 1.4;
-	}
-
-	.file-content div {
-		display: flex;
-		flex-direction: column;
-	}
-
+	/* Alternating row background colors */
 	:global(.file-content > div:nth-child(2n)) {
 		background-color: rgba(255, 255, 255, 0.05);
 	}
 
-	.children {
-		margin-left: 2.8rem;
-		border-left: 1px solid #205d84;
-		border-image: linear-gradient(to bottom, #205d84, transparent) 1;
-		padding-bottom: 1rem;
-		display: flex;
-		flex-direction: column;
-		gap: .5rem;
-	}
-
+	/* Children item nested styling */
 	:global(.children > .item) {
 		padding: 0;
-		& .emoji {
-			font-size: 1.5rem;
-		}
-		& .line {
-			font-size: 1rem;
-		}
-		& .timestamp {
-			font-size: .8rem;
-		}
+	}
+	:global(.children > .item .emoji) {
+		font-size: 1.5rem;
+	}
+	:global(.children > .item .line) {
+		font-size: 1rem;
+	}
+	:global(.children > .item .timestamp) {
+		font-size: 0.8rem;
 	}
 </style>

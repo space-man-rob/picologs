@@ -114,37 +114,62 @@
 	}
 </script>
 
-<button class="item" onclick={() => (open = !open)} class:child>
+<button
+	class="grid gap-4 p-4 {child ? 'grid-cols-[1rem_1fr] gap-2 pl-6' : 'grid-cols-[4rem_1fr]'}"
+	onclick={() => (open = !open)}
+>
 	{#if (eventType === 'vehicle_control_flow' || eventType === 'destruction') && shipImage}
 		{@const isSoftDeath = eventType === 'destruction' && metadata?.destroyLevelTo === '1'}
 		{@const isHardDeath = eventType === 'destruction' && metadata?.destroyLevelTo === '2'}
-		<div class="ship-image">
+		<div class="relative flex items-center justify-center overflow-visible">
 			{#if isHardDeath}
-				<img src={shipImage} alt={metadata.vehicleName} class="hard-left" />
-				<img src={shipImage} alt={metadata.vehicleName} class="hard-right" />
+				<img
+					src={shipImage}
+					alt={metadata.vehicleName}
+					class="absolute h-16 w-16 -rotate-[15deg] -translate-x-1 object-contain object-center opacity-90 [clip-path:polygon(0_0,50%_0,50%_100%,0%_100%)] [filter:drop-shadow(2px_2px_0_rgba(0,0,0,0.4))_brightness(2)_saturate(1)]"
+				/>
+				<img
+					src={shipImage}
+					alt={metadata.vehicleName}
+					class="absolute h-16 w-16 rotate-[15deg] translate-x-1 object-contain object-center opacity-90 [clip-path:polygon(50%_0,100%_0,100%_100%,50%_100%)] [filter:drop-shadow(2px_2px_0_rgba(0,0,0,0.4))_brightness(2)_saturate(1)]"
+				/>
 			{:else}
-				<img src={shipImage} alt={metadata.vehicleName} class:soft={isSoftDeath} />
+				<img
+					src={shipImage}
+					alt={metadata.vehicleName}
+					class="absolute h-16 w-16 object-contain object-center [filter:drop-shadow(2px_2px_0_rgba(0,0,0,0.4))_brightness(2)_saturate(1)] {child
+						? 'hidden'
+						: ''}"
+				/>
 			{/if}
 			{#if eventType === 'destruction'}
-				<div class="emoji">{emoji}</div>
+				<div
+					class="relative z-10 flex scale-75 items-center justify-center {child
+						? 'text-xs'
+						: 'text-2xl'}"
+				>
+					{emoji}
+				</div>
 			{/if}
 		</div>
 	{:else}
-		<div class="emoji">{emoji}</div>
+		<div class="flex items-center justify-center {child ? 'text-xs' : 'text-2xl'}">{emoji}</div>
 	{/if}
-	<div class="line-container">
+	<div>
 		{#if eventType === 'actor_death' && metadata.damageType === 'SelfDestruct'}
 			{@const zone = metadata.zone.split('_').slice(0, -1).join(' ')}
-			<div class="line">
+			<div class="flex items-center {child ? 'gap-1 text-xs' : 'gap-8 text-base'}">
 				{checkVictimName(metadata.victimName)} was killed when the {#if zone != 'Unknown'}{zone}{:else}ship{/if} was self
 				destructed {#if metadata.killerName != 'unknown'}by {checkVictimName(metadata.killerName)}{/if}
 			</div>
 		{:else if eventType === 'actor_death' && metadata.damageType === 'Suicide'}
-			<div class="line">{checkVictimName(metadata.victimName)} committed suicide</div>
+			<div class="flex items-center {child ? 'gap-1 text-xs' : 'gap-8 text-base'}">
+				{checkVictimName(metadata.victimName)} committed suicide
+			</div>
 		{:else if eventType === 'actor_death'}
 			{@const weapon = metadata?.weaponClass?.replace('_', ' ')}
 			{@const zone = metadata?.zone?.split('_')?.slice(0, -1)?.join(' ')}
-			<div class="line">
+			<div class="flex items-center {child ? 'gap-1 text-xs' : 'gap-8 text-base'}">
 				{checkVictimName(metadata.victimName)} was killed {#if zone && zone != 'Unknown'}
 					while in {zone}{/if} by {checkVictimName(metadata.killerName) || 'unknown'} {#if weapon != 'unknown'}using
 					{weapon}{/if}
@@ -152,135 +177,31 @@
 					caused by {convertCamelCaseToWords(metadata.damageType)}{/if}
 			</div>
 		{:else if eventType === 'vehicle_control_flow'}
-			<div class="line">
+			<div class="flex items-center {child ? 'gap-1 text-xs' : 'gap-8 text-base'}">
 				{player} controls a {shipName || metadata.vehicleName.split('_').slice(0, -1).join(' ')}
 			</div>
 		{:else if eventType === 'killing_spree'}
-			<div class="line">{line}</div>
+			<div class="flex items-center {child ? 'gap-1 text-xs' : 'gap-8 text-base'}">{line}</div>
 		{:else if eventType === 'location_change'}
-			<div class="line">
+			<div class="flex items-center {child ? 'gap-1 text-xs' : 'gap-8 text-base'}">
 				{player} requested inventory in {metadata.location.split('_').join(' ')}
 			</div>
 		{:else if eventType === 'system_quit'}
-			<div class="line">{player} left the game</div>
+			<div class="flex items-center {child ? 'gap-1 text-xs' : 'gap-8 text-base'}">
+				{player} left the game
+			</div>
 		{:else if eventType === 'corpsify'}
-			<div class="line">{line}</div>
+			<div class="flex items-center {child ? 'gap-1 text-xs' : 'gap-8 text-base'}">{line}</div>
 		{:else}
-			<div class="line">{line}</div>
+			<div class="flex items-center {child ? 'gap-1 text-xs' : 'gap-8 text-base'}">{line}</div>
 		{/if}
-		<div class="timestamp">{formattedTimestamp}, {reportedBy ? reportedBy.join(', ') : player}</div>
+		<div class="text-white/50 {child ? 'text-[0.5rem]' : 'text-xs'}">
+			{formattedTimestamp}, {reportedBy ? reportedBy.join(', ') : player}
+		</div>
 		{#if open}
-			<div class="original">{original}</div>
+			<div class="mt-2 inline-block rounded-lg bg-white/10 p-2 text-xs text-white/70">
+				{original}
+			</div>
 		{/if}
 	</div>
 </button>
-
-<style>
-	.item {
-		display: grid;
-		grid-template-columns: 4rem 1fr;
-		grid-template-rows: auto;
-		gap: 1rem;
-		padding: 1rem;
-	}
-
-	.emoji {
-		font-size: 1.5rem;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-
-	.ship-image {
-		position: relative;
-		overflow: visible;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-
-	.ship-image img {
-		position: absolute;
-		width: 4rem;
-		height: 4rem;
-		object-fit: contain;
-		object-position: center;
-	}
-
-	.ship-image .emoji {
-		position: relative;
-		z-index: 1;
-		transform: scale(.8);
-	}
-
-	.line {
-		font-size: 1rem;
-		display: flex;
-		align-items: center;
-		gap: 2rem;
-	}
-
-	.timestamp {
-		font-size: 0.7rem;
-		color: rgba(255, 255, 255, 0.5);
-	}
-
-	.original {
-		font-size: 0.7rem;
-		color: rgba(255, 255, 255, 0.7);
-		background-color: rgba(255, 255, 255, 0.1);
-		padding: 0.5rem;
-		border-radius: 0.5rem;
-		margin-top: 0.5rem;
-		display: inline-block;
-	}
-
-	.item .ship-image img {
-		filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.4));
-		transform: scale(1);
-		filter: brightness(2) saturate(1);
-	}
-
-	.item .ship-image img.soft {
-		filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.4)) brightness(2) saturate(1);
-	}
-
-	.item .ship-image img.hard-left,
-	.item .ship-image img.hard-right {
-		filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.4)) brightness(2) saturate(1);
-		opacity: 0.9;
-	}
-
-	.item .ship-image img.hard-left {
-		clip-path: polygon(0 0, 50% 0, 50% 100%, 0% 100%);
-		transform: scale(1) rotate(-15deg) translateX(-.2rem);
-	}
-
-	.item .ship-image img.hard-right {
-		clip-path: polygon(50% 0, 100% 0, 100% 100%, 50% 100%);
-		transform: scale(1) rotate(15deg) translateX(.2rem);
-	}
-
-	.item.child {
-		padding-left: 1.6rem;
-		grid-template-columns: 1rem 1fr;
-		gap: 0.5rem;
-	}
-
-	.item.child .emoji {
-		font-size: 0.8rem;
-	}
-
-	.item.child .ship-image img {
-		display: none;
-	}
-
-	.item.child .line {
-		gap: 0.2rem;
-		font-size: 0.8rem;
-	}
-
-	.item.child .timestamp {
-		font-size: 0.5rem;
-	}
-</style>

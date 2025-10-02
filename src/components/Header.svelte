@@ -1,9 +1,8 @@
 <script lang="ts">
-	import { BrushCleaning, Copy, FileText, Download } from '@lucide/svelte';
+	import { BrushCleaning, Copy, FileText, Download, ScrollText } from '@lucide/svelte';
 	import type { Friend as FriendType } from '../types';
-	import { ask } from '@tauri-apps/plugin-dialog';
 	import { load } from '@tauri-apps/plugin-store';
-
+	import { ask } from '@tauri-apps/plugin-dialog';
 
 	let {
 		playerId,
@@ -21,26 +20,12 @@
 		clearLogs,
 		updateInfo,
 		installUpdate,
-		connectionError
+		connectionError,
+		isSignedIn,
+		discordUser,
+		handleSignIn,
+		handleSignOut
 	} = $props();
-
-
-	async function toggleOnlineStatus() {
-		const store = await load('store.json', { autoSave: false });
-
-		if (connectionStatus === 'connected' || connectionStatus === 'connecting') {
-			await store.set('wouldGoOnline', false);
-			disconnectWebSocket();
-		} else {
-			if (playerId) {
-				await store.set('wouldGoOnline', true);
-				connectWebSocket();
-			} else {
-				alert('Please select a log file first to establish your Player ID and be able to go online.');
-			}
-		}
-		await store.save();
-	}
 
 	async function handleClearLogs() {
 		const answer = await ask('This action cannot be reverted. Are you sure?', {
@@ -53,7 +38,6 @@
 		}
 	}
 
-
 	type LogVersion = 'LIVE' | 'PTU' | 'HOTFIX';
 	let getLogVersion = () => {
 		if (logLocation?.includes('PTU')) {
@@ -64,34 +48,107 @@
 		}
 		return 'LIVE';
 	};
-	let logVersionSelect = $state<LogVersion>(getLogVersion()); // LIVE, PTU
-	let logVersionSelectOptions = $state<LogVersion[]>(['LIVE', 'PTU', 'HOTFIX']);
-	let selectVersion = (e: Event) => {
-		logLocation = (e.target as HTMLSelectElement).value;
-	};
+	let logVersionSelect = $state<LogVersion>(getLogVersion());
+	let logVersionSelectOptions = $state<(LogVersion | 'Select new')[]>(['LIVE', 'PTU', 'HOTFIX', 'Select new']);
+	let logVersionDropdownOpen = $state(false);
+
+	async function selectVersion(version: LogVersion | 'Select new') {
+		logVersionDropdownOpen = false;
+
+		if (version === 'Select new') {
+			selectFile();
+			return;
+		}
+
+		logVersionSelect = version;
+		// Store selected version and trigger file selection
+		const store = await load('store.json', {
+			defaults: {},
+			autoSave: false
+		});
+		await store.set('selectedEnvironment', version);
+		await store.save();
+		// Trigger file selection with new environment
+		selectFile(version);
+	}
+
+	function toggleLogVersionDropdown() {
+		logVersionDropdownOpen = !logVersionDropdownOpen;
+	}
+
+	let userDropdownOpen = $state(false);
+
+	function toggleUserDropdown() {
+		userDropdownOpen = !userDropdownOpen;
+	}
+
+	function closeUserDropdown() {
+		userDropdownOpen = false;
+	}
 
 	$effect(() => {
 		if (logLocation) {
 			logVersionSelect = getLogVersion();
 		}
 	});
-	
+
+	// Show dialog when connection error occurs
+	let showConnectionDialog = $state(false);
+	let lastConnectionError = $state<string | null>(null);
+	let showReconnectButton = $state(false);
+
+	$effect(() => {
+		// Show dialog only when error changes (new error occurred) and user is signed in
+		if (connectionError && connectionError !== lastConnectionError && isSignedIn && discordUser) {
+			showConnectionDialog = true;
+			showReconnectButton = false;
+			lastConnectionError = connectionError;
+		} else if (!connectionError) {
+			showConnectionDialog = false;
+			showReconnectButton = false;
+			lastConnectionError = null;
+		}
+	});
+
+	function handleReconnect() {
+		showConnectionDialog = false;
+		showReconnectButton = false;
+		lastConnectionError = null;
+		connectWebSocket();
+	}
+
+	function handleDismiss() {
+		showConnectionDialog = false;
+		showReconnectButton = true;
+		// Keep lastConnectionError so we don't show it again for the same error
+	}
 </script>
 
-<header>
-	<div class="logo-container">
-		<img src="/pico.webp" alt="Picologs" class="logo" />
-		<h1>Picologs</h1>
+<header
+	class="h-[70px] flex justify-between items-center bg-[rgb(10,30,42)] border-b border-white/20 px-4 pl-1.5">
+	<div class="flex items-center gap-2">
+		<img src="/pico.webp" alt="Picologs" class="w-12 h-12" />
+		<h1 class="text-2xl font-medium m-0">Picologs</h1>
 	</div>
 
-	<aside>
+	<aside class="flex gap-3 items-center">
+		{#if showReconnectButton && isSignedIn && discordUser}
+			<button
+				class="bg-[#f44336] text-white border border-[#d32f2f] px-4 py-2 font-medium rounded cursor-pointer transition-colors duration-200 flex items-center gap-2 hover:bg-[#d32f2f] animate-pulse"
+				onclick={handleReconnect}
+				title="Connection lost - click to reconnect">
+				⚠️ Reconnect
+			</button>
+		{/if}
 		{#if updateInfo}
-			<button class="update-button" onclick={installUpdate}>
+			<button
+				class="bg-[#4caf50] text-white border border-white/20 px-4 py-2 font-medium rounded cursor-pointer transition-colors duration-200 flex items-center gap-2 hover:bg-[#45a049]"
+				onclick={installUpdate}>
 				<Download size={18} /> Update Available
 			</button>
 		{/if}
 		<button
-			class="friend-code-button"
+			class="relative overflow-hidden bg-white/10 text-white border border-white/20 px-4 py-2 font-medium rounded cursor-pointer transition-colors duration-200 flex items-center gap-2 hover:bg-white/20"
 			onclick={() => {
 				const textToCopy = `My Picologs Friend Code: ${friendCode || 'Not set'}`;
 				navigator.clipboard.writeText(textToCopy);
@@ -101,264 +158,172 @@
 				}, 1500);
 			}}>
 			<Copy size={18} />
-			<p>Friend Code: {friendCode || 'N/A'}</p>
-			<span class="friend-code-copy-status" class:show-copied={copiedStatusVisible}>
+			<p class="m-0">Friend Code: {friendCode || 'N/A'}</p>
+			<span
+				class="absolute inset-0 flex items-center justify-center bg-[rgba(0,150,50,0.9)] text-white z-10 pointer-events-none transition-opacity duration-300"
+				class:opacity-100={copiedStatusVisible}
+				class:opacity-0={!copiedStatusVisible}>
 				Copied Friend Code!
 			</span>
 		</button>
 		{#if logLocation}
-		<select class="log-version-select" bind:value={logVersionSelect} onchange={selectVersion} title="Select Game.log file">
-			{#each logVersionSelectOptions as option}
-				<option value={option}>
-					{option}
-				</option>
-			{/each}
-		</select>
+			<div class="relative">
+				<button
+					class="bg-white/10 text-white border border-white/20 px-4 py-2 font-medium rounded cursor-pointer transition-colors duration-200 flex items-center gap-2 hover:bg-white/20"
+					onclick={toggleLogVersionDropdown}
+					title="Select Game.log file">
+					<ScrollText size={18} />
+					<span>{logVersionSelect}</span>
+					<div
+						class="flex items-center justify-center w-4 h-4 transition-transform duration-200 {logVersionDropdownOpen
+							? 'rotate-180'
+							: ''}">
+						<svg
+							width="16"
+							height="16"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round">
+							<polyline points="6 9 12 15 18 9"></polyline>
+						</svg>
+					</div>
+				</button>
+				{#if logVersionDropdownOpen}
+					<div
+						class="absolute top-full left-0 mt-2 bg-[rgb(10,30,42)] border border-white/20 rounded min-w-[120px] shadow-md z-[1000] overflow-hidden">
+						{#each logVersionSelectOptions as option}
+							<button
+								class="w-full px-4 py-2 bg-transparent border-none text-white text-left cursor-pointer text-sm transition-colors duration-150 flex items-center hover:bg-white/10 {logVersionSelect ===
+								option
+									? 'bg-white/5'
+									: ''}"
+								onclick={() => selectVersion(option)}>
+								{option}
+							</button>
+						{/each}
+					</div>
+				{/if}
+			</div>
 		{:else}
-			<button class="log-version-choose-button" onclick={selectFile} title="Select Game.log file">
+			<button
+				class="bg-white/10 text-white border border-white/20 px-4 py-2 font-medium rounded cursor-pointer transition-colors duration-200 flex items-center gap-2 hover:bg-white/20"
+				onclick={selectFile}
+				title="Select Game.log file">
 				<FileText size={18} />Select Game.log file
 			</button>
 		{/if}
 
-		<button onclick={handleClearLogs} title="Clear all logs">
+		<button
+			class="bg-white/10 text-white border border-white/20 px-4 py-2 font-medium rounded cursor-pointer transition-colors duration-200 flex items-center gap-2 hover:bg-white/20"
+			onclick={handleClearLogs}
+			title="Clear all logs">
 			<BrushCleaning size={18} /> Clear Logs
 		</button>
-		<!-- <button onclick={clearSettings} title="Clear all settings and log file">Clear Settings</button> -->
 
-		<button class="online-status-button" onclick={toggleOnlineStatus} title={connectionError || ''}>
-			{#if connectionStatus === 'connecting'}
-				<div class="spinner"></div>
-			{:else}
-				<span
-					class="status-dot"
-					class:green={connectionStatus === 'connected'}
-					class:red={connectionStatus === 'disconnected'}>
-				</span>
-				{#if connectionStatus === 'connected'}
-					Online
-				{:else}
-					Offline
+		{#if isSignedIn && discordUser}
+			<div class="relative">
+				<button
+					class="flex items-center justify-center rounded-full cursor-pointer p-0 border-0 bg-transparent"
+					onclick={toggleUserDropdown}
+					title={connectionError || (connectionStatus === 'connected' ? 'Online' : 'Offline')}>
+					<div class="relative flex items-center justify-center">
+						{#if discordUser.avatar && discordUser.id}
+							<img
+								src={`https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png?size=64`}
+								alt={discordUser.username}
+								class="w-9 h-9 rounded-full border-2 transition-[border-color] duration-300"
+								class:border-[#4caf50]={connectionStatus === 'connected'}
+								class:shadow-[0_0_6px_rgba(76,175,80,0.4)]={connectionStatus === 'connected'}
+								class:border-[#f44336]={connectionStatus === 'disconnected'}
+								class:border-[#ff9800]={connectionStatus === 'connecting'} />
+						{:else}
+							<div
+								class="w-9 h-9 rounded-full border-2 flex items-center justify-center bg-[rgba(88,101,242,0.5)] font-semibold text-[0.95rem] transition-[border-color] duration-300"
+								class:border-[#4caf50]={connectionStatus === 'connected'}
+								class:shadow-[0_0_6px_rgba(76,175,80,0.4)]={connectionStatus === 'connected'}
+								class:border-[#f44336]={connectionStatus === 'disconnected'}
+								class:border-[#ff9800]={connectionStatus === 'connecting'}>
+								{discordUser.username.charAt(0).toUpperCase()}
+							</div>
+						{/if}
+						{#if connectionStatus === 'connecting'}
+							<div class="spinner-small"></div>
+						{/if}
+					</div>
+				</button>
+				{#if userDropdownOpen}
+					<div
+						class="absolute top-[calc(100%+0.5rem)] right-0 bg-[rgb(15,35,47)] border border-[rgba(88,101,242,0.3)] rounded min-w-[200px] shadow-[0_4px_12px_rgba(0,0,0,0.3)] z-[1000] overflow-hidden">
+						<div class="px-4 py-3 flex flex-col gap-1">
+							<span class="text-white font-medium text-[0.95rem]">{discordUser.username}</span>
+							<span
+								class="text-xs font-normal"
+								class:text-[#4caf50]={connectionStatus === 'connected'}
+								class:text-[#f44336]={connectionStatus !== 'connected'}>
+								{connectionStatus === 'connected' ? 'Online' : 'Offline'}
+							</span>
+						</div>
+						<div class="h-px bg-white/10 my-1"></div>
+						<button
+							class="w-full px-4 py-2.5 bg-transparent border-none text-white text-left cursor-pointer text-sm transition-colors duration-150 flex items-center hover:bg-[rgba(88,101,242,0.2)]"
+							onclick={() => {
+								closeUserDropdown(); /* TODO: Navigate to admin page */
+							}}>
+							Admin
+						</button>
+						<div class="h-px bg-white/10 my-1"></div>
+						<button
+							class="w-full px-4 py-2.5 bg-transparent border-none text-[#f44336] text-left cursor-pointer text-sm transition-colors duration-150 flex items-center hover:bg-[rgba(244,67,54,0.1)]"
+							onclick={() => {
+								closeUserDropdown();
+								handleSignOut();
+							}}>
+							Sign Out
+						</button>
+					</div>
 				{/if}
-			{/if}
-		</button>
+			</div>
+		{:else}
+			<button
+				class="bg-[#5865F2] text-white border border-[#4752C4] px-4 py-2 font-medium rounded cursor-pointer transition-colors duration-200 flex items-center gap-2 hover:bg-[#4752C4]"
+				onclick={handleSignIn}>
+				Sign in with Discord
+			</button>
+		{/if}
 	</aside>
 </header>
 
-{#if connectionError}
-	<div class="connection-error-banner">
-		⚠️ Connection lost. <button class="reconnect-button" onclick={connectWebSocket}>Click here to try to connect again</button>
+{#if showConnectionDialog && isSignedIn && discordUser}
+	<div
+		class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+		onclick={handleDismiss}>
+		<div
+			class="bg-[rgb(15,35,47)] border border-[#f44336]/50 rounded-lg shadow-[0_8px_32px_rgba(244,67,54,0.3)] max-w-md w-full mx-4"
+			onclick={(e) => e.stopPropagation()}>
+			<div class="px-6 py-4 border-b border-white/10 flex items-center gap-3">
+				<span class="text-2xl">⚠️</span>
+				<h2 class="text-xl font-semibold text-white m-0">Connection Lost</h2>
+			</div>
+			<div class="px-6 py-5">
+				<p class="text-white/80 text-base leading-relaxed m-0">
+					The connection to the server was lost. Would you like to try reconnecting?
+				</p>
+			</div>
+			<div class="px-6 py-4 flex gap-3 justify-end border-t border-white/10">
+				<button
+					class="bg-white/10 text-white border border-white/20 px-5 py-2.5 font-medium rounded cursor-pointer transition-colors duration-200 hover:bg-white/20"
+					onclick={handleDismiss}>
+					Dismiss
+				</button>
+				<button
+					class="bg-[#4caf50] text-white border border-[#45a049] px-5 py-2.5 font-medium rounded cursor-pointer transition-colors duration-200 hover:bg-[#45a049]"
+					onclick={handleReconnect}>
+					Reconnect
+				</button>
+			</div>
+		</div>
 	</div>
 {/if}
-
-<style>
-	header {
-		height: 70px;
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		background: rgb(10, 30, 42);
-		border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-		padding: 0 15px 0 5px;
-	}
-
-	button {
-		background-color: rgba(255, 255, 255, 0.1);
-		color: #fff;
-		border: 1px solid rgba(255, 255, 255, 0.2);
-		padding: 0.5rem 1rem;
-		font-weight: 500;
-		border-radius: 4px;
-		cursor: pointer;
-		transition: background-color 0.2s ease-in-out;
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-	}
-
-	button:hover {
-		background-color: rgba(255, 255, 255, 0.2);
-	}
-
-	.logo {
-		width: 3rem;
-		height: 3rem;
-	}
-
-	.logo-container {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-	}
-
-	aside {
-		display: flex;
-		gap: 0.75rem;
-		align-items: center;
-	}
-
-	h1 {
-		font-size: 1.5rem;
-		font-weight: 500;
-		margin: 0;
-	}
-
-	.friend-code-button {
-		position: relative;
-		overflow: hidden;
-	}
-	.friend-code-button p {
-		margin: 0;
-	}
-
-	.friend-code-copy-status {
-		color: rgba(255, 255, 255, 0.8);
-		opacity: 0;
-		transition: opacity 0.3s ease-in-out;
-		position: absolute;
-		left: 0;
-		right: 0;
-		top: 0;
-		bottom: 0;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		background: rgba(0, 150, 50, 0.9);
-		color: #fff;
-		z-index: 10;
-		pointer-events: none;
-	}
-
-	.friend-code-copy-status.show-copied {
-		opacity: 1;
-	}
-
-	.online-status-button {
-		min-width: 120px;
-		justify-content: center;
-		display: flex;
-		align-items: center;
-		height: 38px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-
-	.status-dot {
-		display: inline-block;
-		width: 15px;
-		height: 15px;
-		border-radius: 50%;
-
-		border: 1px solid rgba(0, 0, 0, 0.2);
-	}
-
-	.status-dot.green {
-		background-color: #4caf50;
-		border-color: #388e3c;
-	}
-
-	.status-dot.red {
-		background-color: #f44336;
-		border-color: #d32f2f;
-	}
-
-	.spinner {
-		border: 3px solid rgba(255, 255, 255, 0.3);
-		border-radius: 50%;
-		border-top-color: #fff;
-		width: 16px;
-		height: 16px;
-		animation: spin 1s ease-in-out infinite;
-	}
-
-	@keyframes spin {
-		to {
-			transform: rotate(360deg);
-		}
-	}
-
-	.log-version-select {
-		background-color: rgba(255, 255, 255, 0.1);
-		color: #fff;
-		border: 1px solid rgba(255, 255, 255, 0.2);
-		padding: 0.5rem 1rem;
-		font-weight: 500;
-		border-radius: 4px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 0.5rem;
-		transition: background-color 0.2s ease-in-out;
-
-		&,
-		&::picker(select) {
-			appearance: base-select;
-			background-color: rgba(255, 255, 255, 0.1);
-			width: 120px;
-			overflow: hidden;
-			border: 1px solid rgba(255, 255, 255, 0.2);
-			border-radius: 4px;
-		}
-	}
-
-	.log-version-select:hover {
-		background-color: rgba(255, 255, 255, 0.2);
-	}
-
-	.log-version-select option {
-		background-color: rgb(10, 30, 42);
-		color: #fff;
-		padding: 0.25rem 0.5rem;
-		font-weight: 500;
-		display: flex;
-		align-items: flex-start;
-		justify-content: flex-start;
-		gap: 0.5rem;
-		width: 100px;
-	}
-
-	.update-button {
-		background-color: #4caf50;
-	}
-
-	.connection-error-banner {
-		background: #f44336;
-		color: white;
-		padding: 0.5rem 1rem;
-		text-align: center;
-		font-size: 0.9rem;
-		border-bottom: 1px solid rgba(0, 0, 0, 0.2);
-		animation: slideDown 0.3s ease-out;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 0.5rem;
-	}
-
-	.reconnect-button {
-		background-color: rgba(255, 255, 255, 0.9);
-		color: #f44336;
-		border: none;
-		padding: 0.3rem 0.8rem;
-		font-weight: 600;
-		border-radius: 4px;
-		cursor: pointer;
-		transition: background-color 0.2s ease-in-out;
-		font-size: 0.85rem;
-	}
-
-	.reconnect-button:hover {
-		background-color: white;
-	}
-
-	@keyframes slideDown {
-		from {
-			opacity: 0;
-			transform: translateY(-10px);
-		}
-		to {
-			opacity: 1;
-			transform: translateY(0);
-		}
-	}
-</style>
