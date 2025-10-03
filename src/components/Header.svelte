@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { BrushCleaning, Copy, FileText, Download, ScrollText } from '@lucide/svelte';
+	import { BrushCleaning, Copy, FileText, Download, ScrollText, Settings } from '@lucide/svelte';
 	import { load } from '@tauri-apps/plugin-store';
 	import { ask } from '@tauri-apps/plugin-dialog';
 
@@ -17,7 +17,9 @@
 		isSignedIn,
 		discordUser,
 		handleSignIn,
-		handleSignOut
+		handleSignOut,
+		openProfileSettings,
+		showProfileSettings = $bindable()
 	} = $props();
 
 	async function handleClearLogs() {
@@ -56,6 +58,14 @@
 		userDropdownOpen = false;
 	}
 
+	function handleOpenProfile() {
+		closeUserDropdown();
+		openProfileSettings();
+	}
+
+	function handleCloseProfile() {
+		showProfileSettings = false;
+	}
 
 	// Show dialog when connection error occurs
 	let showConnectionDialog = $state(false);
@@ -230,11 +240,10 @@
 						</div>
 						<div class="h-px bg-white/10 my-1"></div>
 						<button
-							class="w-full px-4 py-2.5 bg-transparent border-none text-white text-left cursor-pointer text-sm transition-colors duration-150 flex items-center hover:bg-[rgba(88,101,242,0.2)]"
-							onclick={() => {
-								closeUserDropdown(); /* TODO: Navigate to admin page */
-							}}>
-							Admin
+							class="w-full px-4 py-2.5 bg-transparent border-none text-white text-left cursor-pointer text-sm transition-colors duration-150 flex items-center gap-2 hover:bg-[rgba(88,101,242,0.2)]"
+							onclick={handleOpenProfile}>
+							<Settings size={16} />
+							<span>Profile</span>
 						</button>
 						<div class="h-px bg-white/10 my-1"></div>
 						<button
@@ -275,6 +284,7 @@
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby="dialog-title"
+			tabindex="-1"
 			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.stopPropagation()}>
 			<div class="px-6 py-4 border-b border-white/10 flex items-center gap-3">

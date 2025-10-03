@@ -5,7 +5,7 @@
 	import { openUrl } from '@tauri-apps/plugin-opener';
 	import Item from '../components/Item.svelte';
 	import { onMount } from 'svelte';
-	import { ArrowDown } from '@lucide/svelte';
+	import { ArrowDown, ArrowLeft } from '@lucide/svelte';
 	import { fade } from 'svelte/transition';
 	import Friends from '../components/Friends.svelte';
 	import User from '../components/User.svelte';
@@ -147,6 +147,10 @@
 	let authError = $state<string | null>(null);
 	let jwtToken = $state<string | null>(null);
 	let isVerifyingOtp = $state(false);
+
+	// Profile state
+	let showProfile = $state(false);
+	let profileUrl = $state('');
 
 	// Authentication functions - NEW OTP FLOW
 	async function handleSignIn() {
@@ -387,6 +391,26 @@
 		} catch (error) {
 			console.error('Sign out failed:', error);
 		}
+	}
+
+	async function openProfile() {
+		// Get JWT token for authentication
+		const jwt = await getJwtToken();
+
+		// Build profile URL with token parameter
+		const baseUrl = import.meta.env.DEV ? 'http://localhost:5173' : 'https://picologs.com';
+		const url = new URL(`${baseUrl}/profile-settings`);
+
+		if (jwt) {
+			url.searchParams.set('token', jwt);
+		}
+
+		profileUrl = url.toString();
+		showProfile = true;
+	}
+
+	function closeProfile() {
+		showProfile = false;
 	}
 
 	async function getLogFilePath(): Promise<string> {
@@ -1656,10 +1680,41 @@
 		{discordUser}
 		{handleSignIn}
 		{handleSignOut}
-		{connectionError} />
+		{connectionError}
+		openProfileSettings={openProfile}
+		bind:showProfileSettings={showProfile} />
 
 	<div class="flex flex-col overflow-hidden">
-		{#if isSignedIn && discordUser}
+		{#if showProfile}
+			<!-- Profile Full Page View -->
+			<div class="h-full flex flex-col overflow-hidden">
+				<!-- Back Button Bar -->
+				<div class="bg-[rgb(10,30,42)] border-b border-white/20 px-4 py-2">
+					<button
+						class="bg-white/10 text-white border border-white/20 px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-2 hover:bg-white/20"
+						onclick={closeProfile}
+						title="Back to Logs">
+						<ArrowLeft size={18} /> Back
+					</button>
+				</div>
+
+				{#if profileUrl}
+					<iframe
+						src={profileUrl}
+						title="Profile"
+						class="w-full h-full border-0"
+						sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+					></iframe>
+				{:else}
+					<div class="flex items-center justify-center h-full text-white/70">
+						<div class="text-center">
+							<div class="w-10 h-10 mx-auto mb-4 border-[3px] border-white/10 border-t-white rounded-full animate-spin"></div>
+							<p>Loading...</p>
+						</div>
+					</div>
+				{/if}
+			</div>
+		{:else if isSignedIn && discordUser}
 			<Resizer>
 				{#snippet leftPanel()}
 					<div class="flex flex-col overflow-y-hidden h-full">
