@@ -2,12 +2,13 @@
 	import { BrushCleaning, Copy, FileText, Download, ScrollText, Settings } from '@lucide/svelte';
 	import { load } from '@tauri-apps/plugin-store';
 	import { ask } from '@tauri-apps/plugin-dialog';
+	import { goto } from '$app/navigation';
 
 	let {
 		friendCode,
 		connectWebSocket,
 		connectionStatus,
-		copiedStatusVisible,
+		copiedStatusVisible = $bindable(),
 		selectFile,
 		logLocation = $bindable(),
 		clearLogs,
@@ -17,9 +18,7 @@
 		isSignedIn,
 		discordUser,
 		handleSignIn,
-		handleSignOut,
-		openProfileSettings,
-		showProfileSettings = $bindable()
+		handleSignOut
 	} = $props();
 
 	async function handleClearLogs() {
@@ -60,25 +59,35 @@
 
 	function handleOpenProfile() {
 		closeUserDropdown();
-		openProfileSettings();
-	}
-
-	function handleCloseProfile() {
-		showProfileSettings = false;
+		goto('/profile');
 	}
 
 	// Show dialog when connection error occurs
 	let showConnectionDialog = $state(false);
-	let lastConnectionError = $state<string | null>(null);
+	let lastConnectionError: string | null = null; // Not reactive
 	let showReconnectButton = $state(false);
+	let errorDialogTimer: number | null = null; // Not reactive
 
 	$effect(() => {
 		// Show dialog only when error changes (new error occurred) and user is signed in
 		if (connectionError && connectionError !== lastConnectionError && isSignedIn && discordUser) {
-			showConnectionDialog = true;
-			showReconnectButton = false;
-			lastConnectionError = connectionError;
+			// Clear any existing timer
+			if (errorDialogTimer) {
+				clearTimeout(errorDialogTimer);
+			}
+
+			// Wait 3 seconds before showing the dialog (gives time for auto-reconnect)
+			errorDialogTimer = setTimeout(() => {
+				showConnectionDialog = true;
+				showReconnectButton = false;
+				lastConnectionError = connectionError;
+			}, 3000) as unknown as number;
 		} else if (!connectionError) {
+			// Connection restored - clear timer and hide dialog
+			if (errorDialogTimer) {
+				clearTimeout(errorDialogTimer);
+				errorDialogTimer = null;
+			}
 			showConnectionDialog = false;
 			showReconnectButton = false;
 			lastConnectionError = null;
@@ -103,7 +112,7 @@
 	class="h-[70px] flex justify-between items-center bg-[rgb(10,30,42)] border-b border-white/20 px-4 pl-1.5">
 	<div class="flex items-center gap-2">
 		<img src="/pico.webp" alt="Picologs" class="w-12 h-12" />
-		<h1 class="text-2xl font-medium m-0">Picologs</h1>
+		<h1 class="text-2xl font-medium m-0 text-white">Picologs</h1>
 	</div>
 
 	<aside class="flex gap-3 items-center">

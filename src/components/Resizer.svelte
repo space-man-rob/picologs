@@ -161,7 +161,7 @@
 <!-- Component HTML Template -->
 <div class="flex flex-col items-stretch h-full w-full">
 	<div
-		class="grid gap-0 grid-rows-[1fr] overflow-hidden {isDragging ? 'dragging' : ''}"
+		class="grid gap-0 grid-rows-[1fr] overflow-hidden h-full {isDragging ? 'dragging' : ''}"
 		bind:this={gridContainerRef}
 		style:grid-template-columns={gridTemplateColumnsStyle}>
 		{#each columns as col, i (col.id)}
