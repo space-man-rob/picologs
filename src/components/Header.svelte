@@ -99,7 +99,7 @@
 	<aside class="flex gap-3 items-center">
 		{#if showReconnectButton && isSignedIn && discordUser}
 			<button
-				class="bg-[#f44336] text-white border border-[#d32f2f] px-4 py-2 font-medium rounded cursor-pointer transition-colors duration-200 flex items-center gap-2 hover:bg-[#d32f2f] animate-pulse"
+				class="bg-red-600 text-white px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-2 hover:bg-red-700 animate-pulse"
 				onclick={handleReconnect}
 				title="Connection lost - click to reconnect">
 				⚠️ Reconnect
@@ -107,14 +107,14 @@
 		{/if}
 		{#if updateInfo}
 			<button
-				class="bg-[#4caf50] text-white border border-white/20 px-4 py-2 font-medium rounded cursor-pointer transition-colors duration-200 flex items-center gap-2 hover:bg-[#45a049]"
+				class="bg-green-600 text-white px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-2 hover:bg-green-700"
 				onclick={installUpdate}>
 				<Download size={18} /> Update Available
 			</button>
 		{/if}
 		{#if isSignedIn && discordUser}
 			<button
-				class="relative overflow-hidden bg-white/10 text-white border border-white/20 px-4 py-2 font-medium rounded cursor-pointer transition-colors duration-200 flex items-center gap-2 hover:bg-white/20"
+				class="relative overflow-hidden bg-white/10 text-white border border-white/20 px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-2 hover:bg-white/20"
 				onclick={() => {
 					const textToCopy = `My Picologs Friend Code: ${friendCode || 'Not set'}`;
 					navigator.clipboard.writeText(textToCopy);
@@ -136,7 +136,7 @@
 		{#if logLocation}
 			<div class="relative">
 				<button
-					class="bg-white/10 text-white border border-white/20 px-4 py-2 font-medium rounded cursor-pointer transition-colors duration-200 flex items-center gap-2 hover:bg-white/20"
+					class="bg-white/10 text-white border border-white/20 px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-2 hover:bg-white/20"
 					onclick={toggleLogVersionDropdown}
 					title="Select Game.log file">
 					<ScrollText size={18} />
@@ -171,7 +171,7 @@
 			</div>
 		{:else}
 			<button
-				class="bg-white/10 text-white border border-white/20 px-4 py-2 font-medium rounded cursor-pointer transition-colors duration-200 flex items-center gap-2 hover:bg-white/20"
+				class="bg-white/10 text-white border border-white/20 px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-2 hover:bg-white/20"
 				onclick={selectFile}
 				title="Select Game.log file">
 				<FileText size={18} />Select Game.log file
@@ -179,7 +179,7 @@
 		{/if}
 
 		<button
-			class="bg-white/10 text-white border border-white/20 px-4 py-2 font-medium rounded cursor-pointer transition-colors duration-200 flex items-center gap-2 hover:bg-white/20"
+			class="bg-white/10 text-white border border-white/20 px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-2 hover:bg-white/20"
 			onclick={handleClearLogs}
 			title="Clear all logs">
 			<BrushCleaning size={18} /> Clear Logs
@@ -188,7 +188,7 @@
 		{#if isSignedIn && discordUser}
 			<div class="relative">
 				<button
-					class="flex items-center justify-center rounded-full cursor-pointer p-0 border-0 bg-transparent"
+					class="flex items-center justify-center rounded-full p-0 border-0 bg-transparent"
 					onclick={toggleUserDropdown}
 					title={connectionError || (connectionStatus === 'connected' ? 'Online' : 'Offline')}>
 					<div class="relative flex items-center justify-center">
@@ -250,7 +250,7 @@
 			</div>
 		{:else}
 			<button
-				class="bg-[#5865F2] text-white border border-[#4752C4] px-4 py-2 font-medium rounded cursor-pointer transition-colors duration-200 flex items-center gap-2 hover:bg-[#4752C4]"
+				class="bg-[#5865F2] text-white border border-[#4752C4] px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-2 hover:bg-[#4752C4]"
 				onclick={handleSignIn}>
 				Sign in with Discord
 			</button>
@@ -288,12 +288,12 @@
 			</div>
 			<div class="px-6 py-4 flex gap-3 justify-end border-t border-white/10">
 				<button
-					class="bg-white/10 text-white border border-white/20 px-5 py-2.5 font-medium rounded cursor-pointer transition-colors duration-200 hover:bg-white/20"
+					class="bg-white/10 text-white border border-white/20 px-5 py-2.5 font-medium rounded transition-colors duration-200 hover:bg-white/20"
 					onclick={handleDismiss}>
 					Dismiss
 				</button>
 				<button
-					class="bg-[#4caf50] text-white border border-[#45a049] px-5 py-2.5 font-medium rounded cursor-pointer transition-colors duration-200 hover:bg-[#45a049]"
+					class="bg-green-600 text-white px-5 py-2.5 font-medium rounded transition-colors duration-200 hover:bg-green-700"
 					onclick={handleReconnect}>
 					Reconnect
 				</button>

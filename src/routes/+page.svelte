@@ -2,6 +2,7 @@
 	import { readTextFile, watchImmediate, writeFile } from '@tauri-apps/plugin-fs';
 	import { load } from '@tauri-apps/plugin-store';
 	import { open } from '@tauri-apps/plugin-dialog';
+	import { openUrl } from '@tauri-apps/plugin-opener';
 	import Item from '../components/Item.svelte';
 	import { onMount } from 'svelte';
 	import { ArrowDown } from '@lucide/svelte';
@@ -12,9 +13,11 @@
 	import type { Log, Friend as FriendType } from '../types';
 	import { appDataDir } from '@tauri-apps/api/path';
 	import Header from '../components/Header.svelte';
+	import Resizer from '../components/Resizer.svelte';
 	import { check } from '@tauri-apps/plugin-updater';
 	import { loginWithDiscord, loadAuthData, signOut, handleAuthComplete } from '$lib/oauth';
 	import { onOpenUrl } from '@tauri-apps/plugin-deep-link';
+	import WebSocket from '@tauri-apps/plugin-websocket';
 	import {
 		connectWebSocket as apiConnectWebSocket,
 		disconnectWebSocket as apiDisconnectWebSocket,
@@ -72,6 +75,14 @@
 		const profile = await fetchUserProfile();
 		if (profile) {
 			apiUserProfile = profile;
+
+			// Also set discordUser for UI display
+			discordUser = {
+				id: profile.discordId,
+				username: profile.username,
+				avatar: profile.avatar
+			};
+
 			console.log('[API] Synced user profile from database');
 		}
 	}
@@ -129,46 +140,157 @@
 		}
 	}
 
-	// Authentication functions
+	// OTP auth state
+	let authSessionId = $state<string | null>(null);
+	let otpCode = $state('');
+	let awaitingOtp = $state(false);
+	let authError = $state<string | null>(null);
+	let jwtToken = $state<string | null>(null);
+
+	// Authentication functions - NEW OTP FLOW
 	async function handleSignIn() {
-		// Generate a temporary ID for OAuth callback if no Discord ID yet
-		const tempAuthId = discordUserId || crypto.randomUUID();
+		authError = null;
 
-		console.log('[Auth] Starting OAuth flow with temp ID:', tempAuthId);
+		// Generate unique session ID
+		const sessionId = crypto.randomUUID();
+		authSessionId = sessionId;
 
-		// Connect to WebSocket FIRST so we can receive auth_complete message
-		if (!ws) {
-			// Temporarily set discordUserId so WebSocket can connect
-			const originalDiscordUserId = discordUserId;
-			discordUserId = tempAuthId;
-
-			try {
-				await connectWebSocket();
-				console.log('[Auth] WebSocket connected, ready to receive auth callback');
-			} catch (error) {
-				console.error('[Auth] Failed to connect WebSocket:', error);
-				discordUserId = originalDiscordUserId;
-				alert('Failed to connect to server. Please try again.');
-				return;
-			}
-		}
+		console.log('[Auth] Starting new OTP auth flow with session ID:', sessionId);
 
 		try {
-			const { user, tokens } = await loginWithDiscord(tempAuthId);
+			// Connect to WebSocket
+			connectionStatus = 'connecting';
+			const wsUrl = import.meta.env.DEV
+				? 'ws://127.0.0.1:8080/ws'
+				: 'wss://picologs-ws.fly.dev/ws';
 
-			// Store Discord authentication
-			discordUserId = user.id; // Use Discord's user ID
+			console.log('[Auth] Connecting to WebSocket:', wsUrl);
+			const socket = await WebSocket.connect(wsUrl);
+
+			// Set up message listener for OTP-related messages
+			socket.addListener((msg: any) => {
+				try {
+					// Handle different message formats from Tauri WebSocket
+					let messageStr: string;
+					if (typeof msg === 'string') {
+						messageStr = msg;
+					} else if (msg.data && typeof msg.data === 'string') {
+						messageStr = msg.data;
+					} else if (msg.type === 'Text' && msg.data) {
+						messageStr = msg.data;
+					} else {
+						console.log('[Auth WS] Received non-text message, skipping:', typeof msg);
+						return;
+					}
+
+					const message = JSON.parse(messageStr);
+					console.log('[Auth WS] Received message:', message.type, message);
+
+					// OTP is ready - show input to user
+					if (message.type === 'otp_ready' && message.sessionId === sessionId) {
+						console.log('[Auth] OTP is ready, waiting for user to enter code');
+						awaitingOtp = true;
+					}
+
+					// OTP verification response
+					if (message.type === 'response' && message.requestId === 'verify_otp') {
+						if (message.data?.success && message.data?.jwt) {
+							console.log('[Auth] OTP verified! Received JWT token');
+							jwtToken = message.data.jwt;
+							completeAuth(message.data.jwt);
+						} else {
+							console.error('[Auth] OTP verification failed:', message.message);
+							authError = message.message || 'Invalid OTP code';
+						}
+					}
+
+					if (message.type === 'error') {
+						console.error('[Auth] WebSocket error:', message.message);
+						authError = message.message;
+					}
+				} catch (error) {
+					// Silently skip non-JSON messages (like Tauri metadata)
+					if (error instanceof SyntaxError) {
+						console.log('[Auth WS] Skipping non-JSON message');
+					} else {
+						console.error('[Auth WS] Error handling message:', error);
+					}
+				}
+			});
+
+			// Send init_desktop_auth message
+			await socket.send(JSON.stringify({
+				type: 'init_desktop_auth',
+				sessionId: sessionId,
+				requestId: 'init_auth'
+			}));
+
+			ws = socket;
+			connectionStatus = 'connected';
+			console.log('[Auth] WebSocket connected, session initiated');
+
+			// Open browser to auth page
+			const websiteUrl = import.meta.env.DEV
+				? 'http://localhost:5173'
+				: 'https://picologs.com';
+			const authUrl = `${websiteUrl}/auth/desktop?session=${sessionId}`;
+
+			console.log('[Auth] Opening browser to:', authUrl);
+			await openUrl(authUrl);
+
+		} catch (error) {
+			console.error('[Auth] Failed to initiate auth:', error);
+			connectionStatus = 'disconnected';
+			authError = 'Failed to connect to server. Please try again.';
+		}
+	}
+
+	// Submit OTP code
+	async function submitOtp() {
+		if (!otpCode || otpCode.length !== 6 || !authSessionId || !ws) {
+			authError = 'Please enter a valid 6-digit code';
+			return;
+		}
+
+		authError = null;
+
+		try {
+			console.log('[Auth] Submitting OTP for verification');
+			await ws.send(JSON.stringify({
+				type: 'verify_otp',
+				requestId: 'verify_otp',
+				data: {
+					sessionId: authSessionId,
+					otp: otpCode
+				}
+			}));
+		} catch (error) {
+			console.error('[Auth] Failed to submit OTP:', error);
+			authError = 'Failed to verify code. Please try again.';
+		}
+	}
+
+	// Complete authentication after JWT received
+	async function completeAuth(jwt: string) {
+		try {
+			// Store JWT in auth store
+			const authStore = await load('auth.json', {
+				defaults: {},
+				autoSave: false
+			});
+			await authStore.set('jwtToken', jwt);
+			await authStore.save();
+
+			// Decode JWT to get user info
+			const [, payloadB64] = jwt.split('.');
+			const payload = JSON.parse(atob(payloadB64));
+
+			discordUserId = payload.userId;
 			isSignedIn = true;
-			discordUser = {
-				id: user.id,
-				username: user.global_name || user.username,
-				avatar: user.avatar
-			};
 
-			console.log('[Auth] Successfully authenticated:', user.username);
-			console.log('[Auth] Discord user ID:', discordUserId);
+			console.log('[Auth] Authentication complete! Discord user ID:', discordUserId);
 
-			// Save Discord user ID to store
+			// Save to store
 			const store = await load('store.json', {
 				defaults: {},
 				autoSave: false
@@ -176,7 +298,13 @@
 			await store.set('discordUserId', discordUserId);
 			await store.save();
 
-			// Reconnect WebSocket with real Discord ID
+			// Reset auth UI state
+			awaitingOtp = false;
+			otpCode = '';
+			authSessionId = null;
+			authError = null;
+
+			// Disconnect and reconnect with JWT token
 			if (ws) {
 				try {
 					await ws.disconnect();
@@ -184,10 +312,12 @@
 					console.error('[WebSocket] Error disconnecting:', error);
 				}
 			}
+			ws = null;
 			await connectWebSocket();
+
 		} catch (error) {
-			console.error('Authentication failed:', error);
-			alert(`Sign in failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+			console.error('[Auth] Failed to complete authentication:', error);
+			authError = 'Failed to complete sign in. Please try again.';
 		}
 	}
 
@@ -796,10 +926,22 @@
 			// Mark loading complete
 			isLoadingFile = false;
 
-			// Connect WebSocket only if signed in with Discord
+			// Connect WebSocket only if signed in with Discord AND have JWT token
 			// (this will trigger syncs after registration via the 'registered' event)
 			if (isSignedIn && discordUserId && !ws) {
-				connectWebSocket();
+				// Check if we have a JWT token before attempting to connect
+				const authData = await loadAuthData();
+				const store = await load('auth.json', { defaults: {} });
+				const dbUserInfo = (await store.get('db_user_info')) as any;
+
+				if (dbUserInfo?.jwtToken) {
+					connectWebSocket();
+				} else {
+					console.log('[Init] No JWT token found - user needs to sign in again');
+					connectionError = 'Authentication expired - please sign in again';
+					// Sign out to clear old auth data
+					await handleSignOut();
+				}
 			}
 
 			check().then((update: any) => {
@@ -809,21 +951,28 @@
 			});
 
 			// Setup deep link listener for OAuth callbacks
-			unlisten = await onOpenUrl((urls) => {
+			unlisten = await onOpenUrl(async (urls) => {
 				console.log('[Deep Link] Received URLs:', urls);
 
 				for (const url of urls) {
 					try {
+						console.log('[Deep Link] Processing URL:', url);
 						const urlObj = new URL(url);
+						console.log('[Deep Link] Protocol:', urlObj.protocol, 'Hostname:', urlObj.hostname);
 
 						// Handle picologs://auth?data=...
 						if (urlObj.protocol === 'picologs:' && urlObj.hostname === 'auth') {
+							console.log('[Deep Link] Matched auth protocol');
 							const authDataEncoded = urlObj.searchParams.get('data');
+							console.log('[Deep Link] Auth data encoded:', authDataEncoded ? 'Yes' : 'No');
 							if (authDataEncoded) {
 								const authData = JSON.parse(decodeURIComponent(authDataEncoded));
-								console.log('[Deep Link] Received auth data');
-								handleAuthComplete(authData);
+								console.log('[Deep Link] Parsed auth data:', authData);
+								await handleAuthComplete(authData);
+								console.log('[Deep Link] Auth complete handled');
 							}
+						} else {
+							console.log('[Deep Link] URL did not match expected format');
 						}
 					} catch (error) {
 						console.error('[Deep Link] Error parsing URL:', error);
@@ -1473,78 +1622,158 @@
 		{handleSignOut}
 		{connectionError} />
 
-	<div
-		class="grid grid-rows-[1fr_auto] h-[calc(100dvh-70px)] overflow-hidden"
-		style="grid-template-columns: {isSignedIn && discordUser ? '290px 1fr' : '1fr'};">
+	<div class="flex flex-col overflow-hidden">
 		{#if isSignedIn && discordUser}
-			<div
-				class="col-start-1 col-end-2 row-start-1 row-end-3 border-r border-white/20 flex flex-col gap-4 overflow-y-auto">
-				{#if currentUserDisplayData}
-					<User user={currentUserDisplayData} />
-				{/if}
-				<Friends {friendsList} removeFriend={handleRemoveFriend} />
-				<div class="mt-auto pt-4">
-					<AddFriend addFriend={handleAddFriend} />
-				</div>
-			</div>
-		{/if}
-		<div
-			class="row-start-1 row-end-2 overflow-y-auto flex flex-col bg-black/10 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.3)_rgba(0,0,0,0.2)]"
-			style="grid-column: {isSignedIn && discordUser ? '2 / 3' : '1 / 2'};"
-			bind:this={fileContentContainer}>
-			{#if file}
-				{#each fileContent as item, index (item.id)}
-					<Item {...item} bind:open={item.open} />
-					{#if item.open && item.children && item.children.length > 0}
-						<div class="relative ml-16 before:content-[''] before:absolute before:left-0 before:top-0 before:bottom-0 before:w-[2px] before:bg-gradient-to-b before:from-red-500/50 before:via-red-500/30 before:to-transparent">
-							{#each item.children as child (child.id)}
-								<Item {...child} bind:open={child.open} child={true} />
-							{/each}
+			<Resizer>
+				{#snippet leftPanel()}
+					<div class="flex flex-col overflow-y-hidden h-full">
+						<div class="flex flex-col gap-4 overflow-y-auto flex-grow px-2 pb-2 pt-0">
+							{#if currentUserDisplayData}
+								<User user={currentUserDisplayData} />
+							{/if}
+							<Friends {friendsList} removeFriend={handleRemoveFriend} />
 						</div>
-					{/if}
-				{:else}
-					<div class="flex items-start gap-4 px-4 py-3 border-b border-white/5">
-						<div class="flex flex-col gap-[0.3rem]">
-							<div class="text-[0.95rem] flex items-center gap-2 leading-[1.4]">
-								No new logs yet. Waiting for game activity...
-							</div>
+						<div class="mt-auto min-w-[200px] px-2 pb-2">
+							<AddFriend addFriend={handleAddFriend} />
 						</div>
 					</div>
-				{/each}
-			{:else if !isLoadingFile}
+				{/snippet}
+
+				{#snippet rightPanel()}
+					<div class="grid grid-rows-[1fr_auto] h-full overflow-hidden">
+						<div
+							class="row-start-1 row-end-2 overflow-y-auto flex flex-col bg-black/10 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.3)_rgba(0,0,0,0.2)]"
+							bind:this={fileContentContainer}>
+							{#if file}
+								{#each fileContent as item, index (item.id)}
+									<Item {...item} bind:open={item.open} />
+									{#if item.open && item.children && item.children.length > 0}
+										<div class="relative ml-16 before:content-[''] before:absolute before:left-0 before:top-0 before:bottom-0 before:w-[2px] before:bg-gradient-to-b before:from-red-500/50 before:via-red-500/30 before:to-transparent">
+											{#each item.children as child (child.id)}
+												<Item {...child} bind:open={child.open} child={true} />
+											{/each}
+										</div>
+									{/if}
+								{:else}
+									<div class="flex items-start gap-4 px-4 py-3 border-b border-white/5">
+										<div class="flex flex-col gap-[0.3rem]">
+											<div class="text-[0.95rem] flex items-center gap-2 leading-[1.4]">
+												No new logs yet. Waiting for game activity...
+											</div>
+										</div>
+									</div>
+								{/each}
+							{:else if !isLoadingFile}
+								<div
+									class="flex flex-col items-start gap-4 my-8 mx-auto p-8 rounded-lg bg-white/[0.03] border border-white/10 max-w-[600px]">
+									<h2 class="m-0 mb-2 text-[1.6rem] font-medium">🚀 Getting started</h2>
+									<ol class="list-none pl-0 [counter-reset:welcome-counter] flex flex-col gap-2 mt-4">
+										<li
+											class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 before:bg-[#4caf50] before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
+											Select your <code
+												class="bg-white/10 px-[0.3rem] py-[0.1rem] rounded-[3px] font-mono inline text-base">
+												Game.log
+											</code>
+											file. Usually found at the default path:
+											<code
+												class="bg-white/10 px-[0.3rem] py-[0.1rem] rounded-[3px] font-mono inline text-base">
+												C:\Program Files\Roberts Space Industries\StarCitizen\LIVE\Game.log
+											</code>
+											<br />
+											(Or the equivalent path on your system if installed elsewhere.)
+										</li>
+										<li
+											class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 before:bg-[#4caf50] before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
+											Once a log file is selected and you go <strong>Online</strong>
+											(using the top-right button), Picologs automatically connects you with other friends for
+											real-time log sharing.
+										</li>
+										<li
+											class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 before:bg-[#4caf50] before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
+											To add friends use your <strong>Friend Code</strong>
+											displayed at the top. Share this with friends to connect with them.
+										</li>
+									</ol>
+								</div>
+							{/if}
+						</div>
+
+						{#if file}
+							<div
+								class="row-start-2 row-end-3 flex items-center justify-end gap-2 px-4 py-2 bg-[rgb(10,30,42)] border-t border-white/20 text-[0.8rem] text-white/70">
+								Log lines processed: {Number(lineCount).toLocaleString()}
+							</div>
+						{/if}
+					</div>
+				{/snippet}
+			</Resizer>
+		{:else}
+			<div class="grid grid-rows-[1fr_auto] h-[calc(100dvh-70px)] overflow-hidden">
 				<div
-					class="flex flex-col items-start gap-4 my-8 mx-auto p-8 rounded-lg bg-white/[0.03] border border-white/10 max-w-[600px]">
-					<h2 class="m-0 mb-2 text-[1.6rem] font-medium">🚀 Getting started</h2>
-					<ol class="list-none pl-0 [counter-reset:welcome-counter] flex flex-col gap-2 mt-4">
-						<li
-							class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 before:bg-[#4caf50] before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
-							Select your <code
-								class="bg-white/10 px-[0.3rem] py-[0.1rem] rounded-[3px] font-mono inline text-base">
-								Game.log
-							</code>
-							file. Usually found at the default path:
-							<code
-								class="bg-white/10 px-[0.3rem] py-[0.1rem] rounded-[3px] font-mono inline text-base">
-								C:\Program Files\Roberts Space Industries\StarCitizen\LIVE\Game.log
-							</code>
-							<br />
-							(Or the equivalent path on your system if installed elsewhere.)
-						</li>
-						<li
-							class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 before:bg-[#4caf50] before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
-							Once a log file is selected and you go <strong>Online</strong>
-							(using the top-right button), Picologs automatically connects you with other friends for
-							real-time log sharing.
-						</li>
-						<li
-							class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 before:bg-[#4caf50] before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
-							To add friends use your <strong>Friend Code</strong>
-							displayed at the top. Share this with friends to connect with them.
-						</li>
-					</ol>
+					class="row-start-1 row-end-2 overflow-y-auto flex flex-col bg-black/10 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.3)_rgba(0,0,0,0.2)]"
+					bind:this={fileContentContainer}>
+					{#if file}
+						{#each fileContent as item, index (item.id)}
+							<Item {...item} bind:open={item.open} />
+							{#if item.open && item.children && item.children.length > 0}
+								<div class="relative ml-16 before:content-[''] before:absolute before:left-0 before:top-0 before:bottom-0 before:w-[2px] before:bg-gradient-to-b before:from-red-500/50 before:via-red-500/30 before:to-transparent">
+									{#each item.children as child (child.id)}
+										<Item {...child} bind:open={child.open} child={true} />
+									{/each}
+								</div>
+							{/if}
+						{:else}
+							<div class="flex items-start gap-4 px-4 py-3 border-b border-white/5">
+								<div class="flex flex-col gap-[0.3rem]">
+									<div class="text-[0.95rem] flex items-center gap-2 leading-[1.4]">
+										No new logs yet. Waiting for game activity...
+									</div>
+								</div>
+							</div>
+						{/each}
+					{:else if !isLoadingFile}
+						<div
+							class="flex flex-col items-start gap-4 my-8 mx-auto p-8 rounded-lg bg-white/[0.03] border border-white/10 max-w-[600px]">
+							<h2 class="m-0 mb-2 text-[1.6rem] font-medium">🚀 Getting started</h2>
+							<ol class="list-none pl-0 [counter-reset:welcome-counter] flex flex-col gap-2 mt-4">
+								<li
+									class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 before:bg-[#4caf50] before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
+									Select your <code
+										class="bg-white/10 px-[0.3rem] py-[0.1rem] rounded-[3px] font-mono inline text-base">
+										Game.log
+									</code>
+									file. Usually found at the default path:
+									<code
+										class="bg-white/10 px-[0.3rem] py-[0.1rem] rounded-[3px] font-mono inline text-base">
+										C:\Program Files\Roberts Space Industries\StarCitizen\LIVE\Game.log
+									</code>
+									<br />
+									(Or the equivalent path on your system if installed elsewhere.)
+								</li>
+								<li
+									class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 before:bg-[#4caf50] before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
+									Once a log file is selected and you go <strong>Online</strong>
+									(using the top-right button), Picologs automatically connects you with other friends for
+									real-time log sharing.
+								</li>
+								<li
+									class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 before:bg-[#4caf50] before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
+									To add friends use your <strong>Friend Code</strong>
+									displayed at the top. Share this with friends to connect with them.
+								</li>
+							</ol>
+						</div>
+					{/if}
 				</div>
-			{/if}
-		</div>
+
+				{#if file}
+					<div
+						class="row-start-2 row-end-3 flex items-center justify-end gap-2 px-4 py-2 bg-[rgb(10,30,42)] border-t border-white/20 text-[0.8rem] text-white/70">
+						Log lines processed: {Number(lineCount).toLocaleString()}
+					</div>
+				{/if}
+			</div>
+		{/if}
 
 		<!-- Scroll to bottom button -->
 		{#if hasScrollbar && !atTheBottom}
@@ -1552,7 +1781,7 @@
 				in:fade={{ duration: 200, delay: 400 }}
 				out:fade={{ duration: 200 }}
 				class="fixed bottom-[60px] w-10 h-10 rounded-full bg-white/10 border border-white/20 backdrop-blur-[10px] shadow-[0_0_10px_rgba(0,0,0,0.1)] flex items-center justify-center text-white cursor-pointer z-50"
-				style="left: calc({isSignedIn && discordUser ? '290px + (100% - 290px) / 2' : '50%'}); transform: translateX(-50%);"
+				style="left: 50%; transform: translateX(-50%);"
 				onclick={() =>
 					fileContentContainer?.scrollTo({
 						top: fileContentContainer.scrollHeight,
@@ -1562,11 +1791,50 @@
 			</button>
 		{/if}
 
-		{#if file}
-			<div
-				class="row-start-2 row-end-3 flex items-center justify-end gap-2 px-4 py-2 bg-[rgb(10,30,42)] border-t border-white/20 text-[0.8rem] text-white/70"
-				style="grid-column: {isSignedIn && discordUser ? '2 / 3' : '1 / 2'};">
-				Log lines processed: {Number(lineCount).toLocaleString()}
+		<!-- OTP Input Modal -->
+		{#if awaitingOtp}
+			<div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999]">
+				<div class="bg-[rgb(10,30,42)] border border-white/20 rounded-lg p-8 max-w-md w-full mx-4 shadow-2xl">
+					<h2 class="text-2xl font-medium mb-4 text-white">Enter Authentication Code</h2>
+					<p class="text-white/70 mb-6">Enter the 6-digit code from your browser:</p>
+
+					<input
+						type="text"
+						bind:value={otpCode}
+						placeholder="000000"
+						maxlength="6"
+						class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white text-center text-2xl tracking-widest font-mono mb-4 focus:outline-none focus:border-blue-500"
+						onkeydown={(e) => {
+							if (e.key === 'Enter') {
+								submitOtp();
+							}
+						}}
+					/>
+
+					{#if authError}
+						<div class="bg-red-900/20 border border-red-500/50 rounded-lg px-4 py-3 mb-4 text-red-400 text-sm">
+							{authError}
+						</div>
+					{/if}
+
+					<div class="flex gap-3">
+						<button
+							onclick={() => {
+								awaitingOtp = false;
+								otpCode = '';
+								authError = null;
+							}}
+							class="flex-1 px-4 py-2 bg-white/5 border border-white/20 rounded-lg text-white hover:bg-white/10 transition-colors">
+							Cancel
+						</button>
+						<button
+							onclick={submitOtp}
+							disabled={otpCode.length !== 6}
+							class="flex-1 px-4 py-2 bg-blue-600 border border-blue-500 rounded-lg text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+							Verify
+						</button>
+					</div>
+				</div>
 			</div>
 		{/if}
 	</div>

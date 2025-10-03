@@ -109,7 +109,7 @@
 	<div class="relative filters-dropdown">
 		<button
 			onclick={toggleDropdown}
-			class="flex items-center gap-2 px-4 py-2 rounded border border-white/20 bg-white/10 text-white cursor-pointer text-sm hover:bg-white/15">
+			class="flex items-center gap-2 px-4 py-2 rounded border border-white/20 bg-white/10 text-white text-sm hover:bg-white/15 transition-colors duration-200">
 			<Funnel size={16} />
 			<span>Filters</span>
 			<div class="flex items-center justify-center w-4 h-4 transition-transform duration-200 {isOpen ? 'rotate-180' : ''}">
@@ -176,7 +176,7 @@
 	<div class="relative filters-dropdown">
 		<button
 			onclick={togglePlayersDropdown}
-			class="flex items-center gap-2 px-4 py-2 rounded border border-white/20 bg-white/10 text-white cursor-pointer text-sm hover:bg-white/15">
+			class="flex items-center gap-2 px-4 py-2 rounded border border-white/20 bg-white/10 text-white text-sm hover:bg-white/15 transition-colors duration-200">
 			<Funnel size={16} />
 			<span>Players</span>
 			<div class="flex items-center justify-center w-4 h-4 transition-transform duration-200 {isPlayersOpen ? 'rotate-180' : ''}">
@@ -212,7 +212,7 @@
 
 	<button
 		onclick={resetFilters}
-		class="flex items-center gap-2 px-4 py-2 rounded border border-white/20 bg-white/10 text-white cursor-pointer text-sm hover:bg-white/15">
+		class="flex items-center gap-2 px-4 py-2 rounded border border-white/20 bg-white/10 text-white text-sm hover:bg-white/15 transition-colors duration-200">
 		<RotateCcw size={16} />
 		<span>Reset</span>
 	</button>

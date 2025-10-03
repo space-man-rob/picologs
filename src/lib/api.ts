@@ -4,9 +4,10 @@
  */
 
 import WebSocket from '@tauri-apps/plugin-websocket';
+import { getJwtToken } from './oauth';
 
 const WS_URL = import.meta.env.DEV
-	? import.meta.env.VITE_WS_URL_DEV
+	? 'ws://127.0.0.1:8080/ws'
 	: import.meta.env.VITE_WS_URL_PROD;
 
 /**
@@ -74,15 +75,22 @@ function generateRequestId(): string {
 
 /**
  * Connect to WebSocket server
+ * @param discordUserId - Discord user ID
+ * @param onConnected - Callback when connected
+ * @param skipAuth - Skip JWT authentication (for OAuth flow)
  */
-export async function connectWebSocket(discordUserId: string, onConnected?: () => void): Promise<any> {
+export async function connectWebSocket(
+	discordUserId: string,
+	onConnected?: () => void,
+	skipAuth?: boolean
+): Promise<any> {
 	if (ws && isConnected) {
 		console.log('[WS API] Already connected');
 		return ws;
 	}
 
 	try {
-		console.log('[WS API] Connecting to:', WS_URL);
+		console.log('[WS API] Connecting to:', WS_URL, 'skipAuth:', skipAuth);
 		const socket = await WebSocket.connect(WS_URL);
 
 		ws = socket;
@@ -91,7 +99,20 @@ export async function connectWebSocket(discordUserId: string, onConnected?: () =
 		// Set up message handler
 		socket.addListener((msg: any) => {
 			try {
-				const messageStr = typeof msg === 'string' ? msg : msg.data || JSON.stringify(msg);
+				// Handle different message formats from Tauri WebSocket
+				let messageStr: string;
+
+				if (typeof msg === 'string') {
+					messageStr = msg;
+				} else if (msg.data && typeof msg.data === 'string') {
+					messageStr = msg.data;
+				} else if (msg.type === 'Text' && msg.data) {
+					messageStr = msg.data;
+				} else {
+					console.log('[WS API] Received non-text message, skipping:', msg);
+					return;
+				}
+
 				const message = JSON.parse(messageStr);
 
 				console.log('[WS API] Received message:', message.type);
@@ -118,13 +139,33 @@ export async function connectWebSocket(discordUserId: string, onConnected?: () =
 			}
 		});
 
-		// Register with server
-		await socket.send(JSON.stringify({
-			type: 'register',
-			userId: discordUserId
-		}));
+		// Get JWT token for authentication (unless skipAuth is true for OAuth flow)
+		const jwtToken = await getJwtToken();
+		if (!jwtToken && !skipAuth) {
+			console.error('[WS API] No JWT token found - authentication required');
+			throw new Error('Authentication required - please sign in again');
+		}
 
-		console.log('[WS API] Connected and registered');
+		// Register with server
+		if (jwtToken) {
+			await socket.send(
+				JSON.stringify({
+					type: 'register',
+					userId: discordUserId,
+					token: jwtToken
+				})
+			);
+			console.log('[WS API] Connected and registered with JWT token');
+		} else if (skipAuth) {
+			// Register without token for OAuth callback reception
+			await socket.send(
+				JSON.stringify({
+					type: 'register',
+					userId: discordUserId
+				})
+			);
+			console.log('[WS API] Connected for OAuth flow (no JWT yet)');
+		}
 
 		// Call onConnected callback if provided
 		if (onConnected) {

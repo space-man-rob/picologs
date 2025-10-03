@@ -414,7 +414,7 @@
 			<button
 				in:fade={{ duration: 200, delay: 400 }}
 				out:fade={{ duration: 200 }}
-				class="fixed bottom-[50px] w-10 h-10 rounded-full bg-white/10 border border-white/20 backdrop-blur-[10px] shadow-[0_0_10px_rgba(0,0,0,0.1)] flex items-center justify-center text-white cursor-pointer -translate-x-1/2"
+				class="fixed bottom-[50px] w-10 h-10 rounded-full bg-white/10 border border-white/20 backdrop-blur-[10px] shadow-[0_0_10px_rgba(0,0,0,0.1)] flex items-center justify-center text-white -translate-x-1/2 transition-colors duration-200"
 				style="left: {scrollButtonLeft};"
 				onclick={() =>
 					fileContentContainer?.scrollTo({

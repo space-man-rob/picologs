@@ -24,7 +24,7 @@
 	/>
 	<button
 		onclick={handleAddFriend}
-		class="w-full bg-white/10 border border-white/20 px-4 py-2 rounded text-white flex items-center justify-center gap-1.5 cursor-pointer transition-colors duration-200 hover:bg-white/20"
+		class="w-full bg-white/10 border border-white/20 px-4 py-2 rounded text-white flex items-center justify-center gap-1.5 transition-colors duration-200 hover:bg-white/20"
 	>
 		<CirclePlus size={18} /> Add Friend
 	</button>

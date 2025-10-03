@@ -65,7 +65,7 @@
 
 {#if user}
 	<button
-		class="p-2.5 px-4 bg-white/[0.03] rounded flex flex-col items-start justify-between flex-grow flex-shrink-0 cursor-pointer transition-all duration-400 shadow-[0_0_4px_rgba(0,0,0,0)] hover:bg-white/10 hover:shadow-[0_4px_4px_rgba(0,0,0,0.1)]"
+		class="p-2.5 px-4 bg-white/[0.03] rounded flex flex-col items-start justify-between flex-grow flex-shrink-0 transition-all duration-400 shadow-[0_0_4px_rgba(0,0,0,0)] hover:bg-white/10 hover:shadow-[0_4px_4px_rgba(0,0,0,0.1)]"
 		onclick={() => {
 			userModal?.showModal();
 		}}
@@ -108,7 +108,7 @@
 			<p class="text-[0.9rem] text-white">Friend Code: {user.friendCode}</p>
 			{#if handleRemoveClick}
 				<button
-					class="flex items-center justify-center gap-2 text-[0.9rem] text-white cursor-pointer transition-all duration-300 bg-red-500/45 rounded px-4 py-2 hover:bg-red-500/65"
+					class="flex items-center justify-center gap-2 text-[0.9rem] text-white transition-colors duration-200 bg-red-600 rounded px-4 py-2 hover:bg-red-700"
 					onclick={() => {
 						handleRemoveClick(user);
 					}}

@@ -37,9 +37,10 @@ let authCompleteCallback: ((result: AuthResult) => void) | null = null;
  * Handle Discord auth complete from deep link
  * This should be called when the app receives a deep link with auth data
  */
-export function handleAuthComplete(data: {
+export async function handleAuthComplete(data: {
 	user: DiscordUser;
 	tokens: DiscordTokenResponse;
+	jwtToken?: string;
 	dbUser?: {
 		id: string;
 		discordId: string;
@@ -50,25 +51,32 @@ export function handleAuthComplete(data: {
 	};
 }) {
 	console.log('[OAuth] Discord auth complete received!');
+
+	// Store dbUser info and JWT token FIRST before resolving callback
+	if (data.dbUser || data.jwtToken) {
+		try {
+			const store = await loadStore('auth.json', { defaults: {}, autoSave: false });
+			const dbUserInfo = {
+				...data.dbUser,
+				jwtToken: data.jwtToken
+			};
+			await store.set('db_user_info', dbUserInfo);
+			await store.save();
+			if (data.jwtToken) {
+				console.log('[OAuth] Stored JWT token for WebSocket authentication');
+			}
+			if (data.dbUser) {
+				console.log('[OAuth] Stored database user info with friend code:', data.dbUser.friendCode);
+			}
+		} catch (error) {
+			console.error('[OAuth] Error storing database user info:', error);
+		}
+	}
+
+	// Now resolve the callback
 	if (authCompleteCallback) {
 		authCompleteCallback({ user: data.user, tokens: data.tokens });
 		authCompleteCallback = null; // Clear callback after use
-
-		// Store dbUser info separately (async, don't block callback)
-		if (data.dbUser) {
-			(async () => {
-				try {
-					const store = await loadStore('auth.json', { defaults: {}, autoSave: false });
-					await store.set('db_user_info', data.dbUser);
-					await store.save();
-					if (data.dbUser) {
-						console.log('[OAuth] Stored database user info with friend code:', data.dbUser.friendCode);
-					}
-				} catch (error) {
-					console.error('[OAuth] Error storing database user info:', error);
-				}
-			})();
-		}
 	} else {
 		console.log('[OAuth] No auth callback registered!');
 	}
@@ -259,6 +267,35 @@ export async function getAccessToken(): Promise<string | null> {
 		return (await store.get('discord_access_token')) as string;
 	} catch (error) {
 		console.error('Failed to get access token:', error);
+		return null;
+	}
+}
+
+/**
+ * Get stored JWT token (from database authentication)
+ */
+export async function getJwtToken(): Promise<string | null> {
+	try {
+		const store = await loadStore('auth.json', { defaults: {} });
+
+		// Check for JWT in direct storage (new OTP-based auth flow)
+		const jwtToken = (await store.get('jwtToken')) as string | null;
+		if (jwtToken) {
+			console.log('[OAuth] Found JWT token in direct storage');
+			return jwtToken;
+		}
+
+		// Fallback to old location for backwards compatibility
+		const dbUserInfo = (await store.get('db_user_info')) as any;
+		if (dbUserInfo?.jwtToken) {
+			console.log('[OAuth] Found JWT token in db_user_info (legacy)');
+			return dbUserInfo.jwtToken;
+		}
+
+		console.log('[OAuth] No JWT token found in storage');
+		return null;
+	} catch (error) {
+		console.error('Failed to get JWT token:', error);
 		return null;
 	}
 }

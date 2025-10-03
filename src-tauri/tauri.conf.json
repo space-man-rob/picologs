@@ -44,6 +44,12 @@
       "windows": {
         "installMode": "passive"
       }
+    },
+    "deepLink": {
+      "mobile": [],
+      "desktop": {
+        "schemes": ["picologs"]
+      }
     }
   }
 }
