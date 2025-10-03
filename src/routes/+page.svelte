@@ -15,7 +15,7 @@
 	import Header from '../components/Header.svelte';
 	import Resizer from '../components/Resizer.svelte';
 	import { check } from '@tauri-apps/plugin-updater';
-	import { loginWithDiscord, loadAuthData, signOut, handleAuthComplete } from '$lib/oauth';
+	import { loginWithDiscord, loadAuthData, signOut, handleAuthComplete, getJwtToken } from '$lib/oauth';
 	import { onOpenUrl } from '@tauri-apps/plugin-deep-link';
 	import WebSocket from '@tauri-apps/plugin-websocket';
 	import {
@@ -146,6 +146,7 @@
 	let awaitingOtp = $state(false);
 	let authError = $state<string | null>(null);
 	let jwtToken = $state<string | null>(null);
+	let isVerifyingOtp = $state(false);
 
 	// Authentication functions - NEW OTP FLOW
 	async function handleSignIn() {
@@ -253,6 +254,7 @@
 		}
 
 		authError = null;
+		isVerifyingOtp = true;
 
 		try {
 			console.log('[Auth] Submitting OTP for verification');
@@ -267,6 +269,7 @@
 		} catch (error) {
 			console.error('[Auth] Failed to submit OTP:', error);
 			authError = 'Failed to verify code. Please try again.';
+			isVerifyingOtp = false;
 		}
 	}
 
@@ -279,7 +282,7 @@
 				autoSave: false
 			});
 			await authStore.set('jwtToken', jwt);
-			await authStore.save();
+			await authStore.save(); // Save immediately after setting JWT
 
 			// Decode JWT to get user info
 			const [, payloadB64] = jwt.split('.');
@@ -304,7 +307,7 @@
 			authSessionId = null;
 			authError = null;
 
-			// Disconnect and reconnect with JWT token
+			// Disconnect old WebSocket (auth session)
 			if (ws) {
 				try {
 					await ws.disconnect();
@@ -313,7 +316,41 @@
 				}
 			}
 			ws = null;
+
+			// Disconnect API WebSocket as well
+			await apiDisconnectWebSocket();
+
+			// Reconnect with JWT token - this will update both ws and API WebSocket
 			await connectWebSocket();
+
+			// Fetch user profile from API and store in auth.json for persistence
+			try {
+				const profile = await fetchUserProfile();
+				if (profile) {
+					// Store Discord user data in the format expected by loadAuthData()
+					const discordUserData = {
+						id: profile.discordId,
+						username: profile.username,
+						discriminator: '0',
+						avatar: profile.avatar,
+						global_name: profile.username
+					};
+					await authStore.set('discord_user', discordUserData);
+					await authStore.save();
+
+					// Update UI state
+					discordUser = {
+						id: profile.discordId,
+						username: profile.username,
+						avatar: profile.avatar
+					};
+
+					console.log('[Auth] User profile loaded and persisted');
+				}
+			} catch (error) {
+				console.error('[Auth] Failed to fetch user profile:', error);
+				// Continue anyway - user is authenticated, profile can be loaded later
+			}
 
 		} catch (error) {
 			console.error('[Auth] Failed to complete authentication:', error);
@@ -931,10 +968,9 @@
 			if (isSignedIn && discordUserId && !ws) {
 				// Check if we have a JWT token before attempting to connect
 				const authData = await loadAuthData();
-				const store = await load('auth.json', { defaults: {} });
-				const dbUserInfo = (await store.get('db_user_info')) as any;
+				const jwtToken = await getJwtToken();
 
-				if (dbUserInfo?.jwtToken) {
+				if (jwtToken) {
 					connectWebSocket();
 				} else {
 					console.log('[Init] No JWT token found - user needs to sign in again');
@@ -1430,7 +1466,7 @@
 		const isAtBottom = target.scrollTop + target.clientHeight >= target.scrollHeight - 5;
 		const hasContent = target.scrollHeight > target.clientHeight;
 
-		hasScrollbar = hasContent && !isAtBottom;
+		hasScrollbar = hasContent;
 		atTheBottom = isAtBottom;
 	}
 
@@ -1640,7 +1676,7 @@
 				{/snippet}
 
 				{#snippet rightPanel()}
-					<div class="grid grid-rows-[1fr_auto] h-full overflow-hidden">
+					<div class="relative grid grid-rows-[1fr_auto] h-full overflow-hidden">
 						<div
 							class="row-start-1 row-end-2 overflow-y-auto flex flex-col bg-black/10 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.3)_rgba(0,0,0,0.2)]"
 							bind:this={fileContentContainer}>
@@ -1704,11 +1740,27 @@
 								Log lines processed: {Number(lineCount).toLocaleString()}
 							</div>
 						{/if}
+
+						<!-- Scroll to bottom button -->
+						{#if hasScrollbar && !atTheBottom}
+							<button
+								in:fade={{ duration: 200, delay: 400 }}
+								out:fade={{ duration: 200 }}
+								class="absolute bottom-[70px] w-10 h-10 rounded-full bg-white/10 border border-white/20 backdrop-blur-[10px] shadow-[0_0_10px_rgba(0,0,0,0.1)] flex items-center justify-center text-white cursor-pointer z-50"
+								style="left: 50%; transform: translateX(-50%);"
+								onclick={() =>
+									fileContentContainer?.scrollTo({
+										top: fileContentContainer.scrollHeight,
+										behavior: 'smooth'
+									})}>
+								<ArrowDown size={24} />
+							</button>
+						{/if}
 					</div>
 				{/snippet}
 			</Resizer>
 		{:else}
-			<div class="grid grid-rows-[1fr_auto] h-[calc(100dvh-70px)] overflow-hidden">
+			<div class="relative grid grid-rows-[1fr_auto] h-[calc(100dvh-70px)] overflow-hidden">
 				<div
 					class="row-start-1 row-end-2 overflow-y-auto flex flex-col bg-black/10 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.3)_rgba(0,0,0,0.2)]"
 					bind:this={fileContentContainer}>
@@ -1772,68 +1824,76 @@
 						Log lines processed: {Number(lineCount).toLocaleString()}
 					</div>
 				{/if}
-			</div>
-		{/if}
 
-		<!-- Scroll to bottom button -->
-		{#if hasScrollbar && !atTheBottom}
-			<button
-				in:fade={{ duration: 200, delay: 400 }}
-				out:fade={{ duration: 200 }}
-				class="fixed bottom-[60px] w-10 h-10 rounded-full bg-white/10 border border-white/20 backdrop-blur-[10px] shadow-[0_0_10px_rgba(0,0,0,0.1)] flex items-center justify-center text-white cursor-pointer z-50"
-				style="left: 50%; transform: translateX(-50%);"
-				onclick={() =>
-					fileContentContainer?.scrollTo({
-						top: fileContentContainer.scrollHeight,
-						behavior: 'smooth'
-					})}>
-				<ArrowDown size={24} />
-			</button>
+				<!-- Scroll to bottom button -->
+				{#if hasScrollbar && !atTheBottom}
+					<button
+						in:fade={{ duration: 200, delay: 400 }}
+						out:fade={{ duration: 200 }}
+						class="absolute bottom-[70px] w-10 h-10 rounded-full bg-white/10 border border-white/20 backdrop-blur-[10px] shadow-[0_0_10px_rgba(0,0,0,0.1)] flex items-center justify-center text-white cursor-pointer z-50"
+						style="left: 50%; transform: translateX(-50%);"
+						onclick={() =>
+							fileContentContainer?.scrollTo({
+								top: fileContentContainer.scrollHeight,
+								behavior: 'smooth'
+							})}>
+						<ArrowDown size={24} />
+					</button>
+				{/if}
+			</div>
 		{/if}
 
 		<!-- OTP Input Modal -->
 		{#if awaitingOtp}
 			<div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999]">
 				<div class="bg-[rgb(10,30,42)] border border-white/20 rounded-lg p-8 max-w-md w-full mx-4 shadow-2xl">
-					<h2 class="text-2xl font-medium mb-4 text-white">Enter Authentication Code</h2>
-					<p class="text-white/70 mb-6">Enter the 6-digit code from your browser:</p>
+					{#if isVerifyingOtp}
+						<div class="flex flex-col items-center justify-center py-8">
+							<div class="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mb-4"></div>
+							<h2 class="text-xl font-medium text-white mb-2">Signing you in...</h2>
+							<p class="text-white/70 text-sm">Please wait while we verify your code</p>
+						</div>
+					{:else}
+						<h2 class="text-2xl font-medium mb-4 text-white">Enter Authentication Code</h2>
+						<p class="text-white/70 mb-6">Enter the 6-digit code from your browser:</p>
 
-					<input
-						type="text"
-						bind:value={otpCode}
-						placeholder="000000"
-						maxlength="6"
-						class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white text-center text-2xl tracking-widest font-mono mb-4 focus:outline-none focus:border-blue-500"
-						onkeydown={(e) => {
-							if (e.key === 'Enter') {
-								submitOtp();
-							}
-						}}
-					/>
+						<input
+							type="text"
+							bind:value={otpCode}
+							placeholder="000000"
+							maxlength="6"
+							class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white text-center text-2xl tracking-widest font-mono mb-4 focus:outline-none focus:border-blue-500"
+							onkeydown={(e) => {
+								if (e.key === 'Enter') {
+									submitOtp();
+								}
+							}}
+						/>
 
-					{#if authError}
-						<div class="bg-red-900/20 border border-red-500/50 rounded-lg px-4 py-3 mb-4 text-red-400 text-sm">
-							{authError}
+						{#if authError}
+							<div class="bg-red-900/20 border border-red-500/50 rounded-lg px-4 py-3 mb-4 text-red-400 text-sm">
+								{authError}
+							</div>
+						{/if}
+
+						<div class="flex gap-3">
+							<button
+								onclick={() => {
+									awaitingOtp = false;
+									otpCode = '';
+									authError = null;
+								}}
+								class="flex-1 px-4 py-2 bg-white/5 border border-white/20 rounded-lg text-white hover:bg-white/10 transition-colors">
+								Cancel
+							</button>
+							<button
+								onclick={submitOtp}
+								disabled={otpCode.length !== 6}
+								class="flex-1 px-4 py-2 bg-blue-600 border border-blue-500 rounded-lg text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+								Verify
+							</button>
 						</div>
 					{/if}
-
-					<div class="flex gap-3">
-						<button
-							onclick={() => {
-								awaitingOtp = false;
-								otpCode = '';
-								authError = null;
-							}}
-							class="flex-1 px-4 py-2 bg-white/5 border border-white/20 rounded-lg text-white hover:bg-white/10 transition-colors">
-							Cancel
-						</button>
-						<button
-							onclick={submitOtp}
-							disabled={otpCode.length !== 6}
-							class="flex-1 px-4 py-2 bg-blue-600 border border-blue-500 rounded-lg text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-							Verify
-						</button>
-					</div>
 				</div>
 			</div>
 		{/if}

@@ -192,9 +192,22 @@ export async function refreshAccessToken(refreshToken: string): Promise<DiscordT
 export async function loadAuthData(): Promise<{ user: DiscordUser; expiresAt: number } | null> {
 	try {
 		const store = await loadStore('auth.json', { defaults: {} });
+
+		// Check for OTP-based authentication first (new flow)
+		const jwtToken = (await store.get('jwtToken')) as string | null;
+		const user = (await store.get('discord_user')) as DiscordUser | null;
+
+		if (jwtToken && user) {
+			console.log('[OAuth] Found OTP-based auth data');
+			// For OTP/JWT auth, we don't have traditional OAuth expiry
+			// JWT expiry would need to be checked separately if needed
+			// For now, treat as long-lived session
+			return { user, expiresAt: Date.now() + (365 * 24 * 60 * 60 * 1000) };
+		}
+
+		// Fallback to legacy Discord OAuth flow
 		const accessToken = (await store.get('discord_access_token')) as string;
 		const refreshToken = (await store.get('discord_refresh_token')) as string;
-		const user = (await store.get('discord_user')) as DiscordUser;
 		const expiresAt = (await store.get('discord_expires_at')) as number;
 
 		if (!accessToken || !user) {
