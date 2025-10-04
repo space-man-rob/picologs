@@ -18,7 +18,8 @@
 		isSignedIn,
 		discordUser,
 		handleSignIn,
-		handleSignOut
+		handleSignOut,
+		isAuthenticating
 	} = $props();
 
 	async function handleClearLogs() {
@@ -268,9 +269,15 @@
 			</div>
 		{:else}
 			<button
-				class="bg-[#5865F2] text-white border border-[#4752C4] px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-2 hover:bg-[#4752C4]"
-				onclick={handleSignIn}>
-				Sign in with Discord
+				class="bg-[#5865F2] text-white border border-[#4752C4] px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-2 hover:bg-[#4752C4] disabled:opacity-50 disabled:cursor-not-allowed"
+				onclick={handleSignIn}
+				disabled={isAuthenticating}>
+				{#if isAuthenticating}
+					<div class="spinner-small"></div>
+					<span>Authenticating...</span>
+				{:else}
+					<span>Sign in with Discord</span>
+				{/if}
 			</button>
 		{/if}
 	</aside>

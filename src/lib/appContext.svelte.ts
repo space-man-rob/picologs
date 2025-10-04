@@ -24,13 +24,11 @@ export class AppContext {
 	apiFriendRequests = $state<any[]>([]);
 	apiUserProfile = $state<{ friendCode: string | null } | null>(null);
 
-	// OTP auth state
+	// Auth state
 	authSessionId = $state<string | null>(null);
-	otpCode = $state('');
-	awaitingOtp = $state(false);
 	authError = $state<string | null>(null);
 	jwtToken = $state<string | null>(null);
-	isVerifyingOtp = $state(false);
+	isAuthenticating = $state(false);
 
 	// Reconnection state
 	reconnectAttempts = $state(0);

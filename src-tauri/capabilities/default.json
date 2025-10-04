@@ -24,6 +24,18 @@
     "dialog:default",
     "store:default",
     "opener:default",
+    "opener:allow-open-url",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        {
+          "url": "discord://*"
+        },
+        {
+          "url": "https://*"
+        }
+      ]
+    },
     {
       "identifier": "opener:allow-open-path",
       "allow": [

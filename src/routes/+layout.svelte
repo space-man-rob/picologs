@@ -6,6 +6,7 @@
 	import { check } from '@tauri-apps/plugin-updater';
 	import WebSocket from '@tauri-apps/plugin-websocket';
 	import { openUrl } from '@tauri-apps/plugin-opener';
+	import { listen } from '@tauri-apps/api/event';
 	import Header from '../components/Header.svelte';
 	import { setAppContext } from '$lib/appContext.svelte';
 	import {
@@ -191,191 +192,132 @@
 	// Handle sign in
 	async function handleSignIn() {
 		appCtx.authError = null;
+		appCtx.isAuthenticating = true;
 
-		const sessionId = crypto.randomUUID();
-		appCtx.authSessionId = sessionId;
-
-		console.log('[Auth] Starting new OTP auth flow with session ID:', sessionId);
+		console.log('[Auth] 🚀 Starting Discord OAuth flow');
 
 		try {
+			// Connect WebSocket first to receive auth completion
 			appCtx.connectionStatus = 'connecting';
-			const wsUrl = import.meta.env.DEV
-				? 'ws://127.0.0.1:8080/ws'
-				: 'wss://picologs-ws.fly.dev/ws';
+			// Use dev WebSocket URL if available, otherwise production
+			const wsUrl = import.meta.env.VITE_WS_URL_DEV || import.meta.env.VITE_WS_URL_PROD || 'wss://picologs-server.fly.dev/ws';
 
-			console.log('[Auth] Connecting to WebSocket:', wsUrl);
+			console.log('[Auth] 🔌 Connecting to WebSocket:', wsUrl);
 			const socket = await WebSocket.connect(wsUrl);
+			console.log('[Auth] ✅ WebSocket connection established');
 
-			socket.addListener((msg: any) => {
+			// Set up message listener for auth completion
+			socket.addListener(async (msg: any) => {
 				try {
+					// Extract message string from Tauri WebSocket format
 					let messageStr: string;
 					if (typeof msg === 'string') {
 						messageStr = msg;
-					} else if (msg.data && typeof msg.data === 'string') {
-						messageStr = msg.data;
 					} else if (msg.type === 'Text' && msg.data) {
 						messageStr = msg.data;
 					} else {
-						console.log('[Auth WS] Received non-text message, skipping:', typeof msg);
-						return;
+						return; // Skip non-text messages (ping/pong/etc)
 					}
 
 					const message = JSON.parse(messageStr);
-					console.log('[Auth WS] Received message:', message.type, message);
+					console.log('[Auth] Received message:', message.type);
 
-					if (message.type === 'otp_ready' && message.sessionId === sessionId) {
-						console.log('[Auth] OTP is ready, waiting for user to enter code');
-						appCtx.awaitingOtp = true;
-					}
+					// Handle auth_complete message with JWT
+					if (message.type === 'auth_complete' || message.type === 'desktop_auth_complete') {
+						console.log('[Auth] ✅ Authentication complete!');
 
-					if (message.type === 'response' && message.requestId === 'verify_otp') {
-						if (message.data?.success && message.data?.jwt) {
-							console.log('[Auth] OTP verified! Received JWT token');
-							appCtx.jwtToken = message.data.jwt;
-							completeAuth(message.data.jwt);
-						} else {
-							console.error('[Auth] OTP verification failed:', message.message);
-							appCtx.authError = message.message || 'Invalid OTP code';
+						if (message.data?.jwt && message.data?.user) {
+							await handleAuthComplete({
+								jwt: message.data.jwt,
+								user: message.data.user
+							});
+
+							// Extract user ID from JWT
+							const [, payloadB64] = message.data.jwt.split('.');
+							const payload = JSON.parse(atob(payloadB64));
+
+							appCtx.discordUserId = payload.userId;
+							appCtx.discordUser = {
+								id: message.data.user.discordId,
+								username: message.data.user.username,
+								avatar: message.data.user.avatar
+							};
+							appCtx.isSignedIn = true;
+
+							// Store user ID
+							const store = await load('store.json', { defaults: {}, autoSave: false });
+							await store.set('discordUserId', appCtx.discordUserId);
+							await store.save();
+
+							// Close temp auth socket and connect to main WebSocket
+							try {
+								await socket.disconnect();
+							} catch (e) {
+								console.error('[Auth] Error disconnecting temp socket:', e);
+							}
+							appCtx.ws = null;
+
+							await connectWebSocket();
+							console.log('[Auth] ✅ Signed in successfully');
+							appCtx.isAuthenticating = false;
 						}
 					}
 
 					if (message.type === 'error') {
-						console.error('[Auth] WebSocket error:', message.message);
-						appCtx.authError = message.message;
+						console.error('[Auth] ❌ Auth error:', message.message);
+						appCtx.authError = message.message || 'Authentication failed';
+						appCtx.connectionStatus = 'disconnected';
+						appCtx.isAuthenticating = false;
 					}
 				} catch (error) {
-					if (error instanceof SyntaxError) {
-						console.log('[Auth WS] Skipping non-JSON message');
-					} else {
-						console.error('[Auth WS] Error handling message:', error);
+					if (!(error instanceof SyntaxError)) {
+						console.error('[Auth] Error handling message:', error);
 					}
 				}
 			});
 
-			await socket.send(JSON.stringify({
+			// Generate session ID and send init message
+			const sessionId = crypto.randomUUID();
+			appCtx.authSessionId = sessionId;
+
+			const initPayload = {
 				type: 'init_desktop_auth',
 				sessionId: sessionId,
 				requestId: 'init_auth'
-			}));
+			};
+
+			await socket.send(JSON.stringify(initPayload));
+			console.log('[Auth] ✅ Session initialized:', sessionId);
 
 			appCtx.ws = socket;
 			appCtx.connectionStatus = 'connected';
-			console.log('[Auth] WebSocket connected, session initiated');
 
-			const websiteUrl = import.meta.env.DEV
-				? 'http://localhost:5173'
-				: 'https://picologs.com';
-			const authUrl = `${websiteUrl}/auth/desktop?session=${sessionId}`;
+			// Open Discord app directly to OAuth authorization
+			// Discord only accepts https:// redirect URIs, so we use website as intermediary
+			const discordClientId = import.meta.env.VITE_DISCORD_CLIENT_ID;
+			const websiteUrl = import.meta.env.VITE_WEBSITE_URL_DEV || import.meta.env.VITE_WEBSITE_URL_PROD || 'https://picologs.com';
+			const redirectUri = `${websiteUrl}/auth/desktop/callback`;
+			const scope = 'identify';
 
-			console.log('[Auth] Opening browser to:', authUrl);
-			await openUrl(authUrl);
+			// Discord protocol format: discord://-/oauth2/authorize?client_id=...
+			// State includes session ID so website can redirect back to desktop app
+			const discordAuthUrl = `discord://-/oauth2/authorize?client_id=${discordClientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}&state=${sessionId}`;
+
+			console.log('[Auth] Opening Discord app for OAuth authorization...');
+			console.log('[Auth] Redirect URI:', redirectUri);
+			console.log('[Auth] Session ID (state):', sessionId);
+			console.log('[Auth] Full Discord URL:', discordAuthUrl);
+			await openUrl(discordAuthUrl);
+			console.log('[Auth] Discord app opened, waiting for user to authorize...');
 
 		} catch (error) {
-			console.error('[Auth] Failed to initiate auth:', error);
+			console.error('[Auth] ❌ Failed to initiate auth:', error);
 			appCtx.connectionStatus = 'disconnected';
 			appCtx.authError = 'Failed to connect to server. Please try again.';
+			appCtx.isAuthenticating = false;
 		}
 	}
 
-	// Submit OTP
-	async function submitOtp() {
-		if (!appCtx.otpCode || appCtx.otpCode.length !== 6 || !appCtx.authSessionId || !appCtx.ws) {
-			appCtx.authError = 'Please enter a valid 6-digit code';
-			return;
-		}
-
-		appCtx.authError = null;
-		appCtx.isVerifyingOtp = true;
-
-		try {
-			console.log('[Auth] Submitting OTP for verification');
-			await appCtx.ws.send(JSON.stringify({
-				type: 'verify_otp',
-				requestId: 'verify_otp',
-				data: {
-					sessionId: appCtx.authSessionId,
-					otp: appCtx.otpCode
-				}
-			}));
-		} catch (error) {
-			console.error('[Auth] Failed to submit OTP:', error);
-			appCtx.authError = 'Failed to verify code. Please try again.';
-			appCtx.isVerifyingOtp = false;
-		}
-	}
-
-	// Complete auth
-	async function completeAuth(jwt: string) {
-		try {
-			const authStore = await load('auth.json', {
-				defaults: {},
-				autoSave: false
-			});
-			await authStore.set('jwtToken', jwt);
-			await authStore.save();
-
-			const [, payloadB64] = jwt.split('.');
-			const payload = JSON.parse(atob(payloadB64));
-
-			appCtx.discordUserId = payload.userId;
-			appCtx.isSignedIn = true;
-
-			console.log('[Auth] Authentication complete! Discord user ID:', appCtx.discordUserId);
-
-			const store = await load('store.json', {
-				defaults: {},
-				autoSave: false
-			});
-			await store.set('discordUserId', appCtx.discordUserId);
-			await store.save();
-
-			appCtx.awaitingOtp = false;
-			appCtx.otpCode = '';
-			appCtx.authSessionId = null;
-			appCtx.authError = null;
-
-			if (appCtx.ws) {
-				try {
-					await appCtx.ws.disconnect();
-				} catch (error) {
-					console.error('[WebSocket] Error disconnecting:', error);
-				}
-			}
-			appCtx.ws = null;
-
-			await apiDisconnectWebSocket();
-			await connectWebSocket();
-
-			try {
-				const profile = await fetchUserProfile();
-				if (profile) {
-					const discordUserData = {
-						id: profile.discordId,
-						username: profile.username,
-						discriminator: '0',
-						avatar: profile.avatar,
-						global_name: profile.username
-					};
-					await authStore.set('discord_user', discordUserData);
-					await authStore.save();
-
-					appCtx.discordUser = {
-						id: profile.discordId,
-						username: profile.username,
-						avatar: profile.avatar
-					};
-
-					console.log('[Auth] User profile loaded and persisted');
-				}
-			} catch (error) {
-				console.error('[Auth] Failed to fetch user profile:', error);
-			}
-
-		} catch (error) {
-			console.error('[Auth] Failed to complete authentication:', error);
-			appCtx.authError = 'Failed to complete sign in. Please try again.';
-		}
-	}
 
 	// Handle sign out
 	async function handleSignOut() {
@@ -472,31 +414,70 @@
 				}
 			});
 
+			// Helper function to process deep link URLs
+			const processDeepLink = async (url: string) => {
+				try {
+					console.log('[Deep Link] Processing URL:', url);
+					const urlObj = new URL(url);
+					console.log('[Deep Link] Protocol:', urlObj.protocol, 'Pathname:', urlObj.pathname);
+
+					// Handle Discord OAuth callback: picologs://auth/callback?code=...&state=...
+					// Note: pathname can be either '/callback' or '//auth/callback' depending on how the URL is formatted
+					if (urlObj.protocol === 'picologs:' && (urlObj.pathname === '//auth/callback' || urlObj.pathname === '/callback' || urlObj.hostname === 'auth')) {
+						console.log('[Deep Link] 🔐 Discord OAuth callback received');
+						const code = urlObj.searchParams.get('code');
+						const state = urlObj.searchParams.get('state');
+
+						console.log('[Deep Link] Code:', code ? 'present' : 'missing');
+						console.log('[Deep Link] State (session ID):', state);
+
+						if (code && state && appCtx.ws) {
+							// Send OAuth code to server via WebSocket
+							const payload = {
+								type: 'discord_oauth_callback',
+								requestId: 'oauth_callback',
+								data: {
+									code,
+									sessionId: state
+								}
+							};
+
+							console.log('[Deep Link] Sending OAuth callback to server...');
+							await appCtx.ws.send(JSON.stringify(payload));
+							console.log('[Deep Link] ✅ OAuth callback sent, waiting for auth_complete...');
+						} else {
+							console.error('[Deep Link] ❌ Missing code or state in OAuth callback');
+							appCtx.authError = 'OAuth callback failed - missing parameters';
+						}
+					}
+					// Legacy deep link handler (for backward compatibility)
+					else if (urlObj.protocol === 'picologs:' && urlObj.pathname === '//auth') {
+						console.log('[Deep Link] Legacy auth protocol');
+						const authDataEncoded = urlObj.searchParams.get('data');
+						if (authDataEncoded) {
+							const authData = JSON.parse(decodeURIComponent(authDataEncoded));
+							await handleAuthComplete(authData);
+						}
+					} else {
+						console.log('[Deep Link] URL did not match expected format');
+					}
+				} catch (error) {
+					console.error('[Deep Link] Error parsing URL:', error);
+				}
+			};
+
+			// Listen for deep links from single-instance plugin
+			console.log('[Deep Link] Setting up single-instance listener...');
+			const singleInstanceUnlisten = await listen<string>('deep-link-received', async (event) => {
+				console.log('[Deep Link] ✅ Received from single-instance:', event.payload);
+				await processDeepLink(event.payload);
+			});
+			console.log('[Deep Link] Single-instance listener registered');
+
 			unlisten = await onOpenUrl(async (urls) => {
 				console.log('[Deep Link] Received URLs:', urls);
-
 				for (const url of urls) {
-					try {
-						console.log('[Deep Link] Processing URL:', url);
-						const urlObj = new URL(url);
-						console.log('[Deep Link] Protocol:', urlObj.protocol, 'Hostname:', urlObj.hostname);
-
-						if (urlObj.protocol === 'picologs:' && urlObj.hostname === 'auth') {
-							console.log('[Deep Link] Matched auth protocol');
-							const authDataEncoded = urlObj.searchParams.get('data');
-							console.log('[Deep Link] Auth data encoded:', authDataEncoded ? 'Yes' : 'No');
-							if (authDataEncoded) {
-								const authData = JSON.parse(decodeURIComponent(authDataEncoded));
-								console.log('[Deep Link] Parsed auth data:', authData);
-								await handleAuthComplete(authData);
-								console.log('[Deep Link] Auth complete handled');
-							}
-						} else {
-							console.log('[Deep Link] URL did not match expected format');
-						}
-					} catch (error) {
-						console.error('[Deep Link] Error parsing URL:', error);
-					}
+					await processDeepLink(url);
 				}
 			});
 		})();
@@ -504,6 +485,9 @@
 		return () => {
 			if (unlisten) {
 				unlisten();
+			}
+			if (singleInstanceUnlisten) {
+				singleInstanceUnlisten();
 			}
 		};
 	});
@@ -524,64 +508,11 @@
 		discordUser={appCtx.discordUser}
 		{handleSignIn}
 		{handleSignOut}
-		connectionError={appCtx.connectionError} />
+		connectionError={appCtx.connectionError}
+		isAuthenticating={appCtx.isAuthenticating} />
 
 	<div class="overflow-hidden">
 		{@render children()}
 	</div>
 </div>
 
-<!-- OTP Input Modal -->
-{#if appCtx.awaitingOtp}
-	<div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999]">
-		<div class="bg-[rgb(10,30,42)] border border-white/20 rounded-lg p-8 max-w-md w-full mx-4 shadow-2xl">
-			{#if appCtx.isVerifyingOtp}
-				<div class="flex flex-col items-center justify-center py-8">
-					<div class="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mb-4"></div>
-					<h2 class="text-xl font-medium text-white mb-2">Signing you in...</h2>
-					<p class="text-white/70 text-sm">Please wait while we verify your code</p>
-				</div>
-			{:else}
-				<h2 class="text-2xl font-medium mb-4 text-white">Enter Authentication Code</h2>
-				<p class="text-white/70 mb-6">Enter the 6-digit code from your browser:</p>
-
-				<input
-					type="text"
-					bind:value={appCtx.otpCode}
-					placeholder="000000"
-					maxlength="6"
-					class="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-lg text-white text-center text-2xl tracking-widest font-mono mb-4 focus:outline-none focus:border-blue-500"
-					onkeydown={(e) => {
-						if (e.key === 'Enter') {
-							submitOtp();
-						}
-					}}
-				/>
-
-				{#if appCtx.authError}
-					<div class="bg-red-900/20 border border-red-500/50 rounded-lg px-4 py-3 mb-4 text-red-400 text-sm">
-						{appCtx.authError}
-					</div>
-				{/if}
-
-				<div class="flex gap-3">
-					<button
-						onclick={() => {
-							appCtx.awaitingOtp = false;
-							appCtx.otpCode = '';
-							appCtx.authError = null;
-						}}
-						class="flex-1 px-4 py-2 bg-white/5 border border-white/20 rounded-lg text-white hover:bg-white/10 transition-colors">
-						Cancel
-					</button>
-					<button
-						onclick={submitOtp}
-						disabled={appCtx.otpCode.length !== 6}
-						class="flex-1 px-4 py-2 bg-blue-600 border border-blue-500 rounded-lg text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-						Verify
-					</button>
-				</div>
-			{/if}
-		</div>
-	</div>
-{/if}
