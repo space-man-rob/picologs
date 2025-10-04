@@ -4,7 +4,6 @@
 	import { open } from '@tauri-apps/plugin-dialog';
 	import Item from '../components/Item.svelte';
 	import { onMount } from 'svelte';
-	import { ArrowDown } from '@lucide/svelte';
 	import { fade } from 'svelte/transition';
 	import Friends from '../components/Friends.svelte';
 	import User from '../components/User.svelte';
@@ -109,8 +108,21 @@
 		}
 	}, 1000);
 
-	function generateId(length: number = 10) {
-		return crypto.randomUUID().slice(0, length);
+	function generateId(timestamp: string, line: string): string {
+		// Generate deterministic ID based on timestamp and original log line
+		// Use a better hash to avoid collisions
+		const content = timestamp + '|' + line;
+		let hash = 0;
+		for (let i = 0; i < content.length; i++) {
+			const char = content.charCodeAt(i);
+			hash = ((hash << 5) - hash) + char;
+			hash = hash & hash; // Convert to 32-bit integer
+		}
+		// Use a longer hash to reduce collisions
+		const hash2 = content.split('').reduce((acc, char, i) => {
+			return acc + char.charCodeAt(0) * (i + 1);
+		}, 0);
+		return Math.abs(hash).toString(36) + Math.abs(hash2).toString(36);
 	}
 
 	function groupKillingSprees(logs: Log[]): Log[] {
@@ -239,15 +251,22 @@
 			// Load the Game.log file if previously selected
 			if (savedFile && file) {
 				try {
-					// Load existing logs from disk
+					// Load existing logs from disk and deduplicate any existing duplicates
 					const savedLogs = await loadLogsFromDisk();
-					fileContent = savedLogs;
+					// Run deduplication on load to clean up any pre-existing duplicates
+					const dedupedSavedLogs = dedupeAndSortLogs(savedLogs);
+					if (dedupedSavedLogs.length !== savedLogs.length) {
+						console.log(`[Dedup] Removed ${savedLogs.length - dedupedSavedLogs.length} duplicate logs on load`);
+						// Save the cleaned logs back to disk
+						await saveLogsToDisk(dedupedSavedLogs);
+					}
+					fileContent = dedupedSavedLogs;
 
-					// Always re-parse the entire Game.log to ensure we have all logs
-					// This handles cases where logs.json might be out of sync
-					prevLineCount = 0;
-					lineCount = 0;
-					await handleFile(file);
+					// Set prevLineCount to current file length to avoid re-processing old logs on startup
+					const linesText = await readTextFile(file);
+					const currentLineCount = linesText.split('\n').length;
+					prevLineCount = currentLineCount;
+					lineCount = currentLineCount;
 
 					handleInitialiseWatch(file);
 					// playerId will be extracted from Game.log when parsing
@@ -385,7 +404,7 @@
 							}
 						}
 						logEntry = {
-							id: generateId(),
+							id: generateId(timestamp, line),
 							userId: playerId!,
 							player: playerName,
 							emoji: '🛜',
@@ -399,7 +418,7 @@
 						const locationMatch = line.split('Location[')[1]?.split(']')[0];
 						if (playerMatch === playerName && locationMatch) {
 							logEntry = {
-								id: generateId(),
+								id: generateId(timestamp, line),
 								userId: playerId!,
 								player: playerName,
 								emoji: '🔍',
@@ -434,7 +453,7 @@
 							const displayKillerName = getName(killerName);
 
 							logEntry = {
-								id: generateId(),
+								id: generateId(timestamp, line),
 								userId: playerId!,
 								player: playerName,
 								emoji: '😵',
@@ -482,7 +501,7 @@
 							const displayKillerName = getName(killerName);
 
 							logEntry = {
-								id: generateId(),
+								id: generateId(timestamp, line),
 								userId: playerId!,
 								player: playerName,
 								emoji: '🗡️',
@@ -510,7 +529,7 @@
 						const destroyer = getName(line.match(/caused by '(.*?)' \[.*?\]/)?.[1] || '');
 						const destroyLevelMatch = line.match(/destroyLevel from '(.*?)' to '(.*?)'/);
 						logEntry = {
-							id: generateId(),
+							id: generateId(timestamp, line),
 							userId: playerId!,
 							player: playerName,
 							emoji: '💥',
@@ -528,7 +547,7 @@
 						};
 					} else if (line.match(/<Ship Destruction>/)) {
 						logEntry = {
-							id: generateId(),
+							id: generateId(timestamp, line),
 							userId: playerId!,
 							player: playerName,
 							emoji: '💥',
@@ -539,7 +558,7 @@
 						};
 					} else if (line.match(/<SystemQuit>/)) {
 						logEntry = {
-							id: generateId(),
+							id: generateId(timestamp, line),
 							userId: playerId!,
 							player: playerName,
 							emoji: '👋',
@@ -557,7 +576,7 @@
 						const shipName = shipNameMatch?.[1];
 						if (shipName) {
 							logEntry = {
-								id: generateId(),
+								id: generateId(timestamp, line),
 								userId: playerId!,
 								player: playerName,
 								emoji: '🚀',
@@ -575,8 +594,6 @@
 					if (logEntry) {
 						// Send via WebSocket if connected
 						if (appCtx.connectionStatus === 'connected') sendLogViaWebSocket(logEntry);
-						// Save to disk if signed in (for sharing with friends)
-						if (appCtx.isSignedIn) appendLogToDisk(logEntry);
 					}
 					return logEntry;
 				})
@@ -590,6 +607,14 @@
 				let groupedLogs = dedupeAndSortLogs([...fileContent, ...newContentWithUserId]);
 				groupedLogs = groupKillingSprees(groupedLogs);
 				fileContent = groupedLogs;
+
+				// Batch save all new logs to disk if signed in (for sharing with friends)
+				if (appCtx.isSignedIn) {
+					// Save the deduplicated fileContent directly instead of merging with disk
+					// fileContent already contains everything (loaded logs + new logs), deduplicated
+					await saveLogsToDisk(fileContent);
+				}
+
 				setTimeout(() => {
 					fileContentContainer?.scrollTo({
 						top: fileContentContainer.scrollHeight,
@@ -631,7 +656,7 @@
 			let storedPlayerId = await store.get<string>('id');
 			if (!storedPlayerId) {
 				const pathPartsForId = selectedPath.split('/');
-				playerId = pathPartsForId.length > 1 ? pathPartsForId.slice(-2, -1)[0] : generateId();
+				playerId = pathPartsForId.length > 1 ? pathPartsForId.slice(-2, -1)[0] : crypto.randomUUID();
 				await store.set('id', playerId);
 			}
 			await store.save();
@@ -911,14 +936,14 @@
 							<button
 								in:fade={{ duration: 200, delay: 400 }}
 								out:fade={{ duration: 200 }}
-								class="absolute bottom-[70px] w-10 h-10 rounded-full bg-white/10 border border-white/20 backdrop-blur-[10px] shadow-[0_0_10px_rgba(0,0,0,0.1)] flex items-center justify-center text-white cursor-pointer z-50"
+								class="absolute bottom-[70px] text-3xl cursor-pointer z-50"
 								style="left: 50%; transform: translateX(-50%);"
 								onclick={() =>
 									fileContentContainer?.scrollTo({
 										top: fileContentContainer.scrollHeight,
 										behavior: 'smooth'
 									})}>
-								<ArrowDown size={24} />
+								⬇️
 							</button>
 						{/if}
 					</div>
@@ -996,14 +1021,14 @@
 					<button
 						in:fade={{ duration: 200, delay: 400 }}
 						out:fade={{ duration: 200 }}
-						class="absolute bottom-[70px] w-10 h-10 rounded-full bg-white/10 border border-white/20 backdrop-blur-[10px] shadow-[0_0_10px_rgba(0,0,0,0.1)] flex items-center justify-center text-white cursor-pointer z-50"
+						class="absolute bottom-[70px] text-3xl cursor-pointer z-50"
 						style="left: 50%; transform: translateX(-50%);"
 						onclick={() =>
 							fileContentContainer?.scrollTo({
 								top: fileContentContainer.scrollHeight,
 								behavior: 'smooth'
 							})}>
-						<ArrowDown size={24} />
+						⬇️
 					</button>
 				{/if}
 			</div>

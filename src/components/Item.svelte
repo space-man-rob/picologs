@@ -112,10 +112,21 @@
 		}
 		return victimName;
 	}
+
+	let copied = $state(false);
+
+	function copyToClipboard(event: MouseEvent) {
+		event.stopPropagation();
+		navigator.clipboard.writeText(original);
+		copied = true;
+		setTimeout(() => {
+			copied = false;
+		}, 1500);
+	}
 </script>
 
 <button
-	class="grid items-start gap-4 p-4 {child ? 'grid-cols-[1rem_1fr] gap-2 pl-6' : 'grid-cols-[4rem_1fr]'} {eventType === 'killing_spree' ? 'bg-red-500/10 border-l-4 border-red-500' : child ? '' : 'item'}"
+	class="grid items-start gap-4 p-4 text-left {child ? 'grid-cols-[1rem_1fr] gap-2 pl-6' : 'grid-cols-[4rem_1fr]'} {eventType === 'killing_spree' ? 'bg-red-500/10 border-l-4 border-red-500' : child ? '' : 'item'}"
 	onclick={() => (open = !open)}
 >
 	{#if (eventType === 'vehicle_control_flow' || eventType === 'destruction') && shipImage}
@@ -202,7 +213,13 @@
 			{formattedTimestamp}, {reportedBy ? reportedBy.join(', ') : player}
 		</div>
 		{#if open}
-			<div class="mt-2 rounded-lg bg-white/10 p-2 text-left text-xs text-white/70">
+			<div class="mt-2 rounded-lg bg-white/10 p-2 pr-10 text-left text-xs text-white/70 break-all relative">
+				<button
+					class="absolute top-2 right-2 text-base cursor-pointer"
+					onclick={copyToClipboard}
+					title="Copy to clipboard">
+					{copied ? '✅' : '📋'}
+				</button>
 				{original}
 			</div>
 		{/if}

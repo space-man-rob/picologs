@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { CirclePlus } from '@lucide/svelte';
-
 	let { addFriend } = $props();
 
 	let friendCodeInput = $state('');
@@ -26,6 +24,6 @@
 		onclick={handleAddFriend}
 		class="w-full bg-white/10 border border-white/20 px-4 py-2 rounded text-white flex items-center justify-center gap-1.5 transition-colors duration-200 hover:bg-white/20"
 	>
-		<CirclePlus size={18} /> Add Friend
+		➕ Add Friend
 	</button>
 </div>

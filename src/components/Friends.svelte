@@ -1,7 +1,6 @@
 <script lang="ts">
 	import type { Friend } from '../types';
 	import User from './User.svelte';
-	import { X } from '@lucide/svelte';
 	import { ask } from '@tauri-apps/plugin-dialog';
 
 	let { friendsList = [], removeFriend } = $props();

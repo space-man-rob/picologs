@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { Trash, X } from '@lucide/svelte';
 	import type { Friend, Friend as UserDisplayType } from '../types';
 
 	let { user, handleRemoveClick } = $props<{ user: UserDisplayType, handleRemoveClick?: (friend: Friend) => Promise<void> }>();
@@ -99,7 +98,7 @@
 	<header class="flex items-center justify-between mb-4">
 		<h3>{user.name}</h3>
 		<button class="hover:cursor-pointer" onclick={() => userModal?.close()}>
-			<X size={16} />
+			✖️
 		</button>
 	</header>
 	<div class="flex flex-col gap-4">
@@ -113,7 +112,7 @@
 						handleRemoveClick(user);
 					}}
 				>
-					<Trash size={16} /> Remove Friend
+					🗑️ Remove Friend
 				</button>
 			{/if}
 		</div>

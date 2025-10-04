@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy, tick } from 'svelte';
 	import Item from './Item.svelte';
-	import { ArrowDown } from '@lucide/svelte';
 	import { fade } from 'svelte/transition';
 	import TimelineFilters from './TimelineFilters.svelte';
 	import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -414,14 +413,14 @@
 			<button
 				in:fade={{ duration: 200, delay: 400 }}
 				out:fade={{ duration: 200 }}
-				class="fixed bottom-[50px] w-10 h-10 rounded-full bg-white/10 border border-white/20 backdrop-blur-[10px] shadow-[0_0_10px_rgba(0,0,0,0.1)] flex items-center justify-center text-white -translate-x-1/2 transition-colors duration-200"
+				class="fixed bottom-[50px] text-3xl cursor-pointer z-50 -translate-x-1/2"
 				style="left: {scrollButtonLeft};"
 				onclick={() =>
 					fileContentContainer?.scrollTo({
 						top: fileContentContainer.scrollHeight,
 						behavior: 'smooth'
 					})}>
-				<ArrowDown size={24} />
+				⬇️
 			</button>
 		{/if}
 	</div>

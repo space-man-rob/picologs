@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { BrushCleaning, Copy, FileText, Download, ScrollText, Settings, Users, UsersRound } from '@lucide/svelte';
 	import { load } from '@tauri-apps/plugin-store';
 	import { ask } from '@tauri-apps/plugin-dialog';
 	import { goto } from '$app/navigation';
@@ -121,12 +120,12 @@
 
 <header
 	class="h-[70px] flex justify-between items-center bg-[rgb(10,30,42)] border-b border-white/20 px-4 pl-1.5">
-	<div class="flex items-center gap-2">
+	<div class="flex items-center gap-2 flex-shrink-0">
 		<img src="/pico.webp" alt="Picologs" class="w-12 h-12" />
-		<h1 class="text-2xl font-medium m-0 text-white">Picologs</h1>
+		<h1 class="text-2xl font-medium m-0 text-white hidden sm:block">Picologs</h1>
 	</div>
 
-	<aside class="flex gap-3 items-center">
+	<aside class="flex gap-2 md:gap-3 items-center flex-wrap justify-end">
 		{#if showReconnectButton && isSignedIn && discordUser}
 			<button
 				class="bg-red-600 text-white px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-2 hover:bg-red-700 animate-pulse"
@@ -137,14 +136,14 @@
 		{/if}
 		{#if updateInfo}
 			<button
-				class="bg-green-600 text-white px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-2 hover:bg-green-700"
+				class="bg-green-600 text-white px-2 md:px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-1 md:gap-2 hover:bg-green-700 text-sm md:text-base"
 				onclick={installUpdate}>
-				<Download size={18} /> Update Available
+				⬇️ <span class="hidden md:inline">Update Available</span>
 			</button>
 		{/if}
 		{#if isSignedIn && discordUser}
 			<button
-				class="relative overflow-hidden bg-white/10 text-white border border-white/20 px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-2 hover:bg-white/20"
+				class="bg-white/10 text-white border border-white/20 px-2 md:px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-1 md:gap-2 hover:bg-white/20"
 				onclick={() => {
 					const textToCopy = `My Picologs Friend Code: ${friendCode || 'Not set'}`;
 					navigator.clipboard.writeText(textToCopy);
@@ -153,24 +152,18 @@
 						copiedStatusVisible = false;
 					}, 1500);
 				}}>
-				<Copy size={18} />
-				<p class="m-0">Friend Code: {friendCode || 'N/A'}</p>
-				<span
-					class="absolute inset-0 flex items-center justify-center bg-[rgba(0,150,50,0.9)] text-white z-10 pointer-events-none transition-opacity duration-300"
-					class:opacity-100={copiedStatusVisible}
-					class:opacity-0={!copiedStatusVisible}>
-					Copied Friend Code!
-				</span>
+				{copiedStatusVisible ? '✅' : '📋'}
+				<p class="m-0 text-sm md:text-base"><span class="hidden lg:inline">Friend Code:</span> {friendCode || 'N/A'}</p>
 			</button>
 		{/if}
 		{#if logLocation}
 			<div class="relative">
 				<button
-					class="bg-white/10 text-white border border-white/20 px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-2 hover:bg-white/20"
+					class="bg-white/10 text-white border border-white/20 px-2 md:px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-1 md:gap-2 hover:bg-white/20 text-sm md:text-base"
 					onclick={toggleLogVersionDropdown}
 					title="Select Game.log file">
-					<ScrollText size={18} />
-					<span>{logLocation}</span>
+					📜
+					<span class="hidden md:inline">{logLocation}</span>
 					<div
 						class="flex items-center justify-center w-4 h-4 transition-transform duration-200 {logVersionDropdownOpen
 							? 'rotate-180'
@@ -201,18 +194,18 @@
 			</div>
 		{:else}
 			<button
-				class="bg-white/10 text-white border border-white/20 px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-2 hover:bg-white/20"
+				class="bg-white/10 text-white border border-white/20 px-2 md:px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-1 md:gap-2 hover:bg-white/20 text-sm md:text-base"
 				onclick={selectFile}
 				title="Select Game.log file">
-				<FileText size={18} />Select Game.log file
+				📄 <span class="hidden sm:inline">Select Game.log file</span>
 			</button>
 		{/if}
 
 		<button
-			class="bg-white/10 text-white border border-white/20 px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-2 hover:bg-white/20"
+			class="bg-white/10 text-white border border-white/20 px-2 md:px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-1 md:gap-2 hover:bg-white/20 text-sm md:text-base"
 			onclick={handleClearLogs}
 			title="Clear all logs">
-			<BrushCleaning size={18} /> Clear Logs
+			🧹 <span class="hidden md:inline">Clear Logs</span>
 		</button>
 
 		{#if isSignedIn && discordUser}
@@ -262,43 +255,45 @@
 						<button
 							class="w-full px-4 py-2.5 bg-transparent border-none text-white text-left cursor-pointer text-sm transition-colors duration-150 flex items-center gap-2 hover:bg-[rgba(88,101,242,0.2)]"
 							onclick={handleOpenProfile}>
-							<Settings size={16} />
+							⚙️
 							<span>Profile</span>
 						</button>
 						<button
 							class="w-full px-4 py-2.5 bg-transparent border-none text-white text-left cursor-pointer text-sm transition-colors duration-150 flex items-center gap-2 hover:bg-[rgba(88,101,242,0.2)]"
 							onclick={handleOpenFriends}>
-							<Users size={16} />
+							👨‍🚀
 							<span>Friends</span>
 						</button>
 						<button
 							class="w-full px-4 py-2.5 bg-transparent border-none text-white text-left cursor-pointer text-sm transition-colors duration-150 flex items-center gap-2 hover:bg-[rgba(88,101,242,0.2)]"
 							onclick={handleOpenGroups}>
-							<UsersRound size={16} />
+							🙏
 							<span>Groups</span>
 						</button>
 						<div class="h-px bg-white/10 my-1"></div>
 						<button
-							class="w-full px-4 py-2.5 bg-transparent border-none text-[#f44336] text-left cursor-pointer text-sm transition-colors duration-150 flex items-center hover:bg-[rgba(244,67,54,0.1)]"
+							class="w-full px-4 py-2.5 bg-transparent border-none text-[#f44336] text-left cursor-pointer text-sm transition-colors duration-150 flex items-center gap-2 hover:bg-[rgba(244,67,54,0.1)]"
 							onclick={() => {
 								closeUserDropdown();
 								handleSignOut();
 							}}>
-							Sign Out
+							🚪
+							<span>Sign Out</span>
 						</button>
 					</div>
 				{/if}
 			</div>
 		{:else}
 			<button
-				class="bg-[#5865F2] text-white border border-[#4752C4] px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-2 hover:bg-[#4752C4] disabled:opacity-50 disabled:cursor-not-allowed"
+				class="bg-[#5865F2] text-white border border-[#4752C4] px-2 md:px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-1 md:gap-2 hover:bg-[#4752C4] disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base"
 				onclick={handleSignIn}
 				disabled={isAuthenticating}>
 				{#if isAuthenticating}
 					<div class="spinner-small"></div>
-					<span>Authenticating...</span>
+					<span class="hidden sm:inline">Authenticating...</span>
 				{:else}
-					<span>Sign in with Discord</span>
+					<span class="hidden sm:inline">Sign in with Discord</span>
+					<span class="sm:hidden">Sign in</span>
 				{/if}
 			</button>
 		{/if}
