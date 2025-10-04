@@ -200,7 +200,7 @@
 			// Connect WebSocket first to receive auth completion
 			appCtx.connectionStatus = 'connecting';
 			// Use dev WebSocket URL if available, otherwise production
-			const wsUrl = import.meta.env.VITE_WS_URL_DEV || import.meta.env.VITE_WS_URL_PROD || 'wss://picologs-server.fly.dev/ws';
+			const wsUrl = import.meta.env.VITE_WS_URL_DEV || import.meta.env.VITE_WS_URL_PROD;
 
 			console.log('[Auth] 🔌 Connecting to WebSocket:', wsUrl);
 			const socket = await WebSocket.connect(wsUrl);

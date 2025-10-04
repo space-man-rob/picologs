@@ -6,7 +6,7 @@
 import WebSocket from '@tauri-apps/plugin-websocket';
 import { getJwtToken } from './oauth';
 
-const WS_URL = import.meta.env.VITE_WS_URL_DEV || import.meta.env.VITE_WS_URL_PROD || 'wss://picologs-server.fly.dev/ws';
+const WS_URL = import.meta.env.VITE_WS_URL_DEV || import.meta.env.VITE_WS_URL_PROD;
 
 /**
  * Friend data from API
