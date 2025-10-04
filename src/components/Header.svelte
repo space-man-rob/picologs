@@ -74,9 +74,9 @@
 
 	// Show dialog when connection error occurs
 	let showConnectionDialog = $state(false);
-	let lastConnectionError: string | null = null; // Not reactive
+	let lastConnectionError = $state<string | null>(null);
 	let showReconnectButton = $state(false);
-	let errorDialogTimer: number | null = null; // Not reactive
+	let errorDialogTimer = $state<number | null>(null);
 
 	$effect(() => {
 		// Show dialog only when error changes (new error occurred) and user is signed in

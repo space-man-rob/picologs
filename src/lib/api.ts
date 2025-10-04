@@ -184,6 +184,12 @@ export async function connectWebSocket(
  */
 export async function disconnectWebSocket(): Promise<void> {
 	if (ws) {
+		// Clear pending requests to prevent memory leak
+		pendingRequests.forEach(({ reject }) => {
+			reject(new Error('WebSocket disconnected'));
+		});
+		pendingRequests.clear();
+
 		try {
 			await ws.disconnect();
 		} catch (error) {
@@ -192,7 +198,6 @@ export async function disconnectWebSocket(): Promise<void> {
 		ws = null;
 		isConnected = false;
 		messageHandlers.clear();
-		pendingRequests.clear();
 	}
 }
 

@@ -62,6 +62,7 @@
 			const text = await readTextFile(filePath);
 			return dedupeAndSortLogs(JSON.parse(text) as Log[]);
 		} catch (e) {
+			console.error('[Storage] Failed to load logs from disk:', e);
 			return [];
 		}
 	}
@@ -92,6 +93,7 @@
 				const currentLineCount = linesText.split('\n').length;
 				prevLineCount = currentLineCount;
 			} catch (error) {
+				console.error('[ClearLogs] Failed to read file for line count reset:', error);
 				prevLineCount = 0;
 			}
 		}
@@ -100,13 +102,6 @@
 		lineCount = 0;
 		onlyProcessLogsAfterThisDateTimeStamp = new Date().getTime();
 	}
-
-	setInterval(() => {
-		tick += 1;
-		if (tick > 5 && file) {
-			handleFile(file);
-		}
-	}, 1000);
 
 	function generateId(timestamp: string, line: string): string {
 		// Generate deterministic ID based on timestamp and original log line
@@ -222,9 +217,11 @@
 	onMount(() => {
 		// Async initialization
 		(async () => {
+			// Store strategy: Use autoSave with 300ms debounce to batch writes during initialization
+			// This prevents multiple rapid saves while loading initial settings
 			const store = await load('store.json', {
 				defaults: {},
-				autoSave: false
+				autoSave: 300
 			});
 			const savedFile = await store.get<string>('lastFile');
 			const savedPlayerName = await store.get<string>('playerName');
@@ -246,7 +243,7 @@
 				playerName = savedPlayerName;
 			}
 
-			await store.save();
+			// No explicit save needed - autoSave will handle any changes
 
 			// Load the Game.log file if previously selected
 			if (savedFile && file) {
@@ -270,7 +267,9 @@
 
 					handleInitialiseWatch(file);
 					// playerId will be extracted from Game.log when parsing
-				} catch (error) {}
+				} catch (error) {
+					console.error('[Initialization] Failed to load saved log file on startup:', error);
+				}
 			}
 
 			// Mark loading complete
@@ -280,13 +279,12 @@
 
 	// Re-attach scroll listener when fileContentContainer changes (e.g., after navigating back from profile)
 	$effect(() => {
-		if (fileContentContainer) {
-			fileContentContainer.addEventListener('scroll', handleScroll, { passive: true });
+		const container = fileContentContainer; // Capture current value
+		if (container) {
+			container.addEventListener('scroll', handleScroll, { passive: true });
 
 			return () => {
-				if (fileContentContainer) {
-					fileContentContainer.removeEventListener('scroll', handleScroll);
-				}
+				container.removeEventListener('scroll', handleScroll); // Use captured value
 			};
 		}
 	});
@@ -606,6 +604,13 @@
 				);
 				let groupedLogs = dedupeAndSortLogs([...fileContent, ...newContentWithUserId]);
 				groupedLogs = groupKillingSprees(groupedLogs);
+
+				// Add size limit to prevent unbounded memory growth
+				const MAX_LOGS = 1000;
+				if (groupedLogs.length > MAX_LOGS) {
+					groupedLogs = groupedLogs.slice(-MAX_LOGS); // Keep most recent 1000
+				}
+
 				fileContent = groupedLogs;
 
 				// Batch save all new logs to disk if signed in (for sharing with friends)
@@ -622,13 +627,17 @@
 					});
 				}, 0);
 			}
-		} catch (error) {}
+		} catch (error) {
+			console.error('[FileHandler] Failed to process log file:', error);
+		}
 	}
 
 	async function selectFile(environment?: 'LIVE' | 'PTU' | 'HOTFIX') {
+		// Store strategy: Use autoSave with 200ms debounce for file selection
+		// Multiple settings may be updated rapidly (file path, environment, player ID)
 		const store = await load('store.json', {
 			defaults: {},
-			autoSave: false
+			autoSave: 200
 		});
 		const env = environment || selectedEnvironment;
 		const defaultPath = environment ? `C:\\Program Files\\Roberts Space Industries\\StarCitizen\\${env}\\` : undefined;
@@ -659,7 +668,7 @@
 				playerId = pathPartsForId.length > 1 ? pathPartsForId.slice(-2, -1)[0] : crypto.randomUUID();
 				await store.set('id', playerId);
 			}
-			await store.save();
+			// No explicit save needed - autoSave will persist all changes with 200ms debounce
 
 			await handleFile(selectedPath);
 			await handleInitialiseWatch(selectedPath);
@@ -667,9 +676,11 @@
 	}
 
 	async function clearSettings() {
+		// Store strategy: Use autoSave with 100ms debounce for settings reset
+		// Multiple delete operations followed by a restore - autoSave batches these writes
 		const store = await load('store.json', {
 			defaults: {},
-			autoSave: false
+			autoSave: 100
 		});
 
 		// Save Discord auth before clearing
@@ -685,7 +696,7 @@
 			await store.set('discordUserId', savedDiscordUserId);
 		}
 
-		await store.save();
+		// No explicit save needed - autoSave will persist all changes with 100ms debounce
 
 		file = null;
 		fileContent = [];

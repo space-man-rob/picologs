@@ -24,7 +24,9 @@ export async function handleAuthComplete(data: {
 	console.log('[OAuth] Auth complete received - storing JWT and user data');
 
 	try {
-		const store = await loadStore('auth.json', { defaults: {}, autoSave: false });
+		// Store strategy: Use autoSave with 100ms debounce for auth data write
+		// JWT token and user data are set together - autoSave batches these writes
+		const store = await loadStore('auth.json', { defaults: {}, autoSave: 100 });
 
 		// Store JWT token
 		await store.set('jwtToken', data.jwt);
@@ -39,7 +41,7 @@ export async function handleAuthComplete(data: {
 		};
 		await store.set('discord_user', discordUser);
 
-		await store.save();
+		// No explicit save needed - autoSave will persist both values with 100ms debounce
 		console.log('[OAuth] Stored JWT token and user data');
 	} catch (error) {
 		console.error('[OAuth] Error storing auth data:', error);
@@ -53,7 +55,9 @@ export async function handleAuthComplete(data: {
  */
 export async function loadAuthData(): Promise<{ user: DiscordUser; expiresAt: number } | null> {
 	try {
-		const store = await loadStore('auth.json', { defaults: {} });
+		// Store strategy: Read-only operation with default autoSave (100ms debounce)
+		// This ensures consistency with write operations in case of concurrent access
+		const store = await loadStore('auth.json', { defaults: {}, autoSave: 100 });
 
 		const jwtToken = (await store.get('jwtToken')) as string | null;
 		const user = (await store.get('discord_user')) as DiscordUser | null;
@@ -76,9 +80,11 @@ export async function loadAuthData(): Promise<{ user: DiscordUser; expiresAt: nu
  * Sign out and clear stored tokens
  */
 export async function signOut(): Promise<void> {
-	const store = await loadStore('auth.json', { defaults: {} });
+	// Store strategy: Use autoSave with 100ms debounce for sign out
+	// Clear operation is a single write - autoSave handles persistence
+	const store = await loadStore('auth.json', { defaults: {}, autoSave: 100 });
 	await store.clear();
-	await store.save();
+	// No explicit save needed - autoSave will persist the clear operation
 	console.log('[OAuth] Signed out and cleared auth data');
 }
 
@@ -88,7 +94,9 @@ export async function signOut(): Promise<void> {
  */
 export async function getJwtToken(): Promise<string | null> {
 	try {
-		const store = await loadStore('auth.json', { defaults: {} });
+		// Store strategy: Read-only operation with default autoSave (100ms debounce)
+		// This ensures consistency with write operations in case of concurrent access
+		const store = await loadStore('auth.json', { defaults: {}, autoSave: 100 });
 		const jwtToken = (await store.get('jwtToken')) as string | null;
 
 		if (jwtToken) {

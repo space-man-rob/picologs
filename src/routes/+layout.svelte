@@ -209,6 +209,94 @@
 		appCtx.ws = null;
 	}
 
+	// Extract message string from Tauri WebSocket format
+	function extractMessageString(msg: any): string | null {
+		if (typeof msg === 'string') {
+			return msg;
+		} else if (msg.type === 'Text' && msg.data) {
+			return msg.data;
+		}
+		return null; // Skip non-text messages (ping/pong/etc)
+	}
+
+	// Handle WebSocket message during authentication
+	async function handleAuthWebSocketMessage(
+		msg: any,
+		socket: WebSocket
+	): Promise<void> {
+		try {
+			const messageStr = extractMessageString(msg);
+			if (!messageStr) return;
+
+			const message = JSON.parse(messageStr);
+			console.log('[Auth] Received message:', message.type);
+
+			// Handle auth_complete message with JWT
+			if (message.type === 'auth_complete' || message.type === 'desktop_auth_complete') {
+				await processAuthComplete(message, socket);
+			}
+
+			// Handle error message
+			if (message.type === 'error') {
+				console.error('[Auth] ❌ Auth error:', message.message);
+				appCtx.authError = message.message || 'Authentication failed';
+				appCtx.connectionStatus = 'disconnected';
+				appCtx.isAuthenticating = false;
+			}
+		} catch (error) {
+			if (!(error instanceof SyntaxError)) {
+				console.error('[Auth] Error handling message:', error);
+			}
+		}
+	}
+
+	// Process authentication completion
+	async function processAuthComplete(
+		message: any,
+		socket: WebSocket
+	): Promise<void> {
+		console.log('[Auth] ✅ Authentication complete!');
+
+		if (!message.data?.jwt || !message.data?.user) {
+			console.error('[Auth] Invalid auth_complete message - missing jwt or user');
+			return;
+		}
+
+		await handleAuthComplete({
+			jwt: message.data.jwt,
+			user: message.data.user
+		});
+
+		// Extract user ID from JWT
+		const [, payloadB64] = message.data.jwt.split('.');
+		const payload = JSON.parse(atob(payloadB64));
+
+		appCtx.discordUserId = payload.userId;
+		appCtx.discordUser = {
+			id: message.data.user.discordId,
+			username: message.data.user.username,
+			avatar: message.data.user.avatar
+		};
+		appCtx.isSignedIn = true;
+
+		// Store user ID - Use autoSave with 100ms debounce for single write operation
+		const store = await load('store.json', { defaults: {}, autoSave: 100 });
+		await store.set('discordUserId', appCtx.discordUserId);
+		// No explicit save needed - autoSave will persist the change
+
+		// Close temp auth socket and connect to main WebSocket
+		try {
+			await socket.disconnect();
+		} catch (e) {
+			console.error('[Auth] Error disconnecting temp socket:', e);
+		}
+		appCtx.ws = null;
+
+		await connectWebSocket();
+		console.log('[Auth] ✅ Signed in successfully');
+		appCtx.isAuthenticating = false;
+	}
+
 	// Handle sign in
 	async function handleSignIn() {
 		appCtx.authError = null;
@@ -228,72 +316,7 @@
 
 			// Set up message listener for auth completion
 			socket.addListener(async (msg: any) => {
-				try {
-					// Extract message string from Tauri WebSocket format
-					let messageStr: string;
-					if (typeof msg === 'string') {
-						messageStr = msg;
-					} else if (msg.type === 'Text' && msg.data) {
-						messageStr = msg.data;
-					} else {
-						return; // Skip non-text messages (ping/pong/etc)
-					}
-
-					const message = JSON.parse(messageStr);
-					console.log('[Auth] Received message:', message.type);
-
-					// Handle auth_complete message with JWT
-					if (message.type === 'auth_complete' || message.type === 'desktop_auth_complete') {
-						console.log('[Auth] ✅ Authentication complete!');
-
-						if (message.data?.jwt && message.data?.user) {
-							await handleAuthComplete({
-								jwt: message.data.jwt,
-								user: message.data.user
-							});
-
-							// Extract user ID from JWT
-							const [, payloadB64] = message.data.jwt.split('.');
-							const payload = JSON.parse(atob(payloadB64));
-
-							appCtx.discordUserId = payload.userId;
-							appCtx.discordUser = {
-								id: message.data.user.discordId,
-								username: message.data.user.username,
-								avatar: message.data.user.avatar
-							};
-							appCtx.isSignedIn = true;
-
-							// Store user ID
-							const store = await load('store.json', { defaults: {}, autoSave: false });
-							await store.set('discordUserId', appCtx.discordUserId);
-							await store.save();
-
-							// Close temp auth socket and connect to main WebSocket
-							try {
-								await socket.disconnect();
-							} catch (e) {
-								console.error('[Auth] Error disconnecting temp socket:', e);
-							}
-							appCtx.ws = null;
-
-							await connectWebSocket();
-							console.log('[Auth] ✅ Signed in successfully');
-							appCtx.isAuthenticating = false;
-						}
-					}
-
-					if (message.type === 'error') {
-						console.error('[Auth] ❌ Auth error:', message.message);
-						appCtx.authError = message.message || 'Authentication failed';
-						appCtx.connectionStatus = 'disconnected';
-						appCtx.isAuthenticating = false;
-					}
-				} catch (error) {
-					if (!(error instanceof SyntaxError)) {
-						console.error('[Auth] Error handling message:', error);
-					}
-				}
+				await handleAuthWebSocketMessage(msg, socket);
 			});
 
 			// Generate session ID and send init message
@@ -347,12 +370,13 @@
 			appCtx.discordUser = null;
 			appCtx.discordUserId = null;
 
+			// Store strategy: Use autoSave with 100ms debounce for single delete operation
 			const store = await load('store.json', {
 				defaults: {},
-				autoSave: false
+				autoSave: 100
 			});
 			await store.delete('discordUserId');
-			await store.save();
+			// No explicit save needed - autoSave will persist the deletion
 
 			if (appCtx.ws) {
 				try {
@@ -379,6 +403,7 @@
 	// On mount - initialize authentication state
 	onMount(() => {
 		let unlisten: (() => void) | null = null;
+		let singleInstanceUnlisten: (() => void) | null = null;
 
 		(async () => {
 			const authData = await loadAuthData();
@@ -391,9 +416,11 @@
 				};
 			}
 
+			// Store strategy: Use autoSave with 300ms debounce for initialization read
+			// This allows any delayed initialization writes to be batched
 			const store = await load('store.json', {
 				defaults: {},
-				autoSave: false
+				autoSave: 300
 			});
 
 			const storedDiscordUserId = await store.get<string>('discordUserId');
@@ -413,7 +440,7 @@
 				}
 			}
 
-			await store.save();
+			// No explicit save needed - autoSave handles any initialization changes
 
 			// Connect WebSocket if signed in
 			if (appCtx.isSignedIn && appCtx.discordUserId && !appCtx.ws) {
@@ -434,44 +461,107 @@
 				}
 			});
 
+			/**
+			 * Normalizes deep link pathname to handle URL variations.
+			 *
+			 * Deep link URLs can arrive in different formats:
+			 * - picologs://auth/callback       → normalized to "auth/callback"
+			 * - picologs:///auth/callback      → normalized to "auth/callback"
+			 * - picologs://auth/callback/      → normalized to "auth/callback"
+			 * - picologs://auth (hostname)     → normalized to "auth"
+			 *
+			 * @param urlObj - Parsed URL object
+			 * @returns Normalized path string without leading/trailing slashes
+			 */
+			const normalizeDeepLinkPath = (urlObj: URL): string => {
+				// If hostname is present, use it (e.g., picologs://auth)
+				if (urlObj.hostname && urlObj.hostname !== '') {
+					const hostnamePath = urlObj.hostname;
+					const pathnamePath = urlObj.pathname.replace(/^\/+|\/+$/g, '');
+					return pathnamePath ? `${hostnamePath}/${pathnamePath}` : hostnamePath;
+				}
+
+				// Otherwise, normalize pathname by removing leading/trailing slashes
+				// pathname can be "//auth/callback", "/callback", or "//auth"
+				return urlObj.pathname.replace(/^\/+|\/+$/g, '');
+			};
+
 			// Helper function to process deep link URLs
 			const processDeepLink = async (url: string) => {
 				try {
 					console.log('[Deep Link] Processing URL:', url);
 					const urlObj = new URL(url);
-					console.log('[Deep Link] Protocol:', urlObj.protocol, 'Pathname:', urlObj.pathname);
 
-					// Handle Discord OAuth callback: picologs://auth/callback?code=...&state=...
-					// Note: pathname can be either '/callback' or '//auth/callback' depending on how the URL is formatted
-					if (urlObj.protocol === 'picologs:' && (urlObj.pathname === '//auth/callback' || urlObj.pathname === '/callback' || urlObj.hostname === 'auth')) {
+					// Only process picologs:// protocol URLs
+					if (urlObj.protocol !== 'picologs:') {
+						console.log('[Deep Link] Ignoring non-picologs URL');
+						return;
+					}
+
+					const normalizedPath = normalizeDeepLinkPath(urlObj);
+					console.log('[Deep Link] Protocol:', urlObj.protocol, 'Normalized path:', normalizedPath);
+
+					// Handle Discord OAuth callback
+					// Expected formats: picologs://auth/callback, picologs:///auth/callback, etc.
+					if (normalizedPath === 'auth/callback') {
 						console.log('[Deep Link] 🔐 Discord OAuth callback received');
 						const code = urlObj.searchParams.get('code');
 						const state = urlObj.searchParams.get('state');
 
 						console.log('[Deep Link] Code:', code ? 'present' : 'missing');
 						console.log('[Deep Link] State (session ID):', state);
+						console.log('[Deep Link] Expected session ID:', appCtx.authSessionId);
 
-						if (code && state && appCtx.ws) {
-							// Send OAuth code to server via WebSocket
-							const payload = {
-								type: 'discord_oauth_callback',
-								requestId: 'oauth_callback',
-								data: {
-									code,
-									sessionId: state
-								}
-							};
-
-							console.log('[Deep Link] Sending OAuth callback to server...');
-							await appCtx.ws.send(JSON.stringify(payload));
-							console.log('[Deep Link] ✅ OAuth callback sent, waiting for auth_complete...');
-						} else {
-							console.error('[Deep Link] ❌ Missing code or state in OAuth callback');
-							appCtx.authError = 'OAuth callback failed - missing parameters';
+						// Validate state parameter matches expected session ID
+						if (!state) {
+							console.error('[Deep Link] ⚠️ SECURITY: Missing state parameter in OAuth callback');
+							appCtx.authError = 'Authentication failed - invalid callback (missing state)';
+							appCtx.isAuthenticating = false;
+							return;
 						}
+
+						if (state !== appCtx.authSessionId) {
+							console.error('[Deep Link] ⚠️ SECURITY: State parameter mismatch - possible CSRF attack');
+							console.error('[Deep Link] Expected:', appCtx.authSessionId, 'Received:', state);
+							appCtx.authError = 'Authentication failed - session mismatch. Please try again.';
+							appCtx.isAuthenticating = false;
+							return;
+						}
+
+						if (!code) {
+							console.error('[Deep Link] ❌ Missing authorization code in OAuth callback');
+							appCtx.authError = 'OAuth callback failed - missing authorization code';
+							appCtx.isAuthenticating = false;
+							return;
+						}
+
+						if (!appCtx.ws) {
+							console.error('[Deep Link] ❌ WebSocket not connected');
+							appCtx.authError = 'Authentication failed - server connection lost';
+							appCtx.isAuthenticating = false;
+							return;
+						}
+
+						// State validation passed - proceed with OAuth flow
+						console.log('[Deep Link] ✅ State validation passed');
+
+						// Send OAuth code to server via WebSocket
+						const payload = {
+							type: 'discord_oauth_callback',
+							requestId: 'oauth_callback',
+							data: {
+								code,
+								sessionId: state
+							}
+						};
+
+						console.log('[Deep Link] Sending OAuth callback to server...');
+						await appCtx.ws.send(JSON.stringify(payload));
+						console.log('[Deep Link] ✅ OAuth callback sent, waiting for auth_complete...');
 					}
 					// Legacy deep link handler (for backward compatibility)
-					else if (urlObj.protocol === 'picologs:' && urlObj.pathname === '//auth') {
+					// Expected format: picologs://auth?data=...
+					else if (normalizedPath === 'auth') {
 						console.log('[Deep Link] Legacy auth protocol');
 						const authDataEncoded = urlObj.searchParams.get('data');
 						if (authDataEncoded) {
@@ -479,7 +569,7 @@
 							await handleAuthComplete(authData);
 						}
 					} else {
-						console.log('[Deep Link] URL did not match expected format');
+						console.log('[Deep Link] URL did not match expected format. Normalized path:', normalizedPath);
 					}
 				} catch (error) {
 					console.error('[Deep Link] Error parsing URL:', error);
@@ -488,7 +578,7 @@
 
 			// Listen for deep links from single-instance plugin
 			console.log('[Deep Link] Setting up single-instance listener...');
-			const singleInstanceUnlisten = await listen<string>('deep-link-received', async (event) => {
+			singleInstanceUnlisten = await listen<string>('deep-link-received', async (event) => {
 				console.log('[Deep Link] ✅ Received from single-instance:', event.payload);
 				await processDeepLink(event.payload);
 			});

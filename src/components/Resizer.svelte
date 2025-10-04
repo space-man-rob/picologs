@@ -111,9 +111,11 @@
 
 	async function saveLayout() {
 		if (!store) return;
+		// Store strategy: Panel width changes happen during drag, so autoSave is already enabled
+		// The 200ms debounce ensures we don't write on every mousemove, only after drag completes
 		await store.set(LEFT_WIDTH_KEY, columns[0].width);
 		await store.set(RIGHT_WIDTH_KEY, columns[1].width);
-		await store.save(); // Explicitly save the store
+		// No explicit save needed - autoSave handles persistence with debounce
 	}
 
 	onDestroy(() => {
@@ -123,7 +125,9 @@
 
 	onMount(async () => {
 		try {
-			store = await loadStore(STORE_FILE_NAME);
+			// Store strategy: Use autoSave with 200ms debounce for resizer panel widths
+			// This batches multiple panel width updates during drag operations
+			store = await loadStore(STORE_FILE_NAME, { defaults: {}, autoSave: 200 });
 			const loadedLeftWidth = await store.get<number>(LEFT_WIDTH_KEY);
 			const loadedRightWidth = await store.get<number>(RIGHT_WIDTH_KEY);
 
@@ -149,7 +153,7 @@
 			// If the store didn't exist, it might have been created now, try to assign it
 			if (!store) {
 				try {
-					store = await loadStore(STORE_FILE_NAME);
+					store = await loadStore(STORE_FILE_NAME, { defaults: {}, autoSave: 200 });
 				} catch (e) {
 					console.error("Failed to initialize store after error:", e);
 				}
