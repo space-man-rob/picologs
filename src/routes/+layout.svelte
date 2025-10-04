@@ -8,7 +8,9 @@
 	import { openUrl } from '@tauri-apps/plugin-opener';
 	import { listen } from '@tauri-apps/api/event';
 	import Header from '../components/Header.svelte';
+	import Iframe from '../components/Iframe.svelte';
 	import { setAppContext } from '$lib/appContext.svelte';
+	import { page } from '$app/stores';
 	import {
 		connectWebSocket as apiConnectWebSocket,
 		disconnectWebSocket as apiDisconnectWebSocket,
@@ -25,6 +27,24 @@
 
 	// Initialize shared app context
 	const appCtx = setAppContext();
+
+	// Track if iframe has been mounted
+	let iframeMounted = $state(false);
+	let currentIframePage = $state<'profile' | 'friends' | 'groups' | null>(null);
+
+	// Watch for route changes and mount/update iframe
+	$effect(() => {
+		const path = $page.url.pathname;
+		if (path === '/profile' || path === '/friends' || path === '/groups') {
+			const pageName = path.substring(1) as 'profile' | 'friends' | 'groups';
+			iframeMounted = true;
+			currentIframePage = pageName;
+		} else if (path === '/' && iframeMounted) {
+			// Reset iframe when navigating back to main page
+			iframeMounted = false;
+			currentIframePage = null;
+		}
+	});
 
 	// Update info state (not in context - layout-specific)
 	let updateInfo = $state<any>(null);
@@ -511,8 +531,20 @@
 		connectionError={appCtx.connectionError}
 		isAuthenticating={appCtx.isAuthenticating} />
 
-	<div class="overflow-hidden">
-		{@render children()}
+	<div class="overflow-hidden flex flex-col">
+		<!-- Main page content -->
+		{#if !['/profile', '/friends', '/groups'].includes($page.url.pathname)}
+			<div class="h-full">
+				{@render children()}
+			</div>
+		{/if}
+
+		<!-- Single persistent iframe for all pages with back button -->
+		{#if iframeMounted && currentIframePage}
+			<div class="h-full flex flex-col" class:hidden={!['/profile', '/friends', '/groups'].includes($page.url.pathname)}>
+				<Iframe page={currentIframePage} />
+			</div>
+		{/if}
 	</div>
 </div>
 
