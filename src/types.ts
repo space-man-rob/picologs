@@ -76,8 +76,10 @@ export type User = {
 
 export type Friend = {
 	id: string;
+	discordId?: string;
 	friendCode: string;
 	name?: string;
+	avatar?: string | null;
 	status: 'pending_them' | 'pending_me' | 'confirmed';
 	timezone?: string;
 	isOnline?: boolean;
@@ -109,4 +111,48 @@ export type RTCPeerConnection = {
 export type RTCDataChannel = {
 	send: (message: string) => void;
 	onmessage: (event: MessageEvent) => void;
+};
+
+export type Group = {
+	id: string;
+	name: string;
+	description?: string;
+	avatar?: string;
+	tags?: string[];
+	ownerId: string;
+	memberRole: string; // 'owner', 'admin', 'member'
+	memberCount: number;
+	createdAt: string;
+};
+
+export type GroupMember = {
+	userId: string;
+	discordId: string;
+	username: string;
+	avatar?: string;
+	player?: string;
+	role: string;
+	isOnline?: boolean;
+	isConnected?: boolean;
+};
+
+export type GroupInvitation = {
+	id: string;
+	groupId: string;
+	inviterId: string;
+	status: 'pending' | 'accepted' | 'denied';
+	createdAt: string;
+	group: {
+		id: string;
+		name: string;
+		description?: string;
+		avatar?: string;
+		tags?: string[];
+	};
+	inviter: {
+		id: string;
+		username: string;
+		avatar?: string;
+		player?: string;
+	};
 };

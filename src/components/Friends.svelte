@@ -23,21 +23,21 @@
 	);
 </script>
 
-<div class="flex flex-col px-2 pb-2 pt-0 flex-grow overflow-y-auto min-w-[200px] [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.3)_rgba(0,0,0,0.2)]">
-	<h4 class="my-2 text-white/70 font-medium text-[0.9em] pb-1.5 border-b border-white/10">
+<div class="flex flex-col h-full overflow-y-auto min-w-[200px] [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.3)_rgba(0,0,0,0.2)]">
+	<h4 class="px-3 py-2 text-white/60 font-medium text-xs uppercase tracking-wide">
 		Friends ({friendsList.filter((f: Friend) => f.status === 'confirmed').length})
 	</h4>
 	{#if friendsList.filter((f: Friend) => f.status === 'confirmed').length === 0}
-		<p class="text-[0.85em] text-white/50 text-center mt-4">No friends yet. Add some!</p>
+		<p class="text-sm text-white/40 text-center py-6">No friends yet</p>
 	{:else}
-		<div class="flex flex-col gap-2">
+		<div class="flex flex-col px-2 pb-2">
 		{#each orderByOnlineAlphabetically as friend (friend.id)}
-			<div class="relative rounded-lg transition-colors duration-200 flex items-center justify-between">
-					<User user={friend} {handleRemoveClick} />
-					{#if friend.status !== 'confirmed'}
-						<span class="inline-block ml-[0.7em] px-[0.6em] py-[0.1em] bg-[rgba(255,200,80,0.13)] text-[#ffc850] rounded-[5px] text-[0.85em] font-medium align-middle tracking-[0.01em]">Pending...</span>
-					{/if}
-				</div>
+			<div class="relative flex items-center">
+				<User user={friend} {handleRemoveClick} />
+				{#if friend.status !== 'confirmed'}
+					<span class="absolute right-2 px-2 py-0.5 bg-yellow-500/10 text-yellow-500 rounded text-xs font-medium">Pending</span>
+				{/if}
+			</div>
 			{/each}
 		</div>
 	{/if}

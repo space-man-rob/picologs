@@ -126,7 +126,7 @@
 </script>
 
 <button
-	class="grid items-start gap-4 p-4 text-left {child ? 'grid-cols-[1rem_1fr] gap-2 pl-6' : 'grid-cols-[4rem_1fr]'} {eventType === 'killing_spree' ? 'bg-red-500/10 border-l-4 border-red-500' : child ? '' : 'item'}"
+	class="grid items-start gap-4 p-4 text-left min-w-0 {child ? 'grid-cols-[1rem_1fr] gap-2 pl-6' : 'grid-cols-[4rem_1fr]'} {eventType === 'killing_spree' ? 'bg-red-500/10 border-l-4 border-red-500' : child ? '' : 'item'}"
 	onclick={() => (open = !open)}
 >
 	{#if (eventType === 'vehicle_control_flow' || eventType === 'destruction') && shipImage}
@@ -166,21 +166,21 @@
 	{:else}
 		<div class="flex justify-center pt-1 self-start {child ? 'text-xs' : 'text-2xl'}">{emoji}</div>
 	{/if}
-	<div>
+	<div class="min-w-0 overflow-hidden">
 		{#if eventType === 'actor_death' && metadata.damageType === 'SelfDestruct'}
 			{@const zone = metadata.zone.split('_').slice(0, -1).join(' ')}
-			<div class="flex items-center {child ? 'gap-1 text-xs' : 'gap-8 text-base'}">
+			<div class="{open ? '' : 'truncate'} {child ? 'text-xs' : 'text-base'}">
 				{checkVictimName(metadata.victimName)} was killed when the {#if zone != 'Unknown'}{zone}{:else}ship{/if} was self
 				destructed {#if metadata.killerName != 'unknown'}by {checkVictimName(metadata.killerName)}{/if}
 			</div>
 		{:else if eventType === 'actor_death' && metadata.damageType === 'Suicide'}
-			<div class="flex items-center {child ? 'gap-1 text-xs' : 'gap-8 text-base'}">
+			<div class="{open ? '' : 'truncate'} {child ? 'text-xs' : 'text-base'}">
 				{checkVictimName(metadata.victimName)} committed suicide
 			</div>
 		{:else if eventType === 'actor_death'}
 			{@const weapon = metadata?.weaponClass?.replace('_', ' ')}
 			{@const zone = metadata?.zone?.split('_')?.slice(0, -1)?.join(' ')}
-			<div class="flex items-center {child ? 'gap-1 text-xs' : 'gap-8 text-base'}">
+			<div class="{open ? '' : 'truncate'} {child ? 'text-xs' : 'text-base'}">
 				{checkVictimName(metadata.victimName)} was killed {#if zone && zone != 'Unknown'}
 					while in {zone}{/if} by {checkVictimName(metadata.killerName) || 'unknown'} {#if weapon != 'unknown'}using
 					{weapon}{/if}
@@ -188,28 +188,28 @@
 					caused by {convertCamelCaseToWords(metadata.damageType)}{/if}
 			</div>
 		{:else if eventType === 'vehicle_control_flow'}
-			<div class="flex items-center {child ? 'gap-1 text-xs' : 'gap-8 text-base'}">
+			<div class="{open ? '' : 'truncate'} {child ? 'text-xs' : 'text-base'}">
 				{player} controls a {shipName || metadata.vehicleName.split('_').slice(0, -1).join(' ')}
 			</div>
 		{:else if eventType === 'killing_spree'}
-			<div class="flex items-center {child ? 'gap-1 text-xs' : 'gap-2 text-base font-bold text-red-400'}">
-				<span class="text-xs opacity-50">{open ? '▼' : '▶'}</span>
-				{line}
+			<div class="flex items-center min-w-0 {child ? 'gap-1 text-xs' : 'gap-2 text-base font-bold text-red-400'}">
+				<span class="text-xs opacity-50 flex-shrink-0">{open ? '▼' : '▶'}</span>
+				<span class="{open ? '' : 'truncate'}">{line}</span>
 			</div>
 		{:else if eventType === 'location_change'}
-			<div class="flex items-center {child ? 'gap-1 text-xs' : 'gap-8 text-base'}">
+			<div class="{open ? '' : 'truncate'} {child ? 'text-xs' : 'text-base'}">
 				{player} requested inventory in {metadata.location.split('_').join(' ')}
 			</div>
 		{:else if eventType === 'system_quit'}
-			<div class="flex items-center {child ? 'gap-1 text-xs' : 'gap-8 text-base'}">
+			<div class="{open ? '' : 'truncate'} {child ? 'text-xs' : 'text-base'}">
 				{player} left the game
 			</div>
 		{:else if eventType === 'corpsify'}
-			<div class="flex items-center {child ? 'gap-1 text-xs' : 'gap-8 text-base'}">{line}</div>
+			<div class="{open ? '' : 'truncate'} {child ? 'text-xs' : 'text-base'}">{line}</div>
 		{:else}
-			<div class="flex items-center {child ? 'gap-1 text-xs' : 'gap-8 text-base'}">{line}</div>
+			<div class="{open ? '' : 'truncate'} {child ? 'text-xs' : 'text-base'}">{line}</div>
 		{/if}
-		<div class="text-white/50 text-left {child ? 'text-[0.5rem]' : 'text-xs'}">
+		<div class="text-white/50 text-left {open ? '' : 'truncate'} {child ? 'text-[0.5rem]' : 'text-xs'}">
 			{formattedTimestamp}, {reportedBy ? reportedBy.join(', ') : player}
 		</div>
 		{#if open}

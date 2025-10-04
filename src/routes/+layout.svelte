@@ -17,6 +17,9 @@
 		fetchFriends,
 		fetchFriendRequests,
 		fetchUserProfile,
+		fetchGroups,
+		fetchGroupMembers,
+		fetchGroupInvitations,
 		subscribe as apiSubscribe,
 		getWebSocket
 	} from '$lib/api';
@@ -86,10 +89,12 @@
 		// Convert API friends to local format
 		appCtx.friendsList = friends.map((f) => ({
 			id: f.friendUserId,
+			discordId: f.friendDiscordId,
 			friendCode: '',
 			name: f.friendUsePlayerAsDisplayName && f.friendPlayer
 				? f.friendPlayer
 				: f.friendUsername,
+			avatar: f.friendAvatar,
 			status: 'confirmed' as const,
 			timezone: f.friendTimeZone || Intl.DateTimeFormat().resolvedOptions().timeZone,
 			isOnline: false,
@@ -111,6 +116,30 @@
 		appCtx.apiFriendRequests = requests;
 
 		console.log('[API] Synced', requests.length, 'friend requests');
+	}
+
+	// Sync groups from API
+	async function syncGroupsFromAPI() {
+		if (!appCtx.isSignedIn) {
+			console.log('[API] Not syncing groups - not signed in');
+			return;
+		}
+
+		console.log('[API] Fetching groups from API...');
+		const groups = await fetchGroups();
+		appCtx.groups = groups;
+
+		// Fetch members for each group
+		for (const group of groups) {
+			const members = await fetchGroupMembers(group.id);
+			appCtx.groupMembers.set(group.id, members);
+		}
+
+		// Fetch pending invitations
+		const invitations = await fetchGroupInvitations();
+		appCtx.groupInvitations = invitations;
+
+		console.log('[API] Synced', groups.length, 'groups and', invitations.length, 'invitations');
 	}
 
 	// Connect WebSocket
@@ -140,6 +169,7 @@
 				await syncUserProfileFromAPI();
 				await syncFriendsFromAPI();
 				await syncFriendRequestsFromAPI();
+				await syncGroupsFromAPI();
 			});
 
 			apiSubscribe('refetch_friends', async () => {
@@ -152,8 +182,22 @@
 				await syncFriendRequestsFromAPI();
 			});
 
+			apiSubscribe('refetch_groups', async () => {
+				console.log('[WebSocket] 🔄 Received refetch_groups notification');
+				await syncGroupsFromAPI();
+			});
+
+			apiSubscribe('refetch_group_details', async (message: any) => {
+				if (message.groupId) {
+					console.log('[WebSocket] 🔄 Received refetch_group_details for group', message.groupId);
+					const members = await fetchGroupMembers(message.groupId);
+					appCtx.groupMembers.set(message.groupId, members);
+				}
+			});
+
 			apiSubscribe('user_online', async (message: any) => {
 				if (message.userId) {
+					// Update friend status
 					const friendIndex = appCtx.friendsList.findIndex((f) => f.id === message.userId);
 					if (friendIndex !== -1) {
 						appCtx.friendsList = [
@@ -162,11 +206,23 @@
 							...appCtx.friendsList.slice(friendIndex + 1)
 						];
 					}
+
+					// Update group members online status
+					appCtx.groupMembers.forEach((members, groupId) => {
+						const member = members.find(m => m.discordId === message.userId);
+						if (member) {
+							member.isOnline = true;
+							member.isConnected = true;
+							// Trigger reactivity
+							appCtx.groupMembers.set(groupId, [...members]);
+						}
+					});
 				}
 			});
 
 			apiSubscribe('user_offline', (message: any) => {
 				if (message.userId) {
+					// Update friend status
 					const friendIndex = appCtx.friendsList.findIndex((f) => f.id === message.userId);
 					if (friendIndex !== -1) {
 						appCtx.friendsList = [
@@ -175,6 +231,17 @@
 							...appCtx.friendsList.slice(friendIndex + 1)
 						];
 					}
+
+					// Update group members offline status
+					appCtx.groupMembers.forEach((members, groupId) => {
+						const member = members.find(m => m.discordId === message.userId);
+						if (member) {
+							member.isOnline = false;
+							member.isConnected = false;
+							// Trigger reactivity
+							appCtx.groupMembers.set(groupId, [...members]);
+						}
+					});
 				}
 			});
 

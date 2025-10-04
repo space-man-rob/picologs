@@ -6,11 +6,13 @@
 	import { onMount } from 'svelte';
 	import { fade } from 'svelte/transition';
 	import Friends from '../components/Friends.svelte';
+	import Groups from '../components/Groups.svelte';
 	import User from '../components/User.svelte';
 	import AddFriend from '../components/AddFriend.svelte';
 	import type { Log, Friend as FriendType } from '../types';
 	import { appDataDir } from '@tauri-apps/api/path';
 	import Resizer from '../components/Resizer.svelte';
+	import VerticalResizer from '../components/VerticalResizer.svelte';
 	import {
 		sendFriendRequest as apiSendFriendRequest,
 		removeFriend as apiRemoveFriend,
@@ -34,7 +36,52 @@
 	let lineCount = $state<number>(0);
 	let currentUserDisplayData = $state<FriendType | null>(null);
 
+	// Derived state for filtered logs based on selected user or group
+	let displayedLogs = $derived.by(() => {
+		// If a specific user is selected, show only their logs
+		if (appCtx.selectedUserId) {
+			return fileContent.filter(log => log.userId === appCtx.selectedUserId);
+		}
 
+		// If a group is selected, show group members' logs
+		if (appCtx.selectedGroupId) {
+			const members = appCtx.groupMembers.get(appCtx.selectedGroupId) || [];
+			const memberUserIds = new Set(members.map(m => m.discordId));
+
+			return fileContent.filter(log => {
+				// Include own logs
+				if (log.userId === playerId) return true;
+
+				// Include logs from group members
+				return memberUserIds.has(log.userId);
+			});
+		}
+
+		// Show all logs (default behavior)
+		return fileContent;
+	});
+
+	// Get user display name from group members or friends
+	function getUserDisplayName(userId: string): string | null {
+		if (!userId || userId === playerId) return null; // Don't show for own logs
+
+		// If viewing a group, get name from group members
+		if (appCtx.selectedGroupId) {
+			const members = appCtx.groupMembers.get(appCtx.selectedGroupId) || [];
+			const member = members.find(m => m.discordId === userId);
+			if (member) {
+				return member.player || member.username;
+			}
+		}
+
+		// Otherwise, try to find in friends list
+		const friend = appCtx.friendsList.find(f => f.id === userId);
+		if (friend) {
+			return friend.name || null;
+		}
+
+		return null;
+	}
 
 	async function getLogFilePath(): Promise<string> {
 		const dir = await appDataDir();
@@ -864,12 +911,22 @@
 		<Resizer>
 			{#snippet leftPanel()}
 				<div class="flex flex-col h-full min-h-0">
-					<div class="flex flex-col gap-4 overflow-y-auto flex-grow px-2 pb-2 pt-0">
-						{#if currentUserDisplayData}
+					{#if currentUserDisplayData}
+						<div class="px-2 pt-0 pb-2">
 							<User user={currentUserDisplayData} />
-						{/if}
-						<Friends friendsList={appCtx.friendsList} removeFriend={handleRemoveFriend} />
-					</div>
+						</div>
+					{/if}
+					<VerticalResizer storeKey="friendsGroupsResizerHeight">
+						{#snippet topPanel()}
+							<Groups
+								groups={appCtx.groups}
+								groupMembers={appCtx.groupMembers}
+							/>
+						{/snippet}
+						{#snippet bottomPanel()}
+							<Friends friendsList={appCtx.friendsList} removeFriend={handleRemoveFriend} />
+						{/snippet}
+					</VerticalResizer>
 					<div class="mt-auto min-w-[200px] px-2 pb-2">
 						<AddFriend addFriend={handleAddFriend} />
 					</div>
@@ -882,12 +939,14 @@
 							class="row-start-1 row-end-2 overflow-y-auto flex flex-col bg-black/10 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.3)_rgba(0,0,0,0.2)]"
 							bind:this={fileContentContainer}>
 							{#if file}
-								{#each fileContent as item, index (item.id)}
-									<Item {...item} bind:open={item.open} />
+								{#each displayedLogs as item, index (item.id)}
+									{@const username = getUserDisplayName(item.userId)}
+									<Item {...item} bind:open={item.open} reportedBy={username ? [username] : undefined} />
 									{#if item.open && item.children && item.children.length > 0}
 										<div class="relative ml-16 before:content-[''] before:absolute before:left-0 before:top-0 before:bottom-0 before:w-[2px] before:bg-gradient-to-b before:from-red-500/50 before:via-red-500/30 before:to-transparent">
 											{#each item.children as child (child.id)}
-												<Item {...child} bind:open={child.open} child={true} />
+												{@const childUsername = getUserDisplayName(child.userId)}
+												<Item {...child} bind:open={child.open} child={true} reportedBy={childUsername ? [childUsername] : undefined} />
 											{/each}
 										</div>
 									{/if}
@@ -967,12 +1026,14 @@
 					class="row-start-1 row-end-2 overflow-y-auto flex flex-col bg-black/10 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.3)_rgba(0,0,0,0.2)]"
 					bind:this={fileContentContainer}>
 					{#if file}
-						{#each fileContent as item, index (item.id)}
-							<Item {...item} bind:open={item.open} />
+						{#each displayedLogs as item, index (item.id)}
+							{@const username = getUserDisplayName(item.userId)}
+							<Item {...item} bind:open={item.open} reportedBy={username ? [username] : undefined} />
 							{#if item.open && item.children && item.children.length > 0}
 								<div class="relative ml-16 before:content-[''] before:absolute before:left-0 before:top-0 before:bottom-0 before:w-[2px] before:bg-gradient-to-b before:from-red-500/50 before:via-red-500/30 before:to-transparent">
 									{#each item.children as child (child.id)}
-										<Item {...child} bind:open={child.open} child={true} />
+										{@const childUsername = getUserDisplayName(child.userId)}
+										<Item {...child} bind:open={child.open} child={true} reportedBy={childUsername ? [childUsername] : undefined} />
 									{/each}
 								</div>
 							{/if}

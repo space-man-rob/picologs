@@ -353,3 +353,42 @@ export function getWebSocket(): any {
 export function isWebSocketConnected(): boolean {
 	return isConnected;
 }
+
+/**
+ * Fetch groups list from API via WebSocket
+ */
+export async function fetchGroups(): Promise<any[]> {
+	try {
+		const groups = await sendRequest<any[]>('get_groups');
+		return groups || [];
+	} catch (error) {
+		console.error('[WS API] Error fetching groups:', error);
+		return [];
+	}
+}
+
+/**
+ * Fetch members of a specific group from API via WebSocket
+ */
+export async function fetchGroupMembers(groupId: string): Promise<any[]> {
+	try {
+		const members = await sendRequest<any[]>('get_group_members', { groupId });
+		return members || [];
+	} catch (error) {
+		console.error('[WS API] Error fetching group members:', error);
+		return [];
+	}
+}
+
+/**
+ * Fetch pending group invitations from API via WebSocket
+ */
+export async function fetchGroupInvitations(): Promise<any[]> {
+	try {
+		const invitations = await sendRequest<any[]>('get_group_invitations');
+		return invitations || [];
+	} catch (error) {
+		console.error('[WS API] Error fetching group invitations:', error);
+		return [];
+	}
+}

@@ -1,7 +1,23 @@
 <script lang="ts">
-	import type { Friend, Friend as UserDisplayType } from '../types';
+	import type { Friend as UserDisplayType } from '../types';
+	import { getAppContext } from '$lib/appContext.svelte';
 
-	let { user, handleRemoveClick } = $props<{ user: UserDisplayType, handleRemoveClick?: (friend: Friend) => Promise<void> }>();
+	const appCtx = getAppContext();
+
+	let { user } = $props<{ user: UserDisplayType }>();
+
+	function selectUser() {
+		// Toggle selection: if already selected, deselect
+		if (appCtx.selectedUserId === user.id) {
+			appCtx.selectedUserId = null;
+		} else {
+			appCtx.selectedUserId = user.id;
+			// Deselect group when selecting a user
+			appCtx.selectedGroupId = null;
+		}
+	}
+
+	let isSelected = $derived(appCtx.selectedUserId === user.id);
 
 	// Reactive state to force re-render every minute
 	let currentMinute = $state(new Date().getMinutes());
@@ -58,63 +74,40 @@
 		// Replace underscores with spaces
 		return location.replace(/_/g, ' ');
 	}
-
-	let userModal: HTMLDialogElement | null = null;
 </script>
 
 {#if user}
 	<button
-		class="p-2.5 px-4 bg-white/[0.03] rounded flex flex-col items-start justify-between flex-grow flex-shrink-0 transition-all duration-400 shadow-[0_0_4px_rgba(0,0,0,0)] hover:bg-white/10 hover:shadow-[0_4px_4px_rgba(0,0,0,0.1)]"
-		onclick={() => {
-			userModal?.showModal();
-		}}
+		class="w-full p-2 rounded-lg flex items-center gap-2 transition-colors min-w-0 {isSelected ? 'bg-white/10' : 'hover:bg-white/5'}"
+		onclick={selectUser}
 	>
-		<div class="flex items-center gap-2 mb-1.5">
+		<div class="relative flex-shrink-0">
+			{#if user.avatar && user.discordId}
+				<img
+					src={user.avatar.startsWith('http') ? user.avatar : `https://cdn.discordapp.com/avatars/${user.discordId}/${user.avatar}.png`}
+					alt={user.name || 'User avatar'}
+					class="w-8 h-8 rounded-full object-cover"
+				/>
+			{:else}
+				<div class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/60 text-xs font-medium">
+					{(user.name || 'U')[0].toUpperCase()}
+				</div>
+			{/if}
 			<span
-				class={`inline-block w-3 h-3 rounded-full flex-shrink-0 ${user.isOnline ? 'bg-[#4caf50]' : 'bg-[#757575]'}`}
+				class={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[rgb(10,30,42)] ${user.isOnline ? 'bg-green-500' : 'bg-gray-500'}`}
 				title={user.isOnline ? 'Online' : 'Offline'}
 			>
 			</span>
-			<span class="font-normal text-[0.9rem] text-white whitespace-nowrap overflow-hidden text-ellipsis">
+		</div>
+		<div class="flex flex-col items-start min-w-0 flex-1 overflow-hidden">
+			<span class="text-sm font-medium text-white truncate text-left max-w-full">
 				{user.name || 'Unknown player'}
 			</span>
-		</div>
-		<div>
-			<!-- <p class="user-fc">FC: {user.friendCode}</p> -->
 			{#if user.timezone}
-				<p class="text-[0.6em] text-white/60 pl-5" title={user.timezone}>
-					{getLocalTime(user.timezone)} ({getCityFromTimezone(user.timezone)})
-				</p>
+				<span class="text-xs text-white/40 truncate text-left max-w-full" title={user.timezone}>
+					{getLocalTime(user.timezone)} · {getCityFromTimezone(user.timezone)}
+				</span>
 			{/if}
 		</div>
 	</button>
 {/if}
-
-<dialog
-	id="user-modal"
-	bind:this={userModal}
-	class="border border-white/10 shadow-[0_0_3px_rgba(0,0,0,0.4)] rounded p-4 bg-[rgb(10,30,42)] text-white"
->
-	<header class="flex items-center justify-between mb-4">
-		<h3>{user.name}</h3>
-		<button class="hover:cursor-pointer" onclick={() => userModal?.close()}>
-			✖️
-		</button>
-	</header>
-	<div class="flex flex-col gap-4">
-		<div class="flex flex-col gap-4">
-			<p class="text-[0.9rem] text-white">Timezone: {user.timezone}</p>
-			<p class="text-[0.9rem] text-white">Friend Code: {user.friendCode}</p>
-			{#if handleRemoveClick}
-				<button
-					class="flex items-center justify-center gap-2 text-[0.9rem] text-white transition-colors duration-200 bg-red-600 rounded px-4 py-2 hover:bg-red-700"
-					onclick={() => {
-						handleRemoveClick(user);
-					}}
-				>
-					🗑️ Remove Friend
-				</button>
-			{/if}
-		</div>
-	</div>
-</dialog>

@@ -1,9 +1,9 @@
 import { getContext, setContext } from 'svelte';
-import type { Friend as FriendType } from '../types';
+import type { Friend as FriendType, Group, GroupMember, GroupInvitation } from '../types';
 import type { ApiFriend } from './api';
 
 /**
- * Shared application context for authentication, WebSocket connection, and friends data.
+ * Shared application context for authentication, WebSocket connection, friends, and groups data.
  * Uses Svelte 5 context API to share state between layout and pages.
  */
 export class AppContext {
@@ -23,6 +23,15 @@ export class AppContext {
 	apiFriends = $state<ApiFriend[]>([]);
 	apiFriendRequests = $state<any[]>([]);
 	apiUserProfile = $state<{ friendCode: string | null } | null>(null);
+
+	// Groups data
+	groups = $state<Group[]>([]);
+	groupInvitations = $state<GroupInvitation[]>([]);
+	groupMembers = $state<Map<string, GroupMember[]>>(new Map()); // groupId -> members[]
+	selectedGroupId = $state<string | null>(null);
+
+	// Selected user for feed filtering
+	selectedUserId = $state<string | null>(null);
 
 	// Auth state
 	authSessionId = $state<string | null>(null);
