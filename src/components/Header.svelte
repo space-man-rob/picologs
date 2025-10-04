@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { BrushCleaning, Copy, FileText, Download, ScrollText, Settings } from '@lucide/svelte';
+	import { BrushCleaning, Copy, FileText, Download, ScrollText, Settings, Users, UsersRound } from '@lucide/svelte';
 	import { load } from '@tauri-apps/plugin-store';
 	import { ask } from '@tauri-apps/plugin-dialog';
 	import { goto } from '$app/navigation';
@@ -61,6 +61,16 @@
 	function handleOpenProfile() {
 		closeUserDropdown();
 		goto('/profile');
+	}
+
+	function handleOpenFriends() {
+		closeUserDropdown();
+		goto('/friends');
+	}
+
+	function handleOpenGroups() {
+		closeUserDropdown();
+		goto('/groups');
 	}
 
 	// Show dialog when connection error occurs
@@ -254,6 +264,18 @@
 							onclick={handleOpenProfile}>
 							<Settings size={16} />
 							<span>Profile</span>
+						</button>
+						<button
+							class="w-full px-4 py-2.5 bg-transparent border-none text-white text-left cursor-pointer text-sm transition-colors duration-150 flex items-center gap-2 hover:bg-[rgba(88,101,242,0.2)]"
+							onclick={handleOpenFriends}>
+							<Users size={16} />
+							<span>Friends</span>
+						</button>
+						<button
+							class="w-full px-4 py-2.5 bg-transparent border-none text-white text-left cursor-pointer text-sm transition-colors duration-150 flex items-center gap-2 hover:bg-[rgba(88,101,242,0.2)]"
+							onclick={handleOpenGroups}>
+							<UsersRound size={16} />
+							<span>Groups</span>
 						</button>
 						<div class="h-px bg-white/10 my-1"></div>
 						<button
