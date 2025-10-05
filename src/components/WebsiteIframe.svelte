@@ -103,5 +103,6 @@
 		class="w-full h-full border-none transition-opacity duration-300 ease-in-out"
 		class:opacity-100={!isLoading}
 		class:opacity-0={isLoading}
+		style="background-color: #1a1a1a;"
 	></iframe>
 </div>

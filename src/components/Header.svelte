@@ -9,7 +9,7 @@
 		connectionStatus,
 		copiedStatusVisible = $bindable(),
 		selectFile,
-		logLocation = $bindable(),
+		logLocation,
 		clearLogs,
 		updateInfo,
 		installUpdate,
@@ -35,7 +35,6 @@
 			kind: 'warning'
 		});
 		if (answer) {
-			logLocation = null;
 			clearLogs();
 		}
 	}

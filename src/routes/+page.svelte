@@ -31,7 +31,6 @@
 	let playerId = $state<string | null>(null); // Star Citizen player ID from Game.log
 	let isLoadingFile = $state(true); // Prevent flash of welcome screen
 	let tickCounter = $state(0);
-	let logLocation = $state<string | null>(null);
 	let selectedEnvironment = $state<'LIVE' | 'PTU' | 'HOTFIX'>('LIVE');
 	let prevLineCount = $state<number>(0);
 	let lineCount = $state<number>(0);
@@ -539,7 +538,7 @@
 			// Set file path immediately to prevent welcome screen flash
 			if (savedFile) {
 				file = savedFile;
-				logLocation = savedFile.split('/').slice(-2, -1)[0] || null;
+				// cachedLogLocation already set in layout onMount - no need to set it again
 			}
 
 			if (savedEnvironment) {
@@ -667,7 +666,7 @@
 		try {
 			tickCounter = 0;
 			const pathParts = filePath.split('\\');
-			logLocation =
+			appCtx.cachedLogLocation =
 				pathParts.length > 1
 					? pathParts[pathParts.length - 2]
 					: filePath.split('/').length > 1
@@ -1050,7 +1049,7 @@
 		file = null;
 		fileContent = [];
 		playerName = null;
-		logLocation = null;
+		appCtx.cachedLogLocation = null;
 		prevLineCount = 0;
 		lineCount = 0;
 		playerId = null; // Will be re-extracted from Game.log
@@ -1190,7 +1189,7 @@
 		appCtx.pageActions = {
 			selectFile,
 			clearLogs,
-			logLocation
+			logLocation: appCtx.cachedLogLocation
 		};
 	});
 

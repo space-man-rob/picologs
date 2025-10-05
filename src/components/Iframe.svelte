@@ -221,6 +221,7 @@
 			class="w-full h-full border-0"
 			sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
 			onload={handleIframeLoad}
+			style="background-color: #1a1a1a;"
 		></iframe>
 	{:else}
 		<div class="flex items-center justify-center h-full text-white/70">

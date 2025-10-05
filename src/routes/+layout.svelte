@@ -87,6 +87,13 @@
 		if (profile) {
 			appCtx.apiUserProfile = profile;
 
+			// Cache friend code for instant display on next app launch
+			if (profile.friendCode) {
+				appCtx.cachedFriendCode = profile.friendCode;
+				const store = await load('store.json', { defaults: {}, autoSave: 100 });
+				await store.set('friendCode', profile.friendCode);
+			}
+
 			// Also set discordUser for UI display
 			appCtx.discordUser = {
 				id: profile.discordId,
@@ -499,16 +506,18 @@
 		const payload = JSON.parse(atob(payloadB64));
 
 		appCtx.discordUserId = payload.userId;
-		appCtx.discordUser = {
+		const userData = {
 			id: message.data.user.discordId,
 			username: message.data.user.username,
 			avatar: message.data.user.avatar
 		};
+		appCtx.discordUser = userData;
 		appCtx.isSignedIn = true;
 
-		// Store user ID - Use autoSave with 100ms debounce for single write operation
+		// Store user ID and user data - Use autoSave with 100ms debounce for single write operation
 		const store = await load('store.json', { defaults: {}, autoSave: 100 });
 		await store.set('discordUserId', appCtx.discordUserId);
+		await store.set('discordUser', userData);
 		// No explicit save needed - autoSave will persist the change
 
 		// Close temp auth socket and connect to main WebSocket
@@ -592,6 +601,7 @@
 				autoSave: 100
 			});
 			await store.delete('discordUserId');
+			await store.delete('discordUser');
 			// No explicit save needed - autoSave will persist the deletion
 
 			if (appCtx.ws) {
@@ -704,36 +714,39 @@
 		let singleInstanceUnlisten: (() => void) | null = null;
 
 		(async () => {
-			const authData = await loadAuthData();
-			if (authData) {
-				appCtx.isSignedIn = true;
-				appCtx.discordUser = {
-					id: authData.user.id,
-					username: authData.user.global_name || authData.user.username,
-					avatar: authData.user.avatar
-				};
-			}
-
 			// Store strategy: Use autoSave with 300ms debounce for initialization read
-			// This allows any delayed initialization writes to be batched
 			const store = await load('store.json', {
 				defaults: {},
 				autoSave: 300
 			});
 
+			// Load persisted auth state FIRST to prevent layout shift
 			const storedDiscordUserId = await store.get<string>('discordUserId');
-			if (storedDiscordUserId) {
-				appCtx.discordUserId = storedDiscordUserId;
+			const cachedFriendCode = await store.get<string>('friendCode');
+			const cachedDiscordUser = await store.get<{ id: string; username: string; avatar: string | null }>('discordUser');
+			const savedFile = await store.get<string>('lastFile');
 
-				const authData = await loadAuthData();
-				if (authData) {
-					appCtx.isSignedIn = true;
-					appCtx.discordUser = {
-						id: authData.user.id,
-						username: authData.user.global_name || authData.user.username,
-						avatar: authData.user.avatar
-					};
+			if (storedDiscordUserId) {
+				// Set auth state from cache
+				appCtx.discordUserId = storedDiscordUserId;
+				appCtx.isSignedIn = true;
+
+				if (cachedFriendCode) {
+					appCtx.cachedFriendCode = cachedFriendCode;
 				}
+
+				if (cachedDiscordUser) {
+					appCtx.discordUser = cachedDiscordUser;
+				}
+			} else {
+				// No stored auth - user is not signed in
+				appCtx.isSignedIn = false;
+				appCtx.discordUser = null;
+			}
+
+			// Load cached log location for immediate header rendering
+			if (savedFile) {
+				appCtx.cachedLogLocation = savedFile.split('/').slice(-2, -1)[0] || null;
 			}
 
 			// Load cached data immediately (stale-while-revalidate pattern)
@@ -770,13 +783,32 @@
 
 			// No explicit save needed - autoSave handles any initialization changes
 
-			// Connect WebSocket if signed in (will refresh data in background)
-			if (appCtx.isSignedIn && appCtx.discordUserId && !appCtx.ws) {
+			// Lazy validate auth and load user data in background
+			if (appCtx.isSignedIn && appCtx.discordUserId) {
+				// Validate JWT token (if expired, sign out)
 				const jwtToken = await getJwtToken();
 
 				if (jwtToken) {
-					connectWebSocket();
+					// Load fresh auth data from disk
+					const authData = await loadAuthData();
+					if (authData) {
+						const userData = {
+							id: authData.user.id,
+							username: authData.user.global_name || authData.user.username,
+							avatar: authData.user.avatar
+						};
+						appCtx.discordUser = userData;
+
+						// Cache discord user for next app launch
+						await store.set('discordUser', userData);
+					}
+
+					// Connect WebSocket if not already connected
+					if (!appCtx.ws) {
+						connectWebSocket();
+					}
 				} else {
+					// Auth expired - sign out
 					appCtx.connectionError = 'Authentication expired - please sign in again';
 					await handleSignOut();
 				}
@@ -935,12 +967,12 @@
 
 <div class="h-dvh overflow-hidden grid grid-rows-[auto_1fr]">
 	<Header
-		friendCode={appCtx.apiUserProfile?.friendCode}
+		friendCode={appCtx.apiUserProfile?.friendCode || appCtx.cachedFriendCode}
 		{connectWebSocket}
 		connectionStatus={appCtx.connectionStatus}
 		bind:copiedStatusVisible={appCtx.copiedStatusVisible}
 		selectFile={appCtx.pageActions.selectFile || (() => {})}
-		bind:logLocation={appCtx.pageActions.logLocation}
+		logLocation={appCtx.pageActions.logLocation}
 		clearLogs={appCtx.pageActions.clearLogs || (() => {})}
 		{updateInfo}
 		{installUpdate}

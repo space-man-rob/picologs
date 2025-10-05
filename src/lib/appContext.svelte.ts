@@ -7,9 +7,11 @@ import type { ApiFriend } from './api';
  * Uses Svelte 5 context API to share state between layout and pages.
  */
 export class AppContext {
-	// Authentication state
-	isSignedIn = $state(false);
-	discordUser = $state<{ id: string; username: string; avatar: string | null } | null>(null);
+	// Authentication state - default to true to prevent flash of signed-out state
+	// Will be set to false in layout if no auth data found
+	isSignedIn = $state(true);
+	// Placeholder to prevent flash - will be replaced with real data from cache in layout
+	discordUser = $state<{ id: string; username: string; avatar: string | null } | null>({ id: '', username: '', avatar: null });
 	discordUserId = $state<string | null>(null);
 
 	// WebSocket state
@@ -23,6 +25,12 @@ export class AppContext {
 	apiFriends = $state<ApiFriend[]>([]);
 	apiFriendRequests = $state<any[]>([]);
 	apiUserProfile = $state<{ friendCode: string | null } | null>(null);
+
+	// Cached friend code (loaded from store immediately on app start)
+	cachedFriendCode = $state<string | null>(null);
+
+	// Cached log location (loaded from store immediately on app start)
+	cachedLogLocation = $state<string | null>(null);
 
 	// Groups data
 	groups = $state<Group[]>([]);
