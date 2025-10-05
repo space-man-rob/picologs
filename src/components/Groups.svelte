@@ -12,8 +12,11 @@
 
 	// Sync expandedGroupId with selectedGroupId on initialization
 	$effect(() => {
+		console.log('[Groups Debug] selectedGroupId changed:', appCtx.selectedGroupId);
+		console.log('[Groups Debug] groups:', $state.snapshot(groups));
 		if (appCtx.selectedGroupId) {
 			expandedGroupId = appCtx.selectedGroupId;
+			console.log('[Groups Debug] Set expandedGroupId to:', expandedGroupId);
 		}
 	});
 
@@ -59,10 +62,14 @@
 	{:else}
 		<div class="flex flex-col px-2 pb-2 gap-2">
 			{#each sortedGroups as group (group.id)}
+				{@const isSelected = appCtx.selectedGroupId === group.id}
 				<div class="flex flex-col">
 					<button
-						class="flex items-center gap-3 p-2 rounded-lg transition-colors {appCtx.selectedGroupId === group.id ? 'bg-white/10' : 'hover:bg-white/5'}"
-						onclick={() => selectGroup(group.id)}
+						class="flex items-center gap-3 p-2 rounded-lg transition-colors {isSelected ? 'bg-white/10 ring-2 ring-blue-500' : 'hover:bg-white/5'}"
+						onclick={() => {
+							console.log('[Groups Debug] Clicked group:', group.id, group.name);
+							selectGroup(group.id);
+						}}
 					>
 						{#if group.avatar && (group.avatar.startsWith('http') || group.avatar.startsWith('/uploads'))}
 							<img

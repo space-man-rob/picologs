@@ -506,7 +506,6 @@
 			const savedEnvironment = await store.get<'LIVE' | 'PTU' | 'HOTFIX'>(
 				'selectedEnvironment'
 			);
-			const savedSelectedGroupId = await store.get<string>('selectedGroupId');
 
 			// Set file path immediately to prevent welcome screen flash
 			if (savedFile) {
@@ -520,10 +519,6 @@
 
 			if (savedPlayerName) {
 				playerName = savedPlayerName;
-			}
-
-			if (savedSelectedGroupId) {
-				appCtx.selectedGroupId = savedSelectedGroupId;
 			}
 
 			// No explicit save needed - autoSave will handle any changes
@@ -1158,22 +1153,6 @@
 		}
 	}
 
-	// Persist selectedGroupId to store when it changes
-	$effect(() => {
-		const groupId = appCtx.selectedGroupId;
-		(async () => {
-			try {
-				const store = await load('store.json', { defaults: {}, autoSave: 200 });
-				if (groupId !== null) {
-					await store.set('selectedGroupId', groupId);
-				} else {
-					await store.delete('selectedGroupId');
-				}
-			} catch (error) {
-				// Silently fail - will retry on next change
-			}
-		})();
-	});
 
 	// Expose page-specific actions to the layout/header via context
 	$effect(() => {
