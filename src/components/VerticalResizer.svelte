@@ -98,7 +98,7 @@
 	</div>
 
 	<button
-		class="bg-white/20 cursor-ns-resize select-none transition-colors duration-200 hover:bg-white/40"
+		class="bg-transparent cursor-ns-resize select-none transition-colors duration-200 hover:bg-white/40 border-t border-black/20"
 		onmousedown={handleResizerMouseDown}
 		aria-label="Resize panels"
 	>

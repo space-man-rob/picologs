@@ -440,9 +440,30 @@
 		}
 	}
 
-	onMount(() => {
+	onMount(async () => {
 		// Load sync timestamps on mount
 		loadFriendSyncTimestamps();
+
+		// Load saved toggle state
+		try {
+			const store = await load('store.json', { defaults: {}, autoSave: 200 });
+			const savedShowFriends = await store.get<boolean>('showFriends');
+			const savedShowGroups = await store.get<boolean>('showGroups');
+
+			if (savedShowFriends !== null && savedShowFriends !== undefined) {
+				showFriends = savedShowFriends;
+			}
+			if (savedShowGroups !== null && savedShowGroups !== undefined) {
+				showGroups = savedShowGroups;
+			}
+
+			// Update panel visibility based on saved state (with a slight delay to ensure resizerComponent is ready)
+			setTimeout(() => {
+				updatePanelVisibility();
+			}, 100);
+		} catch (error) {
+			// Use defaults if loading fails
+		}
 
 		// Listen for group logs from WebSocket
 		const handleGroupLog = async (event: CustomEvent) => {
@@ -852,11 +873,13 @@
 						const shipType = getShipType(vehicle || '');
 						const destroyer = getName(line.match(/caused by '(.*?)' \[.*?\]/)?.[1] || '');
 						const destroyLevelMatch = line.match(/destroyLevel from '(.*?)' to '(.*?)'/);
+						const destroyLevelTo = destroyLevelMatch?.[2];
+						const isSoftDeath = destroyLevelTo?.toLowerCase().includes('soft');
 						logEntry = {
 							id: generateId(timestamp, line),
 							userId: playerId!,
 							player: playerName,
-							emoji: '💥',
+							emoji: isSoftDeath ? '💨' : '💥',
 							line: `${shipType} destroyed by ${destroyer}`,
 							timestamp,
 							original: line,
@@ -1171,206 +1194,307 @@
 		};
 	});
 
+	let resizerComponent = $state<any>(null);
+	let isPanelCollapsed = $state(false);
+	let showFriends = $state(true);
+	let showGroups = $state(true);
+
+	async function saveToggleState() {
+		try {
+			const store = await load('store.json', { defaults: {}, autoSave: 200 });
+			await store.set('showFriends', showFriends);
+			await store.set('showGroups', showGroups);
+		} catch (error) {
+			// Silently fail - will retry on next toggle
+		}
+	}
+
+	async function handleToggleFriends() {
+		showFriends = !showFriends;
+		await saveToggleState();
+		updatePanelVisibility();
+	}
+
+	async function handleToggleGroups() {
+		showGroups = !showGroups;
+		await saveToggleState();
+		updatePanelVisibility();
+	}
+
+	function updatePanelVisibility() {
+		if (resizerComponent) {
+			// Only collapse the panel if both friends and groups are hidden
+			const shouldCollapse = !showFriends && !showGroups;
+			const currentlyCollapsed = resizerComponent.isLeftPanelCollapsed();
+
+			if (shouldCollapse && !currentlyCollapsed) {
+				resizerComponent.toggleLeftPanel();
+			} else if (!shouldCollapse && currentlyCollapsed) {
+				resizerComponent.toggleLeftPanel();
+			}
+		}
+	}
+
+	// Check panel state periodically (in case it's collapsed via drag)
+	$effect(() => {
+		const interval = setInterval(() => {
+			if (resizerComponent) {
+				const wasCollapsed = isPanelCollapsed;
+				isPanelCollapsed = resizerComponent.isLeftPanelCollapsed();
+
+				// If panel was manually collapsed via drag, hide both sections
+				if (!wasCollapsed && isPanelCollapsed) {
+					showFriends = false;
+					showGroups = false;
+				}
+				// If panel was manually expanded via drag, show both sections
+				else if (wasCollapsed && !isPanelCollapsed) {
+					showFriends = true;
+					showGroups = true;
+				}
+			}
+		}, 100);
+
+		return () => clearInterval(interval);
+	});
+
 </script>
 
 <main class="p-0 text-white flex flex-col h-full overflow-hidden">
 
 	{#if appCtx.isSignedIn && appCtx.discordUser}
 		{#key 'main-page'}
-		<Resizer>
-			{#snippet leftPanel()}
-				<div class="flex flex-col h-full min-h-0">
-					{#if currentUserDisplayData}
-						<div class="px-2 pt-0 pb-2">
-							<User user={currentUserDisplayData} />
+		<div class="flex flex-col h-full overflow-hidden">
+			<div class="flex-1 min-h-0">
+				<Resizer bind:this={resizerComponent}>
+					{#snippet leftPanel()}
+						<div class="flex flex-col h-full min-h-0">
+							{#if currentUserDisplayData}
+								<div class="px-2 pt-0 pb-2">
+									<User user={currentUserDisplayData} />
+								</div>
+							{/if}
+							{#if showGroups && showFriends}
+								<VerticalResizer storeKey="friendsGroupsResizerHeight">
+									{#snippet topPanel()}
+										<Groups
+											groups={appCtx.groups}
+											groupMembers={appCtx.groupMembers}
+										/>
+									{/snippet}
+									{#snippet bottomPanel()}
+										<Friends friendsList={appCtx.friendsList} removeFriend={handleRemoveFriend} />
+									{/snippet}
+								</VerticalResizer>
+							{:else if showGroups}
+								<div class="flex-1 min-h-0 overflow-hidden">
+									<Groups
+										groups={appCtx.groups}
+										groupMembers={appCtx.groupMembers}
+									/>
+								</div>
+							{:else if showFriends}
+								<div class="flex-1 min-h-0 overflow-hidden">
+									<Friends friendsList={appCtx.friendsList} removeFriend={handleRemoveFriend} />
+								</div>
+							{/if}
+							<div class="mt-auto min-w-[200px] px-2 pb-2">
+								<AddFriend addFriend={handleAddFriend} />
+							</div>
 						</div>
-					{/if}
-					<VerticalResizer storeKey="friendsGroupsResizerHeight">
-						{#snippet topPanel()}
-							<Groups
-								groups={appCtx.groups}
-								groupMembers={appCtx.groupMembers}
-							/>
-						{/snippet}
-						{#snippet bottomPanel()}
-							<Friends friendsList={appCtx.friendsList} removeFriend={handleRemoveFriend} />
-						{/snippet}
-					</VerticalResizer>
-					<div class="mt-auto min-w-[200px] px-2 pb-2">
-						<AddFriend addFriend={handleAddFriend} />
-					</div>
-				</div>
-			{/snippet}
+					{/snippet}
 
-				{#snippet rightPanel()}
-					<div class="relative grid grid-rows-[1fr_auto] h-full overflow-hidden">
-						<div
-							class="row-start-1 row-end-2 overflow-y-auto flex flex-col bg-overlay-dark scrollbar-custom"
-							bind:this={fileContentContainer}>
-							{#if file}
-								{#each displayedLogs as item, index (item.id)}
-									{@const username = getUserDisplayName(item.userId)}
-									<Item {...item} bind:open={item.open} reportedBy={username ? [username] : undefined} />
-									{#if item.open && item.children && item.children.length > 0}
-										<div class="relative ml-16 before:content-[''] before:absolute before:left-0 before:top-0 before:bottom-0 before:w-[2px] before:bg-gradient-to-b before:from-red-500/50 before:via-red-500/30 before:to-transparent">
-											{#each item.children as child (child.id)}
-												{@const childUsername = getUserDisplayName(child.userId)}
-												<Item {...child} bind:open={child.open} child={true} reportedBy={childUsername ? [childUsername] : undefined} />
-											{/each}
-										</div>
-									{/if}
-								{:else}
-									<div class="flex items-start gap-4 px-4 py-3 border-b border-white/5">
-										<div class="flex flex-col gap-[0.3rem]">
-											<div class="text-[0.95rem] flex items-center gap-2 leading-[1.4]">
+					{#snippet rightPanel()}
+						<div class="relative grid grid-rows-[1fr] h-full overflow-hidden">
+							<div
+								class="row-start-1 row-end-2 overflow-y-auto flex flex-col bg-overlay-dark scrollbar-custom"
+								bind:this={fileContentContainer}>
+								{#if file}
+									{#each displayedLogs as item, index (item.id)}
+										{@const username = getUserDisplayName(item.userId)}
+										<Item {...item} bind:open={item.open} reportedBy={username ? [username] : undefined} />
+										{#if item.open && item.children && item.children.length > 0}
+											<div class="relative ml-16 before:content-[''] before:absolute before:left-0 before:top-0 before:bottom-0 before:w-[2px] before:bg-gradient-to-b before:from-red-500/50 before:via-red-500/30 before:to-transparent">
+												{#each item.children as child (child.id)}
+													{@const childUsername = getUserDisplayName(child.userId)}
+													<Item {...child} bind:open={child.open} child={true} reportedBy={childUsername ? [childUsername] : undefined} />
+												{/each}
+											</div>
+										{/if}
+									{:else}
+										<div class="flex flex-col items-center justify-center gap-4 h-full">
+											<div class="text-6xl">📡</div>
+											<div class="text-base text-white/60">
 												No new logs yet. Waiting for game activity...
 											</div>
 										</div>
+									{/each}
+								{:else if !isLoadingFile}
+									<div
+										class="flex flex-col items-start gap-4 my-8 mx-auto p-8 rounded-lg bg-overlay-card border border-white/10 max-w-[600px]">
+										<h2 class="m-0 mb-2 text-[1.6rem] font-medium">🚀 Getting started</h2>
+										<ol class="list-none pl-0 [counter-reset:welcome-counter] flex flex-col gap-2 mt-4">
+											<li
+												class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 numbered-list-item before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
+												Select your <code
+													class="bg-overlay-light px-[0.3rem] py-[0.1rem] rounded-[3px] font-mono inline text-base">
+													Game.log
+												</code>
+												file. Usually found at the default path:
+												<code
+													class="bg-overlay-light px-[0.3rem] py-[0.1rem] rounded-[3px] font-mono inline text-base">
+													C:\Program Files\Roberts Space Industries\StarCitizen\LIVE\Game.log
+												</code>
+												<br />
+												(Or the equivalent path on your system if installed elsewhere.)
+											</li>
+											<li
+												class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 numbered-list-item before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
+												Once a log file is selected and you go <strong>Online</strong>
+												(using the top-right button), Picologs automatically connects you with other friends for
+												real-time log sharing.
+											</li>
+											<li
+												class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 numbered-list-item before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
+												To add friends use your <strong>Friend Code</strong>
+												displayed at the top. Share this with friends to connect with them.
+											</li>
+										</ol>
 									</div>
-								{/each}
-							{:else if !isLoadingFile}
-								<div
-									class="flex flex-col items-start gap-4 my-8 mx-auto p-8 rounded-lg bg-overlay-card border border-white/10 max-w-[600px]">
-									<h2 class="m-0 mb-2 text-[1.6rem] font-medium">🚀 Getting started</h2>
-									<ol class="list-none pl-0 [counter-reset:welcome-counter] flex flex-col gap-2 mt-4">
-										<li
-											class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 numbered-list-item before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
-											Select your <code
-												class="bg-overlay-light px-[0.3rem] py-[0.1rem] rounded-[3px] font-mono inline text-base">
-												Game.log
-											</code>
-											file. Usually found at the default path:
-											<code
-												class="bg-overlay-light px-[0.3rem] py-[0.1rem] rounded-[3px] font-mono inline text-base">
-												C:\Program Files\Roberts Space Industries\StarCitizen\LIVE\Game.log
-											</code>
-											<br />
-											(Or the equivalent path on your system if installed elsewhere.)
-										</li>
-										<li
-											class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 numbered-list-item before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
-											Once a log file is selected and you go <strong>Online</strong>
-											(using the top-right button), Picologs automatically connects you with other friends for
-											real-time log sharing.
-										</li>
-										<li
-											class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 numbered-list-item before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
-											To add friends use your <strong>Friend Code</strong>
-											displayed at the top. Share this with friends to connect with them.
-										</li>
-									</ol>
-								</div>
+								{/if}
+							</div>
+
+							<!-- Scroll to bottom button -->
+							{#if hasScrollbar && !atTheBottom}
+								<button
+									in:fade={{ duration: 200, delay: 400 }}
+									out:fade={{ duration: 200 }}
+									class="absolute bottom-[10px] text-3xl cursor-pointer z-50"
+									style="left: 50%; transform: translateX(-50%);"
+									onclick={() =>
+										fileContentContainer?.scrollTo({
+											top: fileContentContainer.scrollHeight,
+											behavior: 'smooth'
+										})}>
+									⬇️
+								</button>
 							{/if}
 						</div>
+					{/snippet}
+				</Resizer>
+			</div>
 
-						{#if file}
-							<div
-								class="row-start-2 row-end-3 flex items-center justify-end gap-2 px-4 py-2 bg-primary border-t border-white/20 text-[0.8rem] text-white/70">
-								Log lines processed: {Number(lineCount).toLocaleString()}
-							</div>
-						{/if}
-
-						<!-- Scroll to bottom button -->
-						{#if hasScrollbar && !atTheBottom}
-							<button
-								in:fade={{ duration: 200, delay: 400 }}
-								out:fade={{ duration: 200 }}
-								class="absolute bottom-[70px] text-3xl cursor-pointer z-50"
-								style="left: 50%; transform: translateX(-50%);"
-								onclick={() =>
-									fileContentContainer?.scrollTo({
-										top: fileContentContainer.scrollHeight,
-										behavior: 'smooth'
-									})}>
-								⬇️
-							</button>
-						{/if}
+			<!-- Footer spanning full width -->
+			{#if file}
+				<div class="flex items-center justify-between gap-2 px-4 py-2 bg-primary text-[0.8rem] text-white/70 shadow-[0_-2px_8px_rgba(0,0,0,0.15)] border-t border-white/5">
+					<div class="flex items-center gap-2">
+						<button
+							onclick={handleToggleGroups}
+							class="text-xl transition-opacity duration-200 cursor-pointer {showGroups ? 'opacity-100' : 'opacity-40 hover:opacity-70'}"
+							title={showGroups ? "Hide groups" : "Show groups"}
+							aria-label={showGroups ? "Hide groups" : "Show groups"}>
+							🗂️
+						</button>
+						<button
+							onclick={handleToggleFriends}
+							class="text-xl transition-opacity duration-200 cursor-pointer {showFriends ? 'opacity-100' : 'opacity-40 hover:opacity-70'}"
+							title={showFriends ? "Hide friends" : "Show friends"}
+							aria-label={showFriends ? "Hide friends" : "Show friends"}>
+							👨‍🚀
+						</button>
 					</div>
-				{/snippet}
-			</Resizer>
+					<div>
+						Log lines processed: {Number(lineCount).toLocaleString()}
+					</div>
+				</div>
+			{/if}
+		</div>
 		{/key}
 		{:else}
-			<div class="relative grid grid-rows-[1fr_auto] h-full overflow-hidden">
-				<div
-					class="row-start-1 row-end-2 overflow-y-auto flex flex-col bg-overlay-dark scrollbar-custom"
-					bind:this={fileContentContainer}>
-					{#if file}
-						{#each displayedLogs as item, index (item.id)}
-							{@const username = getUserDisplayName(item.userId)}
-							<Item {...item} bind:open={item.open} reportedBy={username ? [username] : undefined} />
-							{#if item.open && item.children && item.children.length > 0}
-								<div class="relative ml-16 before:content-[''] before:absolute before:left-0 before:top-0 before:bottom-0 before:w-[2px] before:bg-gradient-to-b before:from-red-500/50 before:via-red-500/30 before:to-transparent">
-									{#each item.children as child (child.id)}
-										{@const childUsername = getUserDisplayName(child.userId)}
-										<Item {...child} bind:open={child.open} child={true} reportedBy={childUsername ? [childUsername] : undefined} />
-									{/each}
-								</div>
-							{/if}
-						{:else}
-							<div class="flex items-start gap-4 px-4 py-3 border-b border-white/5">
-								<div class="flex flex-col gap-[0.3rem]">
-									<div class="text-[0.95rem] flex items-center gap-2 leading-[1.4]">
+			<div class="flex flex-col h-full overflow-hidden">
+				<div class="flex-1 min-h-0 relative">
+					<div
+						class="overflow-y-auto flex flex-col bg-overlay-dark scrollbar-custom h-full"
+						bind:this={fileContentContainer}>
+						{#if file}
+							{#each displayedLogs as item, index (item.id)}
+								{@const username = getUserDisplayName(item.userId)}
+								<Item {...item} bind:open={item.open} reportedBy={username ? [username] : undefined} />
+								{#if item.open && item.children && item.children.length > 0}
+									<div class="relative ml-16 before:content-[''] before:absolute before:left-0 before:top-0 before:bottom-0 before:w-[2px] before:bg-gradient-to-b before:from-red-500/50 before:via-red-500/30 before:to-transparent">
+										{#each item.children as child (child.id)}
+											{@const childUsername = getUserDisplayName(child.userId)}
+											<Item {...child} bind:open={child.open} child={true} reportedBy={childUsername ? [childUsername] : undefined} />
+										{/each}
+									</div>
+								{/if}
+							{:else}
+								<div class="flex flex-col items-center justify-center gap-4 h-full">
+									<div class="text-6xl">📡</div>
+									<div class="text-base text-white/60">
 										No new logs yet. Waiting for game activity...
 									</div>
 								</div>
+							{/each}
+						{:else if !isLoadingFile}
+							<div
+								class="flex flex-col items-start gap-4 my-8 mx-auto p-8 rounded-lg bg-overlay-card border border-white/10 max-w-[600px]">
+								<h2 class="m-0 mb-2 text-[1.6rem] font-medium">🚀 Getting started</h2>
+								<ol class="list-none pl-0 [counter-reset:welcome-counter] flex flex-col gap-2 mt-4">
+									<li
+										class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 numbered-list-item before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
+										Select your <code
+											class="bg-overlay-light px-[0.3rem] py-[0.1rem] rounded-[3px] font-mono inline text-base">
+											Game.log
+										</code>
+										file. Usually found at the default path:
+										<code
+											class="bg-overlay-light px-[0.3rem] py-[0.1rem] rounded-[3px] font-mono inline text-base">
+											C:\Program Files\Roberts Space Industries\StarCitizen\LIVE\Game.log
+										</code>
+										<br />
+										(Or the equivalent path on your system if installed elsewhere.)
+									</li>
+									<li
+										class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 numbered-list-item before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
+										Once a log file is selected and you go <strong>Online</strong>
+										(using the top-right button), Picologs automatically connects you with other friends for
+										real-time log sharing.
+									</li>
+									<li
+										class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 numbered-list-item before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
+										To add friends use your <strong>Friend Code</strong>
+										displayed at the top. Share this with friends to connect with them.
+									</li>
+								</ol>
 							</div>
-						{/each}
-					{:else if !isLoadingFile}
-						<div
-							class="flex flex-col items-start gap-4 my-8 mx-auto p-8 rounded-lg bg-overlay-card border border-white/10 max-w-[600px]">
-							<h2 class="m-0 mb-2 text-[1.6rem] font-medium">🚀 Getting started</h2>
-							<ol class="list-none pl-0 [counter-reset:welcome-counter] flex flex-col gap-2 mt-4">
-								<li
-									class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 numbered-list-item before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
-									Select your <code
-										class="bg-overlay-light px-[0.3rem] py-[0.1rem] rounded-[3px] font-mono inline text-base">
-										Game.log
-									</code>
-									file. Usually found at the default path:
-									<code
-										class="bg-overlay-light px-[0.3rem] py-[0.1rem] rounded-[3px] font-mono inline text-base">
-										C:\Program Files\Roberts Space Industries\StarCitizen\LIVE\Game.log
-									</code>
-									<br />
-									(Or the equivalent path on your system if installed elsewhere.)
-								</li>
-								<li
-									class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 numbered-list-item before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
-									Once a log file is selected and you go <strong>Online</strong>
-									(using the top-right button), Picologs automatically connects you with other friends for
-									real-time log sharing.
-								</li>
-								<li
-									class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 numbered-list-item before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
-									To add friends use your <strong>Friend Code</strong>
-									displayed at the top. Share this with friends to connect with them.
-								</li>
-							</ol>
-						</div>
+						{/if}
+					</div>
+
+					<!-- Scroll to bottom button -->
+					{#if hasScrollbar && !atTheBottom}
+						<button
+							in:fade={{ duration: 200, delay: 400 }}
+							out:fade={{ duration: 200 }}
+							class="absolute bottom-[10px] text-3xl cursor-pointer z-50"
+							style="left: 50%; transform: translateX(-50%);"
+							onclick={() =>
+								fileContentContainer?.scrollTo({
+									top: fileContentContainer.scrollHeight,
+									behavior: 'smooth'
+								})}>
+							⬇️
+						</button>
 					{/if}
 				</div>
 
+				<!-- Footer spanning full width -->
 				{#if file}
-					<div
-						class="row-start-3 row-end-4 flex items-center justify-end gap-2 px-4 py-2 bg-primary border-t border-white/20 text-[0.8rem] text-white/70">
-						Log lines processed: {Number(lineCount).toLocaleString()}
+					<div class="flex items-center justify-end gap-2 px-4 py-2 bg-primary text-[0.8rem] text-white/70 shadow-[0_-2px_8px_rgba(0,0,0,0.15)] border-t border-white/5">
+						<div>
+							Log lines processed: {Number(lineCount).toLocaleString()}
+						</div>
 					</div>
-				{/if}
-
-				<!-- Scroll to bottom button -->
-				{#if hasScrollbar && !atTheBottom}
-					<button
-						in:fade={{ duration: 200, delay: 400 }}
-						out:fade={{ duration: 200 }}
-						class="absolute bottom-[70px] text-3xl cursor-pointer z-50"
-						style="left: 50%; transform: translateX(-50%);"
-						onclick={() =>
-							fileContentContainer?.scrollTo({
-								top: fileContentContainer.scrollHeight,
-								behavior: 'smooth'
-							})}>
-						⬇️
-					</button>
 				{/if}
 			</div>
 		{/if}
@@ -1378,7 +1502,7 @@
 
 <style>
 	:global(.item:nth-child(2n)) {
-		background-color: var(--color-white-5);
+		background-color: rgba(255, 255, 255, 0.02);
 	}
 
 	.numbered-list-item::before {

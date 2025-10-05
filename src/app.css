@@ -146,7 +146,7 @@
 
 	/* Background overlay utilities */
 	.bg-overlay-subtle {
-		background: var(--color-white-5);
+		background: rgba(255, 255, 255, 0.08);
 	}
 
 	.bg-overlay-light {

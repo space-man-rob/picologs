@@ -57,12 +57,12 @@
 	{:else if groups.length === 0}
 		<p class="text-sm text-white/40 text-center py-6">No groups yet</p>
 	{:else}
-		<div class="flex flex-col px-2 pb-2 gap-2">
+		<div class="flex flex-col px-1 pb-2 gap-2">
 			{#each sortedGroups as group (group.id)}
 				{@const isSelected = appCtx.selectedGroupId === group.id}
-				<div class="flex flex-col">
+				<div class="flex flex-col rounded-lg {isSelected ? 'ring-2 ring-blue-500' : ''} transition-colors">
 					<button
-						class="flex items-center gap-3 p-2 rounded-lg transition-colors {isSelected ? 'bg-overlay-light ring-2 ring-blue-500' : 'hover:bg-overlay-subtle'}"
+						class="group-card sticky top-0 z-10 flex items-center gap-3 p-2 {isSelected ? 'rounded-t-lg selected' : 'rounded-lg'} transition-colors"
 						onclick={() => {
 							selectGroup(group.id);
 						}}
@@ -75,7 +75,7 @@
 							/>
 						{:else}
 							<div class="text-2xl flex-shrink-0 leading-none">
-								{group.avatar || '👥'}
+								{group.avatar || '🗂️'}
 							</div>
 						{/if}
 						<div class="flex flex-col items-start gap-1 min-w-0 flex-1">
@@ -93,15 +93,17 @@
 									</span>
 								{/if}
 							</div>
-							<div class="flex items-center gap-1 flex-wrap w-full">
+							<div class="flex items-center gap-1 w-full overflow-hidden">
 								{#if group.tags && group.tags.length > 0}
-									{#each group.tags as tag}
-										<span class="text-[10px] px-1.5 py-0.5 rounded bg-overlay-light text-white/60">
-											{tag}
-										</span>
-									{/each}
+									<div class="flex items-center gap-1 min-w-0 flex-shrink overflow-hidden">
+										{#each group.tags as tag}
+											<span class="text-[10px] px-1.5 py-0.5 rounded bg-overlay-light text-white/60 whitespace-nowrap">
+												{tag}
+											</span>
+										{/each}
+									</div>
 								{/if}
-								<span class="text-xs text-white/40">
+								<span class="text-xs text-white/40 whitespace-nowrap flex-shrink-0">
 									{group.memberCount} {group.memberCount === 1 ? 'member' : 'members'}
 								</span>
 							</div>
@@ -132,3 +134,17 @@
 		</div>
 	{/if}
 </div>
+
+<style>
+	.group-card {
+		background-color: rgb(10, 30, 42);
+	}
+
+	.group-card.selected {
+		background-color: rgb(35, 53, 63);
+	}
+
+	.group-card:not(.selected):hover {
+		background-color: rgba(255, 255, 255, 0.08);
+	}
+</style>

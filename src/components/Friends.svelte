@@ -36,7 +36,7 @@
 	{:else if friendsList.filter((f: Friend) => f.status === 'confirmed').length === 0}
 		<p class="text-sm text-white/40 text-center py-6">No friends yet</p>
 	{:else}
-		<div class="flex flex-col px-2 pb-2">
+		<div class="flex flex-col px-1 pb-2">
 		{#each orderByOnlineAlphabetically as friend (friend.id)}
 			<div class="relative flex items-center">
 				<User user={friend} />

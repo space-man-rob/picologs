@@ -118,6 +118,23 @@
 		// No explicit save needed - autoSave handles persistence with debounce
 	}
 
+	export function toggleLeftPanel() {
+		if (columns[0].collapsed) {
+			// Restore to default width
+			columns[0].width = initialLeftWidth;
+			columns[0].collapsed = false;
+		} else {
+			// Collapse
+			columns[0].width = 0;
+			columns[0].collapsed = true;
+		}
+		saveLayout();
+	}
+
+	export function isLeftPanelCollapsed(): boolean {
+		return columns[0].collapsed;
+	}
+
 	onDestroy(() => {
 		window.removeEventListener('mousemove', handleWindowMouseMove);
 		window.removeEventListener('mouseup', handleWindowMouseUp);
@@ -181,7 +198,7 @@
 
 			{#if i < columns.length - 1}
 				<button
-					class="bg-white/20 cursor-ew-resize select-none transition-colors duration-200 z-10 hover:bg-white/40"
+					class="bg-transparent cursor-ew-resize select-none transition-colors duration-200 z-10 hover:bg-white/40"
 					onmousedown={(event) => handleResizerMouseDown(event, i)}
 					aria-label={`Resize columns ${col.id} and ${columns[i + 1].id}`}>
 				</button>

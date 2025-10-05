@@ -143,16 +143,16 @@
 </script>
 
 <header
-	class="h-[70px] flex justify-between items-center bg-panel border-b border-white/20 px-4 pl-1.5">
+	class="h-[56px] flex justify-between items-center bg-panel border-b border-white/5 shadow-[0_2px_8px_rgba(0,0,0,0.15)] px-3">
 	<div class="flex items-center gap-2 flex-shrink-0">
-		<img src="/pico.webp" alt="Picologs" class="w-12 h-12" />
-		<h1 class="text-2xl font-medium m-0 text-white hidden sm:block">Picologs</h1>
+		<img src="/pico.webp" alt="Picologs" class="w-9 h-9" />
+		<h1 class="text-xl font-medium m-0 text-white hidden sm:block">Picologs</h1>
 	</div>
 
-	<aside class="flex gap-2 md:gap-3 items-center flex-wrap justify-end">
+	<aside class="flex gap-3 items-center flex-wrap justify-end">
 		{#if showReconnectButton && isSignedIn && discordUser}
 			<button
-				class="bg-red-600 text-white px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-2 hover:bg-red-700 animate-pulse"
+				class="bg-red-600 text-white px-3 py-1.5 font-medium rounded transition-colors duration-200 flex items-center gap-1.5 hover:bg-red-700 animate-pulse text-sm"
 				onclick={handleReconnect}
 				title="Connection lost - click to reconnect">
 				⚠️ Reconnect
@@ -160,14 +160,14 @@
 		{/if}
 		{#if updateInfo}
 			<button
-				class="bg-green-600 text-white px-2 md:px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-1 md:gap-2 hover:bg-green-700 text-sm md:text-base"
+				class="bg-green-600 text-white px-2 md:px-3 py-1.5 font-medium rounded transition-colors duration-200 flex items-center gap-1 hover:bg-green-700 text-sm"
 				onclick={installUpdate}>
 				⬇️ <span class="hidden md:inline">Update Available</span>
 			</button>
 		{/if}
 		{#if isSignedIn && discordUser}
 			<button
-				class="bg-overlay-light text-white border border-white/20 px-2 md:px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-1 md:gap-2 hover:bg-white/20"
+				class="text-white border border-white/5 px-2 md:px-3 py-1.5 font-medium rounded transition-colors duration-200 flex items-center gap-1 hover:bg-white/20 text-sm"
 				onclick={() => {
 					const textToCopy = `My Picologs Friend Code: ${friendCode || 'Not set'}`;
 					navigator.clipboard.writeText(textToCopy);
@@ -177,24 +177,24 @@
 					}, 1500);
 				}}>
 				{copiedStatusVisible ? '✅' : '📋'}
-				<p class="m-0 text-sm md:text-base"><span class="hidden lg:inline">Friend Code:</span> {friendCode || 'N/A'}</p>
+				<p class="m-0"><span class="hidden lg:inline">Friend Code:</span> {friendCode || 'N/A'}</p>
 			</button>
 		{/if}
 		{#if logLocation}
 			<div class="relative log-version-dropdown">
 				<button
-					class="bg-overlay-light text-white border border-white/20 px-2 md:px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-1 md:gap-2 hover:bg-white/20 text-sm md:text-base"
+					class="text-white border border-white/5 px-2 md:px-3 py-1.5 font-medium rounded transition-colors duration-200 flex items-center gap-1 hover:bg-white/20 text-sm"
 					onclick={toggleLogVersionDropdown}
 					title="Select Game.log file">
 					📜
 					<span class="hidden md:inline">{logLocation}</span>
 					<div
-						class="flex items-center justify-center w-4 h-4 transition-transform duration-200 {logVersionDropdownOpen
+						class="flex items-center justify-center w-3 h-3 transition-transform duration-200 {logVersionDropdownOpen
 							? 'rotate-180'
 							: ''}">
 						<svg
-							width="16"
-							height="16"
+							width="12"
+							height="12"
 							viewBox="0 0 24 24"
 							fill="none"
 							stroke="currentColor"
@@ -207,9 +207,9 @@
 				</button>
 				{#if logVersionDropdownOpen}
 					<div
-						class="absolute top-full left-0 mt-2 bg-panel border border-white/20 rounded min-w-[120px] shadow-lg z-[1000] overflow-hidden">
+						class="absolute top-full left-0 mt-1 bg-panel border border-white/5 rounded min-w-[120px] shadow-lg z-[1000] overflow-hidden">
 						<button
-							class="w-full px-4 py-2 bg-transparent border-none text-white text-left cursor-pointer text-sm transition-colors duration-150 flex items-center hover:bg-overlay-light"
+							class="w-full px-3 py-1.5 bg-transparent border-none text-white text-left cursor-pointer text-sm transition-colors duration-150 flex items-center hover:bg-overlay-light"
 							onclick={() => selectVersion('Select new')}>
 							Select new
 						</button>
@@ -218,7 +218,7 @@
 			</div>
 		{:else}
 			<button
-				class="bg-overlay-light text-white border border-white/20 px-2 md:px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-1 md:gap-2 hover:bg-white/20 text-sm md:text-base"
+				class="text-white border border-white/5 px-2 md:px-3 py-1.5 font-medium rounded transition-colors duration-200 flex items-center gap-1 hover:bg-white/20 text-sm"
 				onclick={selectFile}
 				title="Select Game.log file">
 				📄 <span class="hidden sm:inline">Select Game.log file</span>
@@ -226,7 +226,7 @@
 		{/if}
 
 		<button
-			class="bg-overlay-light text-white border border-white/20 px-2 md:px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-1 md:gap-2 hover:bg-white/20 text-sm md:text-base"
+			class="text-white border border-white/5 px-2 md:px-3 py-1.5 font-medium rounded transition-colors duration-200 flex items-center gap-1 hover:bg-white/20 text-sm"
 			onclick={handleClearLogs}
 			title="Clear all logs">
 			🧹 <span class="hidden md:inline">Clear Logs</span>
@@ -237,11 +237,11 @@
 			<div class="relative notifications-dropdown">
 				<button
 					onclick={() => showNotificationsDropdown = !showNotificationsDropdown}
-					class="relative p-2 text-muted hover:text-white hover:bg-overlay-light rounded-lg transition-colors text-xl border border-transparent hover:border-white/20"
+					class="relative text-muted hover:text-white transition-colors text-lg"
 					title="Notifications">
 					🔔
 					{#if notificationCount > 0}
-						<span class="absolute top-0 right-0 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-xs font-semibold text-white">
+						<span class="absolute top-0 right-0 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[10px] font-semibold text-white">
 							{notificationCount}
 						</span>
 					{/if}
@@ -249,11 +249,7 @@
 
 				{#if showNotificationsDropdown}
 					{@const incomingFriendRequests = (Array.isArray(friendRequests) ? friendRequests : []).filter((r: any) => r.direction === 'incoming')}
-					<div class="absolute right-0 mt-2 w-80 md:w-96 max-w-[calc(100vw-2rem)] bg-panel-dark border border-panel rounded-lg shadow-xl z-[1000] max-h-[min(600px,80vh)] overflow-y-auto">
-						<div class="p-4 border-b border-panel">
-							<h3 class="text-lg font-semibold text-white">Notifications</h3>
-						</div>
-
+					<div class="absolute right-0 mt-1 w-80 md:w-96 max-w-[calc(100vw-2rem)] bg-panel border border-white/5 rounded-lg shadow-xl z-[1000] max-h-[min(600px,80vh)] overflow-y-auto">
 						{#if incomingFriendRequests.length === 0 && groupInvitations.length === 0}
 							<div class="p-8 text-center text-muted">
 								<div class="text-5xl mx-auto mb-2 opacity-50">🔔</div>
@@ -301,7 +297,7 @@
 											<button
 												onclick={() => onDenyFriend?.(request.id)}
 												disabled={processingFriendRequests.has(request.id)}
-												class="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 bg-overlay-light text-white text-sm rounded border border-white/20 hover:bg-white/15 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
+												class="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-white text-sm rounded border border-white/5 hover:bg-white/15 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
 												{#if processingFriendRequests.has(request.id)}
 													<span class="inline-block animate-spin">⏳</span>
 												{:else}
@@ -351,7 +347,7 @@
 											<button
 												onclick={() => onDenyInvitation?.(invitation.id)}
 												disabled={processingGroupInvitations.has(invitation.id)}
-												class="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 bg-overlay-light text-white text-sm rounded border border-white/20 hover:bg-white/15 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
+												class="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-white text-sm rounded border border-white/5 hover:bg-white/15 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
 												{#if processingGroupInvitations.has(invitation.id)}
 													<span class="inline-block animate-spin">⏳</span>
 												{:else}
@@ -378,14 +374,14 @@
 							<img
 								src={`${import.meta.env.VITE_DISCORD_CDN_URL}/avatars/${discordUser.id}/${discordUser.avatar}.png?size=64`}
 								alt={discordUser.username}
-								class="w-9 h-9 rounded-full border-2 transition-[border-color] duration-300"
+								class="w-8 h-8 rounded-full border-2 transition-[border-color] duration-300"
 								class:border-green-500={connectionStatus === 'connected'}
 								class:glow-success={connectionStatus === 'connected'}
 								class:border-red-500={connectionStatus === 'disconnected'}
 								class:border-orange-500={connectionStatus === 'connecting'} />
 						{:else}
 							<div
-								class="w-9 h-9 rounded-full border-2 flex items-center justify-center bg-indigo-600/50 font-semibold text-[0.95rem] transition-[border-color] duration-300"
+								class="w-8 h-8 rounded-full border-2 flex items-center justify-center bg-indigo-600/50 font-semibold text-sm transition-[border-color] duration-300"
 								class:border-green-500={connectionStatus === 'connected'}
 								class:glow-success={connectionStatus === 'connected'}
 								class:border-red-500={connectionStatus === 'disconnected'}
@@ -401,10 +397,10 @@
 
 				{#if showProfileDropdown}
 				<div
-					class="absolute right-0 mt-2 w-64 bg-panel-dark border border-panel rounded-lg shadow-xl z-[1000]"
+					class="absolute right-0 mt-1 w-64 bg-panel border border-white/5 rounded-lg shadow-xl z-[1000]"
 				>
 					<!-- Profile Info -->
-					<div class="p-4 border-b border-panel">
+					<div class="p-4 border-b border-white/5">
 						<div class="flex items-center gap-3 mb-3">
 							{#if discordUser.avatar && discordUser.id}
 								<img
@@ -451,7 +447,7 @@
 					<!-- Actions -->
 					<div class="p-2">
 						<button
-							class="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted hover:bg-overlay-light rounded-lg transition-colors"
+							class="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted hover:text-white hover:bg-white/[0.08] rounded-lg transition-colors"
 							onclick={() => {
 								showProfileDropdown = false;
 								handleOpenProfile();
@@ -460,7 +456,7 @@
 							<span>Profile Settings</span>
 						</button>
 						<button
-							class="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted hover:bg-overlay-light rounded-lg transition-colors"
+							class="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted hover:text-white hover:bg-white/[0.08] rounded-lg transition-colors"
 							onclick={() => {
 								showProfileDropdown = false;
 								handleOpenFriends();
@@ -469,19 +465,25 @@
 							<span>Friends</span>
 						</button>
 						<button
-							class="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted hover:bg-overlay-light rounded-lg transition-colors"
+							class="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted hover:text-white hover:bg-white/[0.08] rounded-lg transition-colors"
 							onclick={() => {
 								showProfileDropdown = false;
 								handleOpenGroups();
 							}}>
-							<span class="text-base">🙏</span>
+							<span class="text-base">🗂️</span>
 							<span>Groups</span>
 						</button>
 						<button
-							class="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
-							onclick={() => {
+							class="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted hover:text-white hover:bg-white/[0.08] rounded-lg transition-colors"
+							onclick={async () => {
 								showProfileDropdown = false;
-								handleSignOut();
+								const answer = await ask('Are you sure you want to sign out?', {
+									title: 'Sign Out',
+									kind: 'info'
+								});
+								if (answer) {
+									handleSignOut();
+								}
 							}}>
 							<span class="text-base">🚪</span>
 							<span>Sign out</span>
@@ -492,13 +494,16 @@
 			</div>
 		{:else}
 			<button
-				class="bg-indigo-600 text-white border border-indigo-700 px-2 md:px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-1 md:gap-2 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base"
+				class="bg-indigo-600 text-white border border-indigo-700 px-2 md:px-3 py-1.5 font-medium rounded transition-colors duration-200 flex items-center gap-1.5 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
 				onclick={handleSignIn}
 				disabled={isAuthenticating}>
 				{#if isAuthenticating}
 					<div class="spinner-small"></div>
 					<span class="hidden sm:inline">Authenticating...</span>
 				{:else}
+					<svg width="16" height="16" viewBox="0 0 127.14 96.36" fill="currentColor">
+						<path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/>
+					</svg>
 					<span class="hidden sm:inline">Sign in with Discord</span>
 					<span class="sm:hidden">Sign in</span>
 				{/if}
@@ -538,7 +543,7 @@
 			</div>
 			<div class="px-6 py-4 flex gap-3 justify-end border-t border-white/10">
 				<button
-					class="bg-overlay-light text-white border border-white/20 px-5 py-2.5 font-medium rounded transition-colors duration-200 hover:bg-white/20"
+					class="text-white border border-white/5 px-5 py-2.5 font-medium rounded transition-colors duration-200 hover:bg-white/20"
 					onclick={handleDismiss}>
 					Dismiss
 				</button>
