@@ -1,36 +1,188 @@
 @import "tailwindcss";
 
-body {
-    margin: 0;
-    padding: 0;
-    background: rgb(10, 30, 42);
-    font-family: 'Bai Jamjuree', sans-serif;
-}
+@layer base {
+	:root {
+		color-scheme: dark;
 
-* {
-    scrollbar-width: thin;
-    scrollbar-color: #555 #222;
+		/* Unified color palette */
+		--color-bg-primary: rgb(10, 30, 42);
+		--color-bg-secondary: rgb(15, 35, 47);
+		--color-bg-dark: #1a1a1a;
+		--color-success: #4caf50;
+		--color-success-hover: #45a049;
+		--color-danger: #f44336;
+		--color-danger-dark: #d32f2f;
+		--color-warning: #ff9800;
+		--color-discord: #5865F2;
+		--color-discord-hover: #4752C4;
 
-    /* For WebKit browsers (Chrome, Safari) */
-    &::-webkit-scrollbar {
-        width: 8px;
-        background-color: transparent;
-    }
+		/* White overlays */
+		--color-white-5: rgba(255, 255, 255, 0.05);
+		--color-white-10: rgba(255, 255, 255, 0.1);
+		--color-white-20: rgba(255, 255, 255, 0.2);
+		--color-white-30: rgba(255, 255, 255, 0.3);
+		--color-white-80: rgba(255, 255, 255, 0.8);
 
-    &::-webkit-scrollbar-track {
-        background: transparent;
-    }
+		/* Black overlays */
+		--color-black-10: rgba(0, 0, 0, 0.1);
+		--color-black-20: rgba(0, 0, 0, 0.2);
+		--color-black-40: rgba(0, 0, 0, 0.4);
 
-    &::-webkit-scrollbar-thumb {
-        background: transparent;
-        border-radius: 4px;
-        transition: background 0.3s ease;
-    }
+		/* Effects */
+		--color-success-glow: rgba(76, 175, 80, 0.4);
+		--color-error-glow: rgba(239, 68, 68, 0.3);
 
-    &:hover::-webkit-scrollbar-thumb {
-        background: #555;
-    }
+		/* Skeleton loader */
+		--color-skeleton-base: rgb(55 65 81 / 0.3);
+		--color-skeleton-highlight: rgb(75 85 99 / 0.5);
 
-    /* For IE and Edge */
-    -ms-overflow-style: thin;
+		/* UI Elements */
+		--color-scrollbar-thumb: #555;
+		--color-scrollbar-track: #222;
+		--color-scrollbar-custom-thumb: rgba(255, 255, 255, 0.3);
+		--color-scrollbar-custom-track: rgba(0, 0, 0, 0.2);
+	}
+
+	*,
+	*::before,
+	*::after {
+		box-sizing: border-box;
+	}
+
+	html, body {
+		overflow-x: hidden;
+		width: 100%;
+		margin: 0;
+		padding: 0;
+		min-height: 100vh;
+		background: rgb(10, 30, 42);
+		font-family: 'Bai Jamjuree', sans-serif;
+		color: white;
+	}
+
+	/* Scrollbar styling */
+	* {
+		scrollbar-width: thin;
+		scrollbar-color: var(--color-scrollbar-thumb) var(--color-scrollbar-track);
+	}
+
+	*::-webkit-scrollbar {
+		width: 8px;
+		background-color: transparent;
+	}
+
+	*::-webkit-scrollbar-track {
+		background: transparent;
+	}
+
+	*::-webkit-scrollbar-thumb {
+		background: transparent;
+		border-radius: 4px;
+		transition: background 0.3s ease;
+	}
+
+	*:hover::-webkit-scrollbar-thumb {
+		background: var(--color-scrollbar-thumb);
+	}
+
+	/* Custom scrollbar styling for specific components */
+	.scrollbar-custom {
+		scrollbar-width: thin;
+		scrollbar-color: var(--color-scrollbar-custom-thumb) var(--color-scrollbar-custom-track);
+	}
+
+	/* Picologs UI Components */
+	.btn-success {
+		background: var(--color-success);
+		border-color: var(--color-success);
+	}
+
+	.btn-success:hover:not(:disabled) {
+		background: var(--color-success-hover);
+	}
+
+	.btn-danger {
+		background: var(--color-danger);
+		border-color: var(--color-danger-dark);
+	}
+
+	.btn-danger:hover:not(:disabled) {
+		background: var(--color-danger-dark);
+	}
+
+	.btn-discord {
+		background: var(--color-discord);
+		border-color: var(--color-discord-hover);
+	}
+
+	.btn-discord:hover:not(:disabled) {
+		background: var(--color-discord-hover);
+	}
+
+	.btn-white-overlay {
+		background: var(--color-white-10);
+		border-color: var(--color-white-20);
+	}
+
+	.btn-white-overlay:hover:not(:disabled) {
+		background: var(--color-white-20);
+	}
+
+	.bg-primary {
+		background: var(--color-bg-primary);
+	}
+
+	.bg-secondary {
+		background: var(--color-bg-secondary);
+	}
+
+	.border-white-10 {
+		border-color: var(--color-white-10);
+	}
+
+	.border-white-20 {
+		border-color: var(--color-white-20);
+	}
+
+	/* Background overlay utilities */
+	.bg-overlay-subtle {
+		background: var(--color-white-5);
+	}
+
+	.bg-overlay-light {
+		background: var(--color-white-10);
+	}
+
+	.bg-overlay-card {
+		background: rgba(255, 255, 255, 0.03);
+	}
+
+	.bg-overlay-dark {
+		background: var(--color-black-10);
+	}
+
+	/* Semantic UI colors to replace Tailwind defaults */
+	.bg-panel {
+		background: var(--color-bg-secondary);
+	}
+
+	.bg-panel-dark {
+		background: var(--color-bg-dark);
+	}
+
+	.border-panel {
+		border-color: var(--color-white-20);
+	}
+
+	.border-panel-light {
+		border-color: var(--color-white-10);
+	}
+
+	.text-muted {
+		color: rgba(255, 255, 255, 0.6);
+	}
+
+	.text-subtle {
+		color: rgba(255, 255, 255, 0.4);
+	}
 }

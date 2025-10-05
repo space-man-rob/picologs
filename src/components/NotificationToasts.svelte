@@ -42,7 +42,7 @@
 		<button
 			onclick={clearAll}
 			transition:fade={{ duration: 200 }}
-			class="self-end px-3 py-1.5 text-sm text-gray-400 hover:text-white bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-750 transition-colors"
+			class="self-end px-3 py-1.5 text-sm text-muted hover:text-white bg-panel-dark border border-panel rounded-lg hover:bg-overlay-light transition-colors"
 		>
 			Clear all
 		</button>
@@ -50,7 +50,7 @@
 	{#each appCtx.notifications as notification (notification.id)}
 		<div
 			transition:fly={{ y: 20, duration: 300 }}
-			class="bg-gray-800 border border-gray-700 rounded-lg shadow-lg overflow-hidden"
+			class="bg-panel-dark border border-panel rounded-lg shadow-lg overflow-hidden"
 		>
 			<div class="p-4">
 				<div class="flex items-start gap-3">
@@ -58,7 +58,7 @@
 						<span class="text-xl">{getEmoji(notification.type)}</span>
 					</div>
 					<div class="flex-1 min-w-0">
-						<p class="text-sm text-gray-400 break-words">
+						<p class="text-sm text-muted break-words">
 							{notification.message}
 						</p>
 					</div>
@@ -68,7 +68,7 @@
 							e.stopPropagation();
 							appCtx.removeNotification(notification.id);
 						}}
-						class="flex-shrink-0 p-1 text-gray-400 hover:text-white transition-colors"
+						class="flex-shrink-0 p-1 text-muted hover:text-white transition-colors"
 					>
 						<span class="text-base">✕</span>
 					</button>

@@ -78,7 +78,7 @@
 
 {#if user}
 	<button
-		class="w-full p-2 rounded-lg flex items-center gap-2 transition-colors min-w-0 {isSelected ? 'bg-white/10' : 'hover:bg-white/5'}"
+		class="w-full p-2 rounded-lg flex items-center gap-2 transition-colors min-w-0 {isSelected ? 'bg-overlay-light' : 'hover:bg-overlay-subtle'}"
 		onclick={selectUser}
 	>
 		<div class="relative flex-shrink-0">
@@ -89,12 +89,13 @@
 					class="w-8 h-8 rounded-full object-cover"
 				/>
 			{:else}
-				<div class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/60 text-xs font-medium">
+				<div class="w-8 h-8 rounded-full bg-overlay-light flex items-center justify-center text-white/60 text-xs font-medium">
 					{(user.name || 'U')[0].toUpperCase()}
 				</div>
 			{/if}
 			<span
-				class={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[rgb(10,30,42)] ${user.isOnline ? 'bg-green-500' : 'bg-gray-500'}`}
+				class={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 ${user.isOnline ? 'bg-green-500' : 'bg-white/40'}`}
+				style="border-color: var(--color-bg-primary);"
 				title={user.isOnline ? 'Online' : 'Offline'}
 			>
 			</span>

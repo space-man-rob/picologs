@@ -6,12 +6,12 @@
 	{#each Array(count) as _, i (i)}
 		<div class="flex items-center gap-3 p-2 rounded-lg animate-pulse">
 			<!-- Avatar skeleton -->
-			<div class="w-10 h-10 rounded-full bg-white/10 flex-shrink-0"></div>
+			<div class="w-10 h-10 rounded-full bg-overlay-light flex-shrink-0"></div>
 
 			<!-- Text skeleton -->
 			<div class="flex flex-col gap-2 flex-1">
-				<div class="h-3 bg-white/10 rounded w-3/4"></div>
-				<div class="h-2 bg-white/5 rounded w-1/2"></div>
+				<div class="h-3 bg-overlay-light rounded w-3/4"></div>
+				<div class="h-2 bg-overlay-subtle rounded w-1/2"></div>
 			</div>
 		</div>
 	{/each}

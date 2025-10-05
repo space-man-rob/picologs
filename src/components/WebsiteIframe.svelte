@@ -88,7 +88,7 @@
 	});
 </script>
 
-<div class="relative w-full h-full min-h-[400px] bg-[#1a1a1a]">
+<div class="relative w-full h-full min-h-[400px]" style="background: var(--color-bg-dark);">
 	{#if isLoading}
 		<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center text-white z-10">
 			<div class="w-10 h-10 mx-auto mb-4 border-[3px] border-white/10 border-t-white rounded-full animate-spin"></div>

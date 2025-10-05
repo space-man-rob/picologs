@@ -143,7 +143,7 @@
 </script>
 
 <header
-	class="h-[70px] flex justify-between items-center bg-slate-900 border-b border-white/20 px-4 pl-1.5">
+	class="h-[70px] flex justify-between items-center bg-panel border-b border-white/20 px-4 pl-1.5">
 	<div class="flex items-center gap-2 flex-shrink-0">
 		<img src="/pico.webp" alt="Picologs" class="w-12 h-12" />
 		<h1 class="text-2xl font-medium m-0 text-white hidden sm:block">Picologs</h1>
@@ -167,7 +167,7 @@
 		{/if}
 		{#if isSignedIn && discordUser}
 			<button
-				class="bg-white/10 text-white border border-white/20 px-2 md:px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-1 md:gap-2 hover:bg-white/20"
+				class="bg-overlay-light text-white border border-white/20 px-2 md:px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-1 md:gap-2 hover:bg-white/20"
 				onclick={() => {
 					const textToCopy = `My Picologs Friend Code: ${friendCode || 'Not set'}`;
 					navigator.clipboard.writeText(textToCopy);
@@ -183,7 +183,7 @@
 		{#if logLocation}
 			<div class="relative log-version-dropdown">
 				<button
-					class="bg-white/10 text-white border border-white/20 px-2 md:px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-1 md:gap-2 hover:bg-white/20 text-sm md:text-base"
+					class="bg-overlay-light text-white border border-white/20 px-2 md:px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-1 md:gap-2 hover:bg-white/20 text-sm md:text-base"
 					onclick={toggleLogVersionDropdown}
 					title="Select Game.log file">
 					📜
@@ -207,9 +207,9 @@
 				</button>
 				{#if logVersionDropdownOpen}
 					<div
-						class="absolute top-full left-0 mt-2 bg-slate-900 border border-white/20 rounded min-w-[120px] shadow-lg z-[1000] overflow-hidden">
+						class="absolute top-full left-0 mt-2 bg-panel border border-white/20 rounded min-w-[120px] shadow-lg z-[1000] overflow-hidden">
 						<button
-							class="w-full px-4 py-2 bg-transparent border-none text-white text-left cursor-pointer text-sm transition-colors duration-150 flex items-center hover:bg-white/10"
+							class="w-full px-4 py-2 bg-transparent border-none text-white text-left cursor-pointer text-sm transition-colors duration-150 flex items-center hover:bg-overlay-light"
 							onclick={() => selectVersion('Select new')}>
 							Select new
 						</button>
@@ -218,7 +218,7 @@
 			</div>
 		{:else}
 			<button
-				class="bg-white/10 text-white border border-white/20 px-2 md:px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-1 md:gap-2 hover:bg-white/20 text-sm md:text-base"
+				class="bg-overlay-light text-white border border-white/20 px-2 md:px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-1 md:gap-2 hover:bg-white/20 text-sm md:text-base"
 				onclick={selectFile}
 				title="Select Game.log file">
 				📄 <span class="hidden sm:inline">Select Game.log file</span>
@@ -226,7 +226,7 @@
 		{/if}
 
 		<button
-			class="bg-white/10 text-white border border-white/20 px-2 md:px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-1 md:gap-2 hover:bg-white/20 text-sm md:text-base"
+			class="bg-overlay-light text-white border border-white/20 px-2 md:px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-1 md:gap-2 hover:bg-white/20 text-sm md:text-base"
 			onclick={handleClearLogs}
 			title="Clear all logs">
 			🧹 <span class="hidden md:inline">Clear Logs</span>
@@ -237,7 +237,7 @@
 			<div class="relative notifications-dropdown">
 				<button
 					onclick={() => showNotificationsDropdown = !showNotificationsDropdown}
-					class="relative p-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors text-xl border border-transparent hover:border-white/20"
+					class="relative p-2 text-muted hover:text-white hover:bg-overlay-light rounded-lg transition-colors text-xl border border-transparent hover:border-white/20"
 					title="Notifications">
 					🔔
 					{#if notificationCount > 0}
@@ -249,20 +249,20 @@
 
 				{#if showNotificationsDropdown}
 					{@const incomingFriendRequests = (Array.isArray(friendRequests) ? friendRequests : []).filter((r: any) => r.direction === 'incoming')}
-					<div class="absolute right-0 mt-2 w-80 md:w-96 max-w-[calc(100vw-2rem)] bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-[1000] max-h-[min(600px,80vh)] overflow-y-auto">
-						<div class="p-4 border-b border-gray-700">
+					<div class="absolute right-0 mt-2 w-80 md:w-96 max-w-[calc(100vw-2rem)] bg-panel-dark border border-panel rounded-lg shadow-xl z-[1000] max-h-[min(600px,80vh)] overflow-y-auto">
+						<div class="p-4 border-b border-panel">
 							<h3 class="text-lg font-semibold text-white">Notifications</h3>
 						</div>
 
 						{#if incomingFriendRequests.length === 0 && groupInvitations.length === 0}
-							<div class="p-8 text-center text-gray-400">
+							<div class="p-8 text-center text-muted">
 								<div class="text-5xl mx-auto mb-2 opacity-50">🔔</div>
 								<p>No pending notifications</p>
 							</div>
 						{:else}
-							<div class="divide-y divide-gray-700">
+							<div class="divide-y divide-white/10">
 								{#each incomingFriendRequests as request}
-									<div class="p-4 hover:bg-gray-750">
+									<div class="p-4 hover:bg-overlay-light">
 										<div class="flex items-start gap-3 mb-3">
 											{#if request.fromAvatar}
 												<img
@@ -279,9 +279,9 @@
 												<p class="text-xs font-semibold text-blue-400 mb-1">Friend Request</p>
 												<p class="text-sm font-medium text-white">{request.fromUsername}</p>
 												{#if request.fromPlayer}
-													<p class="text-xs text-gray-400">{request.fromPlayer}</p>
+													<p class="text-xs text-muted">{request.fromPlayer}</p>
 												{/if}
-												<p class="text-xs text-gray-500 mt-1">
+												<p class="text-xs text-subtle mt-1">
 													{new Date(request.createdAt).toLocaleDateString()}
 												</p>
 											</div>
@@ -301,7 +301,7 @@
 											<button
 												onclick={() => onDenyFriend?.(request.id)}
 												disabled={processingFriendRequests.has(request.id)}
-												class="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 bg-white/10 text-white text-sm rounded border border-white/20 hover:bg-white/15 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
+												class="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 bg-overlay-light text-white text-sm rounded border border-white/20 hover:bg-white/15 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
 												{#if processingFriendRequests.has(request.id)}
 													<span class="inline-block animate-spin">⏳</span>
 												{:else}
@@ -314,7 +314,7 @@
 								{/each}
 
 								{#each groupInvitations as invitation}
-									<div class="p-4 hover:bg-gray-750">
+									<div class="p-4 hover:bg-overlay-light">
 										<div class="flex items-start gap-3 mb-3">
 											{#if invitation.group?.avatar}
 												<img
@@ -330,8 +330,8 @@
 											<div class="flex-1 min-w-0">
 												<p class="text-xs font-semibold text-blue-400 mb-1">Join Group Request</p>
 												<p class="text-sm font-medium text-white">{invitation.group?.name || 'Unknown Group'}</p>
-												<p class="text-xs text-gray-400">Invited by {invitation.inviter?.username || 'Unknown User'}</p>
-												<p class="text-xs text-gray-500 mt-1">
+												<p class="text-xs text-muted">Invited by {invitation.inviter?.username || 'Unknown User'}</p>
+												<p class="text-xs text-subtle mt-1">
 													{new Date(invitation.createdAt).toLocaleDateString()}
 												</p>
 											</div>
@@ -351,7 +351,7 @@
 											<button
 												onclick={() => onDenyInvitation?.(invitation.id)}
 												disabled={processingGroupInvitations.has(invitation.id)}
-												class="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 bg-white/10 text-white text-sm rounded border border-white/20 hover:bg-white/15 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
+												class="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 bg-overlay-light text-white text-sm rounded border border-white/20 hover:bg-white/15 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
 												{#if processingGroupInvitations.has(invitation.id)}
 													<span class="inline-block animate-spin">⏳</span>
 												{:else}
@@ -380,14 +380,14 @@
 								alt={discordUser.username}
 								class="w-9 h-9 rounded-full border-2 transition-[border-color] duration-300"
 								class:border-green-500={connectionStatus === 'connected'}
-								class:shadow-[0_0_6px_rgba(76,175,80,0.4)]={connectionStatus === 'connected'}
+								class:glow-success={connectionStatus === 'connected'}
 								class:border-red-500={connectionStatus === 'disconnected'}
 								class:border-orange-500={connectionStatus === 'connecting'} />
 						{:else}
 							<div
 								class="w-9 h-9 rounded-full border-2 flex items-center justify-center bg-indigo-600/50 font-semibold text-[0.95rem] transition-[border-color] duration-300"
 								class:border-green-500={connectionStatus === 'connected'}
-								class:shadow-[0_0_6px_rgba(76,175,80,0.4)]={connectionStatus === 'connected'}
+								class:glow-success={connectionStatus === 'connected'}
 								class:border-red-500={connectionStatus === 'disconnected'}
 								class:border-orange-500={connectionStatus === 'connecting'}>
 								{(discordUser.username || 'U').charAt(0).toUpperCase()}
@@ -401,10 +401,10 @@
 
 				{#if showProfileDropdown}
 				<div
-					class="absolute right-0 mt-2 w-64 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-[1000]"
+					class="absolute right-0 mt-2 w-64 bg-panel-dark border border-panel rounded-lg shadow-xl z-[1000]"
 				>
 					<!-- Profile Info -->
-					<div class="p-4 border-b border-gray-700">
+					<div class="p-4 border-b border-panel">
 						<div class="flex items-center gap-3 mb-3">
 							{#if discordUser.avatar && discordUser.id}
 								<img
@@ -437,9 +437,9 @@
 										copiedStatusVisible = false;
 									}, 1500);
 								}}
-								class="w-full flex items-center justify-between gap-2 px-3 py-2 bg-gray-700/50 rounded text-xs hover:bg-gray-700 transition-colors group"
+								class="w-full flex items-center justify-between gap-2 px-3 py-2 bg-overlay-light rounded text-xs hover:bg-overlay-light transition-colors group"
 							>
-								<span class="text-gray-400">Friend Code</span>
+								<span class="text-muted">Friend Code</span>
 								<div class="flex items-center gap-2">
 									<span class="font-mono text-white">{friendCode}</span>
 									<span class="text-xs">📋</span>
@@ -451,7 +451,7 @@
 					<!-- Actions -->
 					<div class="p-2">
 						<button
-							class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded-lg transition-colors"
+							class="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted hover:bg-overlay-light rounded-lg transition-colors"
 							onclick={() => {
 								showProfileDropdown = false;
 								handleOpenProfile();
@@ -460,7 +460,7 @@
 							<span>Profile Settings</span>
 						</button>
 						<button
-							class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded-lg transition-colors"
+							class="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted hover:bg-overlay-light rounded-lg transition-colors"
 							onclick={() => {
 								showProfileDropdown = false;
 								handleOpenFriends();
@@ -469,7 +469,7 @@
 							<span>Friends</span>
 						</button>
 						<button
-							class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded-lg transition-colors"
+							class="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted hover:bg-overlay-light rounded-lg transition-colors"
 							onclick={() => {
 								showProfileDropdown = false;
 								handleOpenGroups();
@@ -520,7 +520,7 @@
 			}
 		}}>
 		<div
-			class="bg-slate-800 border border-red-500/50 rounded-lg shadow-[0_8px_32px_rgba(239,68,68,0.3)] max-w-md w-full mx-4"
+			class="bg-slate-800 border border-red-500/50 rounded-lg shadow-error max-w-md w-full mx-4"
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby="dialog-title"
@@ -538,7 +538,7 @@
 			</div>
 			<div class="px-6 py-4 flex gap-3 justify-end border-t border-white/10">
 				<button
-					class="bg-white/10 text-white border border-white/20 px-5 py-2.5 font-medium rounded transition-colors duration-200 hover:bg-white/20"
+					class="bg-overlay-light text-white border border-white/20 px-5 py-2.5 font-medium rounded transition-colors duration-200 hover:bg-white/20"
 					onclick={handleDismiss}>
 					Dismiss
 				</button>
@@ -552,3 +552,12 @@
 	</div>
 {/if}
 
+<style>
+	.glow-success {
+		box-shadow: 0 0 6px var(--color-success-glow);
+	}
+
+	.shadow-error {
+		box-shadow: 0 8px 32px var(--color-error-glow);
+	}
+</style>

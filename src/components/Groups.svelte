@@ -48,7 +48,7 @@
 	}
 </script>
 
-<div class="flex flex-col h-full overflow-y-auto min-w-[200px] [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.3)_rgba(0,0,0,0.2)]">
+<div class="flex flex-col h-full overflow-y-auto min-w-[200px] scrollbar-custom">
 	<h4 class="px-3 py-2 text-white/60 font-medium text-xs uppercase tracking-wide">
 		Groups ({groups.length})
 	</h4>
@@ -62,7 +62,7 @@
 				{@const isSelected = appCtx.selectedGroupId === group.id}
 				<div class="flex flex-col">
 					<button
-						class="flex items-center gap-3 p-2 rounded-lg transition-colors {isSelected ? 'bg-white/10 ring-2 ring-blue-500' : 'hover:bg-white/5'}"
+						class="flex items-center gap-3 p-2 rounded-lg transition-colors {isSelected ? 'bg-overlay-light ring-2 ring-blue-500' : 'hover:bg-overlay-subtle'}"
 						onclick={() => {
 							selectGroup(group.id);
 						}}
@@ -96,7 +96,7 @@
 							<div class="flex items-center gap-1 flex-wrap w-full">
 								{#if group.tags && group.tags.length > 0}
 									{#each group.tags as tag}
-										<span class="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-white/60">
+										<span class="text-[10px] px-1.5 py-0.5 rounded bg-overlay-light text-white/60">
 											{tag}
 										</span>
 									{/each}
@@ -110,7 +110,7 @@
 
 					{#if expandedGroupId === group.id}
 						{@const members = getSortedMembers(group.id)}
-						<div class="flex flex-col bg-black/10">
+						<div class="flex flex-col bg-overlay-dark">
 							{#each members as member (member.userId)}
 								{@const friendData: Friend = {
 									id: member.userId,

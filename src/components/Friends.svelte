@@ -27,7 +27,7 @@
 	);
 </script>
 
-<div class="flex flex-col h-full overflow-y-auto min-w-[200px] [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.3)_rgba(0,0,0,0.2)]">
+<div class="flex flex-col h-full overflow-y-auto min-w-[200px] scrollbar-custom">
 	<h4 class="px-3 py-2 text-white/60 font-medium text-xs uppercase tracking-wide">
 		Friends ({friendsList.filter((f: Friend) => f.status === 'confirmed').length})
 	</h4>

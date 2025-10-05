@@ -213,7 +213,7 @@
 			{formattedTimestamp}, {reportedBy ? reportedBy.join(', ') : player}
 		</div>
 		{#if open}
-			<div class="mt-2 rounded-lg bg-white/10 p-2 pr-10 text-left text-xs text-white/70 break-all relative">
+			<div class="mt-2 rounded-lg bg-overlay-light p-2 pr-10 text-left text-xs text-white/70 break-all relative">
 				<div
 					role="button"
 					tabindex="0"

@@ -1205,7 +1205,7 @@
 				{#snippet rightPanel()}
 					<div class="relative grid grid-rows-[1fr_auto] h-full overflow-hidden">
 						<div
-							class="row-start-1 row-end-2 overflow-y-auto flex flex-col bg-black/10 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.3)_rgba(0,0,0,0.2)]"
+							class="row-start-1 row-end-2 overflow-y-auto flex flex-col bg-overlay-dark scrollbar-custom"
 							bind:this={fileContentContainer}>
 							{#if file}
 								{#each displayedLogs as item, index (item.id)}
@@ -1230,31 +1230,31 @@
 								{/each}
 							{:else if !isLoadingFile}
 								<div
-									class="flex flex-col items-start gap-4 my-8 mx-auto p-8 rounded-lg bg-white/[0.03] border border-white/10 max-w-[600px]">
+									class="flex flex-col items-start gap-4 my-8 mx-auto p-8 rounded-lg bg-overlay-card border border-white/10 max-w-[600px]">
 									<h2 class="m-0 mb-2 text-[1.6rem] font-medium">🚀 Getting started</h2>
 									<ol class="list-none pl-0 [counter-reset:welcome-counter] flex flex-col gap-2 mt-4">
 										<li
-											class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 before:bg-[#4caf50] before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
+											class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 numbered-list-item before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
 											Select your <code
-												class="bg-white/10 px-[0.3rem] py-[0.1rem] rounded-[3px] font-mono inline text-base">
+												class="bg-overlay-light px-[0.3rem] py-[0.1rem] rounded-[3px] font-mono inline text-base">
 												Game.log
 											</code>
 											file. Usually found at the default path:
 											<code
-												class="bg-white/10 px-[0.3rem] py-[0.1rem] rounded-[3px] font-mono inline text-base">
+												class="bg-overlay-light px-[0.3rem] py-[0.1rem] rounded-[3px] font-mono inline text-base">
 												C:\Program Files\Roberts Space Industries\StarCitizen\LIVE\Game.log
 											</code>
 											<br />
 											(Or the equivalent path on your system if installed elsewhere.)
 										</li>
 										<li
-											class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 before:bg-[#4caf50] before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
+											class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 numbered-list-item before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
 											Once a log file is selected and you go <strong>Online</strong>
 											(using the top-right button), Picologs automatically connects you with other friends for
 											real-time log sharing.
 										</li>
 										<li
-											class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 before:bg-[#4caf50] before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
+											class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 numbered-list-item before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
 											To add friends use your <strong>Friend Code</strong>
 											displayed at the top. Share this with friends to connect with them.
 										</li>
@@ -1265,7 +1265,7 @@
 
 						{#if file}
 							<div
-								class="row-start-2 row-end-3 flex items-center justify-end gap-2 px-4 py-2 bg-[rgb(10,30,42)] border-t border-white/20 text-[0.8rem] text-white/70">
+								class="row-start-2 row-end-3 flex items-center justify-end gap-2 px-4 py-2 bg-primary border-t border-white/20 text-[0.8rem] text-white/70">
 								Log lines processed: {Number(lineCount).toLocaleString()}
 							</div>
 						{/if}
@@ -1292,7 +1292,7 @@
 		{:else}
 			<div class="relative grid grid-rows-[1fr_auto] h-full overflow-hidden">
 				<div
-					class="row-start-1 row-end-2 overflow-y-auto flex flex-col bg-black/10 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.3)_rgba(0,0,0,0.2)]"
+					class="row-start-1 row-end-2 overflow-y-auto flex flex-col bg-overlay-dark scrollbar-custom"
 					bind:this={fileContentContainer}>
 					{#if file}
 						{#each displayedLogs as item, index (item.id)}
@@ -1317,31 +1317,31 @@
 						{/each}
 					{:else if !isLoadingFile}
 						<div
-							class="flex flex-col items-start gap-4 my-8 mx-auto p-8 rounded-lg bg-white/[0.03] border border-white/10 max-w-[600px]">
+							class="flex flex-col items-start gap-4 my-8 mx-auto p-8 rounded-lg bg-overlay-card border border-white/10 max-w-[600px]">
 							<h2 class="m-0 mb-2 text-[1.6rem] font-medium">🚀 Getting started</h2>
 							<ol class="list-none pl-0 [counter-reset:welcome-counter] flex flex-col gap-2 mt-4">
 								<li
-									class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 before:bg-[#4caf50] before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
+									class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 numbered-list-item before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
 									Select your <code
-										class="bg-white/10 px-[0.3rem] py-[0.1rem] rounded-[3px] font-mono inline text-base">
+										class="bg-overlay-light px-[0.3rem] py-[0.1rem] rounded-[3px] font-mono inline text-base">
 										Game.log
 									</code>
 									file. Usually found at the default path:
 									<code
-										class="bg-white/10 px-[0.3rem] py-[0.1rem] rounded-[3px] font-mono inline text-base">
+										class="bg-overlay-light px-[0.3rem] py-[0.1rem] rounded-[3px] font-mono inline text-base">
 										C:\Program Files\Roberts Space Industries\StarCitizen\LIVE\Game.log
 									</code>
 									<br />
 									(Or the equivalent path on your system if installed elsewhere.)
 								</li>
 								<li
-									class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 before:bg-[#4caf50] before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
+									class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 numbered-list-item before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
 									Once a log file is selected and you go <strong>Online</strong>
 									(using the top-right button), Picologs automatically connects you with other friends for
 									real-time log sharing.
 								</li>
 								<li
-									class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 before:bg-[#4caf50] before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
+									class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 numbered-list-item before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
 									To add friends use your <strong>Friend Code</strong>
 									displayed at the top. Share this with friends to connect with them.
 								</li>
@@ -1352,7 +1352,7 @@
 
 				{#if file}
 					<div
-						class="row-start-3 row-end-4 flex items-center justify-end gap-2 px-4 py-2 bg-[rgb(10,30,42)] border-t border-white/20 text-[0.8rem] text-white/70">
+						class="row-start-3 row-end-4 flex items-center justify-end gap-2 px-4 py-2 bg-primary border-t border-white/20 text-[0.8rem] text-white/70">
 						Log lines processed: {Number(lineCount).toLocaleString()}
 					</div>
 				{/if}
@@ -1378,6 +1378,10 @@
 
 <style>
 	:global(.item:nth-child(2n)) {
-		background-color: rgba(255, 255, 255, 0.05);
+		background-color: var(--color-white-5);
+	}
+
+	.numbered-list-item::before {
+		background-color: var(--color-success) !important;
 	}
 </style>

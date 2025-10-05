@@ -23,7 +23,7 @@
 	/>
 	<button
 		onclick={handleAddFriend}
-		class="px-3 py-2 rounded bg-white/10 border border-white/20 text-white text-sm transition-colors duration-200 hover:bg-white/20 flex-shrink-0"
+		class="px-3 py-2 rounded bg-overlay-light border border-white/20 text-white text-sm transition-colors duration-200 hover:bg-white/20 flex-shrink-0"
 	>
 		Add
 	</button>
