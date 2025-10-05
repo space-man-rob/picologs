@@ -62,8 +62,16 @@
 			});
 		}
 
-		// Show all logs (default behavior)
-		return fileContent;
+		// Default: show only friends' logs (not all logs)
+		const friendUserIds = new Set(appCtx.apiFriends.map(f => f.friendDiscordId));
+
+		return fileContent.filter(log => {
+			// Include own logs
+			if (log.userId === playerId) return true;
+
+			// Include logs from friends
+			return friendUserIds.has(log.userId);
+		});
 	});
 
 	// Get user display name from group members or friends

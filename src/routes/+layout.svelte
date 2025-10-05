@@ -760,17 +760,12 @@
 
 				// Load selected group ID (do this AFTER groups are loaded)
 				const savedSelectedGroupId = await getStorageValue<string>('store.json', 'selectedGroupId');
-				console.log('[Layout Debug] Loaded selectedGroupId from store:', savedSelectedGroupId);
 				if (savedSelectedGroupId) {
 					appCtx.selectedGroupId = savedSelectedGroupId;
-					console.log('[Layout Debug] Set appCtx.selectedGroupId to:', savedSelectedGroupId);
-				} else {
-					console.log('[Layout Debug] No savedSelectedGroupId found in store');
 				}
 
 				// Mark initial load as complete - now safe to save changes
 				initialLoadComplete = true;
-				console.log('[Layout Debug] Initial load complete, saving is now enabled');
 			}
 
 			// No explicit save needed - autoSave handles any initialization changes
@@ -918,11 +913,9 @@
 	// Only runs AFTER initialLoadComplete is true (set after onMount loads initial value)
 	$effect(() => {
 		const groupId = appCtx.selectedGroupId;
-		console.log('[Layout Debug] selectedGroupId effect triggered, groupId:', groupId, 'initialLoadComplete:', initialLoadComplete);
 
 		// Skip saving until initial load completes
 		if (!initialLoadComplete) {
-			console.log('[Layout Debug] Skipping save - initial load not complete yet');
 			return;
 		}
 
@@ -930,10 +923,8 @@
 			try {
 				if (groupId !== null) {
 					await setStorageValue('store.json', 'selectedGroupId', groupId);
-					console.log('[Layout Debug] Saved selectedGroupId to store:', groupId);
 				} else {
 					await deleteStorageValue('store.json', 'selectedGroupId');
-					console.log('[Layout Debug] Deleted selectedGroupId from store (user deselected)');
 				}
 			} catch (error) {
 				console.error('[Layout Debug] Error saving selectedGroupId:', error);

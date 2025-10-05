@@ -12,11 +12,8 @@
 
 	// Sync expandedGroupId with selectedGroupId on initialization
 	$effect(() => {
-		console.log('[Groups Debug] selectedGroupId changed:', appCtx.selectedGroupId);
-		console.log('[Groups Debug] groups:', $state.snapshot(groups));
 		if (appCtx.selectedGroupId) {
 			expandedGroupId = appCtx.selectedGroupId;
-			console.log('[Groups Debug] Set expandedGroupId to:', expandedGroupId);
 		}
 	});
 
@@ -67,7 +64,6 @@
 					<button
 						class="flex items-center gap-3 p-2 rounded-lg transition-colors {isSelected ? 'bg-white/10 ring-2 ring-blue-500' : 'hover:bg-white/5'}"
 						onclick={() => {
-							console.log('[Groups Debug] Clicked group:', group.id, group.name);
 							selectGroup(group.id);
 						}}
 					>

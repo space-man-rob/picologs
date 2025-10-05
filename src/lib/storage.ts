@@ -95,13 +95,9 @@ class LocalStorageAdapter implements StorageAdapter {
 
 // Factory function to create the appropriate storage adapter
 export function createStorage(storePath: string, autoSave: number = 300): StorageAdapter {
-	console.log('[Storage] Creating storage adapter:', { isTauri, storePath });
-
 	if (isTauri) {
-		console.log('[Storage] Using Tauri store adapter');
 		return new TauriStorageAdapter(storePath, autoSave);
 	} else {
-		console.log('[Storage] Using localStorage adapter (browser fallback)');
 		return new LocalStorageAdapter(storePath);
 	}
 }
