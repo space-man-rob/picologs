@@ -21,8 +21,6 @@ export async function handleAuthComplete(data: {
 		avatar: string | null;
 	};
 }): Promise<void> {
-	console.log('[OAuth] Auth complete received - storing JWT and user data');
-
 	try {
 		// Store strategy: Use autoSave with 100ms debounce for auth data write
 		// JWT token and user data are set together - autoSave batches these writes
@@ -42,7 +40,6 @@ export async function handleAuthComplete(data: {
 		await store.set('discord_user', discordUser);
 
 		// No explicit save needed - autoSave will persist both values with 100ms debounce
-		console.log('[OAuth] Stored JWT token and user data');
 	} catch (error) {
 		console.error('[OAuth] Error storing auth data:', error);
 		throw error;
@@ -63,7 +60,6 @@ export async function loadAuthData(): Promise<{ user: DiscordUser; expiresAt: nu
 		const user = (await store.get('discord_user')) as DiscordUser | null;
 
 		if (jwtToken && user) {
-			console.log('[OAuth] Found JWT-based auth data');
 			// JWT expiry would need to be checked separately if needed
 			// For now, treat as long-lived session
 			return { user, expiresAt: Date.now() + (365 * 24 * 60 * 60 * 1000) };
@@ -85,7 +81,6 @@ export async function signOut(): Promise<void> {
 	const store = await loadStore('auth.json', { defaults: {}, autoSave: 100 });
 	await store.clear();
 	// No explicit save needed - autoSave will persist the clear operation
-	console.log('[OAuth] Signed out and cleared auth data');
 }
 
 
@@ -100,11 +95,9 @@ export async function getJwtToken(): Promise<string | null> {
 		const jwtToken = (await store.get('jwtToken')) as string | null;
 
 		if (jwtToken) {
-			console.log('[OAuth] Found JWT token');
 			return jwtToken;
 		}
 
-		console.log('[OAuth] No JWT token found');
 		return null;
 	} catch (error) {
 		console.error('[OAuth] Failed to get JWT token:', error);

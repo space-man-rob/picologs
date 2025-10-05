@@ -115,7 +115,7 @@
 
 	let copied = $state(false);
 
-	function copyToClipboard(event: MouseEvent) {
+	function copyToClipboard(event: MouseEvent | KeyboardEvent) {
 		event.stopPropagation();
 		navigator.clipboard.writeText(original);
 		copied = true;
@@ -214,12 +214,20 @@
 		</div>
 		{#if open}
 			<div class="mt-2 rounded-lg bg-white/10 p-2 pr-10 text-left text-xs text-white/70 break-all relative">
-				<button
+				<div
+					role="button"
+					tabindex="0"
 					class="absolute top-2 right-2 text-base cursor-pointer"
 					onclick={copyToClipboard}
+					onkeydown={(e) => {
+						if (e.key === 'Enter' || e.key === ' ') {
+							e.preventDefault();
+							copyToClipboard(e);
+						}
+					}}
 					title="Copy to clipboard">
 					{copied ? '✅' : '📋'}
-				</button>
+				</div>
 				{original}
 			</div>
 		{/if}

@@ -3,7 +3,7 @@
 	import { load } from '@tauri-apps/plugin-store';
 	import { open } from '@tauri-apps/plugin-dialog';
 	import Item from '../components/Item.svelte';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { fade } from 'svelte/transition';
 	import Friends from '../components/Friends.svelte';
 	import Groups from '../components/Groups.svelte';
@@ -19,6 +19,7 @@
 		type ApiFriend
 	} from '$lib/api';
 	import { getAppContext } from '$lib/appContext.svelte';
+	import { compressLogs, shouldCompressLogs } from '$lib/compression';
 
 	// Get shared app context from layout
 	const appCtx = getAppContext();
@@ -29,12 +30,16 @@
 	let playerName = $state<string | null>(null);
 	let playerId = $state<string | null>(null); // Star Citizen player ID from Game.log
 	let isLoadingFile = $state(true); // Prevent flash of welcome screen
-	let tick = $state(0);
+	let tickCounter = $state(0);
 	let logLocation = $state<string | null>(null);
 	let selectedEnvironment = $state<'LIVE' | 'PTU' | 'HOTFIX'>('LIVE');
 	let prevLineCount = $state<number>(0);
 	let lineCount = $state<number>(0);
 	let currentUserDisplayData = $state<FriendType | null>(null);
+
+	// Track last sync timestamp per friend for delta sync
+	// Map<friendId, lastSyncTimestamp>
+	let friendSyncTimestamps = $state<Map<string, string>>(new Map());
 
 	// Derived state for filtered logs based on selected user or group
 	let displayedLogs = $derived.by(() => {
@@ -109,7 +114,6 @@
 			const text = await readTextFile(filePath);
 			return dedupeAndSortLogs(JSON.parse(text) as Log[]);
 		} catch (e) {
-			console.error('[Storage] Failed to load logs from disk:', e);
 			return [];
 		}
 	}
@@ -119,6 +123,76 @@
 		const data = encoder.encode(JSON.stringify(dedupeAndSortLogs(logs), null, 2));
 		const filePath = await getLogFilePath();
 		await writeFile(filePath, data);
+	}
+
+	// Load friend sync timestamps from Tauri store
+	async function loadFriendSyncTimestamps(): Promise<void> {
+		try {
+			const store = await load('store.json', { defaults: {}, autoSave: false });
+			const timestamps = await store.get<Record<string, string>>('friendSyncTimestamps');
+			if (timestamps) {
+				friendSyncTimestamps = new Map(Object.entries(timestamps));
+			}
+		} catch (error) {
+			// Silently fail - timestamps will be rebuilt
+		}
+	}
+
+	// Save friend sync timestamps to Tauri store
+	async function saveFriendSyncTimestamps(): Promise<void> {
+		try {
+			const store = await load('store.json', { defaults: {}, autoSave: 200 });
+			const timestampsObj = Object.fromEntries(friendSyncTimestamps);
+			await store.set('friendSyncTimestamps', timestampsObj);
+		} catch (error) {
+			// Silently fail - will retry on next save
+		}
+	}
+
+	// Update last sync timestamp for a friend
+	function updateFriendSyncTimestamp(friendId: string, timestamp?: string): void {
+		const now = timestamp || new Date().toISOString();
+		friendSyncTimestamps.set(friendId, now);
+		// Trigger reactivity
+		friendSyncTimestamps = new Map(friendSyncTimestamps);
+		saveFriendSyncTimestamps(); // Async save
+	}
+
+	// Request log sync from a friend with delta sync support
+	async function requestLogSyncFromFriend(friendId: string): Promise<void> {
+		if (!appCtx.ws || !playerId) {
+			return;
+		}
+
+		try {
+			const lastSyncTimestamp = friendSyncTimestamps.get(friendId);
+			const myLogs = await loadLogsFromDisk();
+
+			// Filter logs to send based on last sync timestamp
+			let logsToSend = myLogs;
+			if (lastSyncTimestamp) {
+				const lastSyncTime = new Date(lastSyncTimestamp).getTime();
+				logsToSend = myLogs.filter(log => {
+					if (!log.timestamp) return false;
+					return new Date(log.timestamp).getTime() > lastSyncTime;
+				});
+			}
+
+			// Send sync request with delta parameters
+			await appCtx.ws.send(JSON.stringify({
+				type: 'sync_logs',
+				targetUserId: friendId,
+				logs: logsToSend,
+				since: lastSyncTimestamp || null,
+				limit: 100,
+				offset: 0
+			}));
+
+			// Update sync timestamp after successful sync
+			updateFriendSyncTimestamp(friendId);
+		} catch (error) {
+			// Silently fail - will retry on next connection
+		}
 	}
 
 	async function appendLogToDisk(newLog: Log): Promise<void> {
@@ -140,7 +214,6 @@
 				const currentLineCount = linesText.split('\n').length;
 				prevLineCount = currentLineCount;
 			} catch (error) {
-				console.error('[ClearLogs] Failed to read file for line count reset:', error);
 				prevLineCount = 0;
 			}
 		}
@@ -250,18 +323,176 @@
 		return finalLogs;
 	}
 
+	// Log batching configuration
+	const BATCH_INTERVAL_MS = 2500; // Flush every 2.5 seconds
+	const BATCH_SIZE_LIMIT = 8; // Flush when buffer reaches 8 logs
+
+	// Separate buffers for friends and groups
+	let friendLogsBuffer = $state<Log[]>([]);
+	let groupLogsBuffers = $state<Map<string, Log[]>>(new Map());
+	let batchFlushTimer = $state<number | null>(null);
+
+	// Flush all batched logs
+	async function flushLogBatches() {
+		if (!appCtx.ws) return;
+
+		// Flush friend logs
+		if (friendLogsBuffer.length > 0) {
+			try {
+				const useCompression = shouldCompressLogs(friendLogsBuffer);
+				let message: any = {
+					type: 'batch_logs'
+				};
+
+				if (useCompression) {
+					message.compressed = true;
+					message.compressedData = await compressLogs(friendLogsBuffer);
+				} else {
+					message.logs = friendLogsBuffer;
+				}
+
+				await appCtx.ws.send(JSON.stringify(message));
+				friendLogsBuffer = [];
+			} catch (error) {
+				console.error('[WebSocket] Error sending batched friend logs:', error);
+			}
+		}
+
+		// Flush group logs
+		for (const [groupId, logs] of groupLogsBuffers.entries()) {
+			if (logs.length > 0) {
+				try {
+					const useCompression = shouldCompressLogs(logs);
+					let message: any = {
+						type: 'batch_group_logs',
+						groupId
+					};
+
+					if (useCompression) {
+						message.compressed = true;
+						message.compressedData = await compressLogs(logs);
+					} else {
+						message.logs = logs;
+					}
+
+					await appCtx.ws.send(JSON.stringify(message));
+				} catch (error) {
+					console.error(`[WebSocket] Error sending batched group logs to ${groupId}:`, error);
+				}
+			}
+		}
+		groupLogsBuffers.clear();
+
+		// Clear the timer
+		if (batchFlushTimer !== null) {
+			clearTimeout(batchFlushTimer);
+			batchFlushTimer = null;
+		}
+	}
+
+	// Schedule batch flush if not already scheduled
+	function scheduleBatchFlush() {
+		if (batchFlushTimer === null) {
+			batchFlushTimer = setTimeout(() => {
+				flushLogBatches();
+			}, BATCH_INTERVAL_MS) as unknown as number;
+		}
+	}
+
 	async function sendLogViaWebSocket(log: Log) {
 		if (appCtx.ws) {
 			try {
-				await appCtx.ws.send(JSON.stringify({ type: 'log', log }));
-				console.log('Sent log via WebSocket:', log);
+				// Add to friend logs buffer
+				friendLogsBuffer.push(log);
+
+				// Add to all group buffers
+				for (const group of appCtx.groups) {
+					if (!groupLogsBuffers.has(group.id)) {
+						groupLogsBuffers.set(group.id, []);
+					}
+					groupLogsBuffers.get(group.id)!.push(log);
+				}
+
+				// Check if any buffer is full
+				const friendBufferFull = friendLogsBuffer.length >= BATCH_SIZE_LIMIT;
+				const anyGroupBufferFull = Array.from(groupLogsBuffers.values()).some(
+					buffer => buffer.length >= BATCH_SIZE_LIMIT
+				);
+
+				// Flush immediately if any buffer is full
+				if (friendBufferFull || anyGroupBufferFull) {
+					await flushLogBatches();
+				} else {
+					// Schedule a flush
+					scheduleBatchFlush();
+				}
 			} catch (error) {
-				console.error('[WebSocket] Error sending log:', error);
+				console.error('[WebSocket] Error buffering log:', error);
 			}
 		}
 	}
 
 	onMount(() => {
+		// Load sync timestamps on mount
+		loadFriendSyncTimestamps();
+
+		// Listen for group logs from WebSocket
+		const handleGroupLog = async (event: CustomEvent) => {
+			const { log, groupId, senderId, senderUsername } = event.detail;
+
+			// Add log to fileContent and disk
+			const newLog = { ...log, userId: senderId };
+			fileContent = dedupeAndSortLogs([...fileContent, newLog]);
+
+			if (appCtx.isSignedIn) {
+				await appendLogToDisk(newLog);
+			}
+		};
+
+		// Listen for friend logs from WebSocket
+		const handleFriendLog = async (event: CustomEvent) => {
+			const { log } = event.detail;
+
+			// Add log to fileContent and disk
+			const newLog = { ...log };
+			fileContent = dedupeAndSortLogs([...fileContent, newLog]);
+
+			if (appCtx.isSignedIn) {
+				await appendLogToDisk(newLog);
+			}
+		};
+
+		// Listen for friend coming online and trigger delta sync
+		const handleFriendCameOnline = async (event: CustomEvent) => {
+			const { friendId } = event.detail;
+			await requestLogSyncFromFriend(friendId);
+		};
+
+		// Listen for sync_logs messages (receiving synced logs from friends)
+		const handleSyncLogsReceived = async (event: CustomEvent) => {
+			const { logs, senderId } = event.detail;
+			if (!logs || !Array.isArray(logs)) return;
+
+			// Add received logs to fileContent and disk
+			const newLogs = logs.map((log: Log) => ({ ...log, userId: senderId || log.userId }));
+			fileContent = dedupeAndSortLogs([...fileContent, ...newLogs]);
+
+			if (appCtx.isSignedIn) {
+				// Save all logs to disk
+				await saveLogsToDisk(fileContent);
+			}
+
+			// Update sync timestamp for this friend
+			if (senderId) {
+				updateFriendSyncTimestamp(senderId);
+			}
+		};
+
+		window.addEventListener('group-log-received', handleGroupLog as unknown as EventListener);
+		window.addEventListener('friend-log-received', handleFriendLog as unknown as EventListener);
+		window.addEventListener('friend-came-online', handleFriendCameOnline as unknown as EventListener);
+		window.addEventListener('sync-logs-received', handleSyncLogsReceived as unknown as EventListener);
+
 		// Async initialization
 		(async () => {
 			// Store strategy: Use autoSave with 300ms debounce to batch writes during initialization
@@ -275,6 +506,7 @@
 			const savedEnvironment = await store.get<'LIVE' | 'PTU' | 'HOTFIX'>(
 				'selectedEnvironment'
 			);
+			const savedSelectedGroupId = await store.get<string>('selectedGroupId');
 
 			// Set file path immediately to prevent welcome screen flash
 			if (savedFile) {
@@ -290,6 +522,10 @@
 				playerName = savedPlayerName;
 			}
 
+			if (savedSelectedGroupId) {
+				appCtx.selectedGroupId = savedSelectedGroupId;
+			}
+
 			// No explicit save needed - autoSave will handle any changes
 
 			// Load the Game.log file if previously selected
@@ -300,7 +536,6 @@
 					// Run deduplication on load to clean up any pre-existing duplicates
 					const dedupedSavedLogs = dedupeAndSortLogs(savedLogs);
 					if (dedupedSavedLogs.length !== savedLogs.length) {
-						console.log(`[Dedup] Removed ${savedLogs.length - dedupedSavedLogs.length} duplicate logs on load`);
 						// Save the cleaned logs back to disk
 						await saveLogsToDisk(dedupedSavedLogs);
 					}
@@ -322,6 +557,16 @@
 			// Mark loading complete
 			isLoadingFile = false;
 		})();
+
+		// Cleanup event listeners on unmount
+		return () => {
+			// Flush any pending batched logs before unmounting
+			flushLogBatches();
+			window.removeEventListener('group-log-received', handleGroupLog as unknown as EventListener);
+			window.removeEventListener('friend-log-received', handleFriendLog as unknown as EventListener);
+			window.removeEventListener('friend-came-online', handleFriendCameOnline as unknown as EventListener);
+			window.removeEventListener('sync-logs-received', handleSyncLogsReceived as unknown as EventListener);
+		};
 	});
 
 	// Re-attach scroll listener when fileContentContainer changes (e.g., after navigating back from profile)
@@ -333,6 +578,38 @@
 			return () => {
 				container.removeEventListener('scroll', handleScroll); // Use captured value
 			};
+		}
+	});
+
+	// Initial scroll to bottom on page load
+	let initialScrollDone = $state(false);
+	$effect(() => {
+		if (!initialScrollDone && fileContentContainer && displayedLogs.length > 0) {
+			tick().then(() => {
+				if (fileContentContainer) {
+					fileContentContainer.scrollTop = fileContentContainer.scrollHeight;
+					atTheBottom = true;
+					initialScrollDone = true;
+				}
+			});
+		}
+	});
+
+	// Auto-scroll to bottom when new logs arrive (if user was already at bottom)
+	$effect(() => {
+		// Skip during initial scroll
+		if (!initialScrollDone) return;
+
+		// Track displayedLogs length to trigger on new logs
+		const logsCount = displayedLogs.length;
+
+		// Only auto-scroll if user was at the bottom before new content arrived
+		if (atTheBottom && fileContentContainer && logsCount > 0) {
+			tick().then(() => {
+				if (fileContentContainer) {
+					fileContentContainer.scrollTop = fileContentContainer.scrollHeight;
+				}
+			});
 		}
 	});
 
@@ -364,7 +641,7 @@
 		if (!filePath) return;
 
 		try {
-			tick = 0;
+			tickCounter = 0;
 			const pathParts = filePath.split('\\');
 			logLocation =
 				pathParts.length > 1
@@ -428,7 +705,6 @@
 							const entityIdMatch = line.match(/EntityId\[(.*?)\]/);
 							if (entityIdMatch) {
 								playerId = entityIdMatch[1];
-								console.log('[Log] Extracted Star Citizen player ID from log:', playerId);
 							}
 						}
 
@@ -443,8 +719,8 @@
 										playerId: playerId, // Include SC player ID as metadata
 										timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
 									})
-								).catch((error: any) => {
-									console.error('[WebSocket] Error sending update_my_details:', error);
+								).catch(() => {
+									// Silently fail - will retry on next update
 								});
 							}
 						}
@@ -753,8 +1029,6 @@
 		lineCount = 0;
 		playerId = null; // Will be re-extracted from Game.log
 		currentUserDisplayData = null;
-
-		console.log('[Reset] Data reset complete, Discord auth preserved');
 	}
 
 	let fileContentContainer = $state<HTMLDivElement | null>(null);
@@ -858,13 +1132,9 @@
 			return;
 		}
 
-		console.log('[Friend] Sending friend request to:', friendCode);
 		const success = await apiSendFriendRequest(friendCode);
 
-		if (success) {
-			console.log('[Friend] Friend request sent successfully');
-			// API will trigger refetch_friend_requests notification
-		} else {
+		if (!success) {
 			alert('Failed to send friend request. Please check the friend code and try again.');
 		}
 	}
@@ -878,20 +1148,32 @@
 		// Find the friendship ID from apiFriends
 		const apiFriend = appCtx.apiFriends.find((f) => f.friendUserId === id);
 		if (!apiFriend) {
-			console.error('[Friend] Cannot remove friend - friendship not found');
 			return;
 		}
 
-		console.log('[Friend] Removing friend:', id);
 		const success = await apiRemoveFriend(apiFriend.id);
 
-		if (success) {
-			console.log('[Friend] Friend removed successfully');
-			// API will trigger refetch_friends notification
-		} else {
+		if (!success) {
 			alert('Failed to remove friend. Please try again.');
 		}
 	}
+
+	// Persist selectedGroupId to store when it changes
+	$effect(() => {
+		const groupId = appCtx.selectedGroupId;
+		(async () => {
+			try {
+				const store = await load('store.json', { defaults: {}, autoSave: 200 });
+				if (groupId !== null) {
+					await store.set('selectedGroupId', groupId);
+				} else {
+					await store.delete('selectedGroupId');
+				}
+			} catch (error) {
+				// Silently fail - will retry on next change
+			}
+		})();
+	});
 
 	// Expose page-specific actions to the layout/header via context
 	$effect(() => {
@@ -1083,7 +1365,7 @@
 
 				{#if file}
 					<div
-						class="row-start-2 row-end-3 flex items-center justify-end gap-2 px-4 py-2 bg-[rgb(10,30,42)] border-t border-white/20 text-[0.8rem] text-white/70">
+						class="row-start-3 row-end-4 flex items-center justify-end gap-2 px-4 py-2 bg-[rgb(10,30,42)] border-t border-white/20 text-[0.8rem] text-white/70">
 						Log lines processed: {Number(lineCount).toLocaleString()}
 					</div>
 				{/if}

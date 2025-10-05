@@ -9,6 +9,13 @@
 
 	let expandedGroupId = $state<string | null>(null);
 
+	// Sync expandedGroupId with selectedGroupId on initialization
+	$effect(() => {
+		if (appCtx.selectedGroupId) {
+			expandedGroupId = appCtx.selectedGroupId;
+		}
+	});
+
 	function selectGroup(groupId: string) {
 		// Toggle selection: if already selected, deselect and collapse
 		if (appCtx.selectedGroupId === groupId) {

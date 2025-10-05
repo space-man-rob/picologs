@@ -9,6 +9,7 @@
 	import { listen } from '@tauri-apps/api/event';
 	import Header from '../components/Header.svelte';
 	import Iframe from '../components/Iframe.svelte';
+	import NotificationToasts from '../components/NotificationToasts.svelte';
 	import { setAppContext } from '$lib/appContext.svelte';
 	import { page } from '$app/stores';
 	import {
@@ -21,8 +22,13 @@
 		fetchGroupMembers,
 		fetchGroupInvitations,
 		subscribe as apiSubscribe,
-		getWebSocket
+		getWebSocket,
+		acceptFriendRequest as apiAcceptFriendRequest,
+		denyFriendRequest as apiDenyFriendRequest,
+		acceptGroupInvitation as apiAcceptGroupInvitation,
+		denyGroupInvitation as apiDenyGroupInvitation
 	} from '$lib/api';
+	import { decompressLogs } from '$lib/compression';
 	import { loadAuthData, signOut, handleAuthComplete, getJwtToken } from '$lib/oauth';
 	import type { Friend as FriendType } from '../types';
 
@@ -55,11 +61,9 @@
 	// Sync user profile from API
 	async function syncUserProfileFromAPI() {
 		if (!appCtx.isSignedIn) {
-			console.log('[API] Not syncing user profile - not signed in');
 			return;
 		}
 
-		console.log('[API] Fetching user profile from API...');
 		const profile = await fetchUserProfile();
 		if (profile) {
 			appCtx.apiUserProfile = profile;
@@ -70,19 +74,15 @@
 				username: profile.username,
 				avatar: profile.avatar
 			};
-
-			console.log('[API] Synced user profile from database');
 		}
 	}
 
 	// Sync friends from API
 	async function syncFriendsFromAPI() {
 		if (!appCtx.isSignedIn) {
-			console.log('[API] Not syncing friends - not signed in');
 			return;
 		}
 
-		console.log('[API] Fetching friends from API...');
 		const friends = await fetchFriends();
 		appCtx.apiFriends = friends;
 
@@ -100,32 +100,24 @@
 			isOnline: false,
 			isConnected: false
 		}));
-
-		console.log('[API] Synced', friends.length, 'friends');
 	}
 
 	// Sync friend requests from API
 	async function syncFriendRequestsFromAPI() {
 		if (!appCtx.isSignedIn) {
-			console.log('[API] Not syncing friend requests - not signed in');
 			return;
 		}
 
-		console.log('[API] Fetching friend requests from API...');
 		const requests = await fetchFriendRequests();
 		appCtx.apiFriendRequests = requests;
-
-		console.log('[API] Synced', requests.length, 'friend requests');
 	}
 
 	// Sync groups from API
 	async function syncGroupsFromAPI() {
 		if (!appCtx.isSignedIn) {
-			console.log('[API] Not syncing groups - not signed in');
 			return;
 		}
 
-		console.log('[API] Fetching groups from API...');
 		const groups = await fetchGroups();
 		appCtx.groups = groups;
 
@@ -138,14 +130,11 @@
 		// Fetch pending invitations
 		const invitations = await fetchGroupInvitations();
 		appCtx.groupInvitations = invitations;
-
-		console.log('[API] Synced', groups.length, 'groups and', invitations.length, 'invitations');
 	}
 
 	// Connect WebSocket
 	async function connectWebSocket(): Promise<void> {
 		if (!appCtx.discordUserId) {
-			console.log('[WebSocket] Not connecting - no user ID available');
 			appCtx.connectionError = 'Please sign in with Discord to connect';
 			return Promise.reject(new Error('No user ID available'));
 		}
@@ -165,7 +154,6 @@
 		try {
 			// Set up subscriptions BEFORE connecting
 			apiSubscribe('registered', async (message: any) => {
-				console.log('[WebSocket] ✅ Successfully registered with server');
 				await syncUserProfileFromAPI();
 				await syncFriendsFromAPI();
 				await syncFriendRequestsFromAPI();
@@ -173,23 +161,45 @@
 			});
 
 			apiSubscribe('refetch_friends', async () => {
-				console.log('[WebSocket] 🔄 Received refetch_friends notification');
+				const previousFriendCount = appCtx.apiFriends.length;
 				await syncFriendsFromAPI();
+				// Show notification if friends list increased (friend request accepted)
+				if (appCtx.apiFriends.length > previousFriendCount) {
+					appCtx.addNotification('Friend request accepted', 'success');
+				}
 			});
 
 			apiSubscribe('refetch_friend_requests', async () => {
-				console.log('[WebSocket] 🔄 Received refetch_friend_requests notification');
+				const previousRequestCount = appCtx.apiFriendRequests.length;
 				await syncFriendRequestsFromAPI();
+				// Show notification for new friend requests (only if count increased)
+				if (appCtx.apiFriendRequests.length > previousRequestCount) {
+					const latestRequest = appCtx.apiFriendRequests.find(r => r.direction === 'incoming');
+					if (latestRequest) {
+						const requesterName = latestRequest.fromUsername || 'Someone';
+						appCtx.addNotification(`New friend request from ${requesterName}`, 'info');
+					}
+				}
 			});
 
 			apiSubscribe('refetch_groups', async () => {
-				console.log('[WebSocket] 🔄 Received refetch_groups notification');
 				await syncGroupsFromAPI();
+			});
+
+			apiSubscribe('refetch_group_invitations', async () => {
+				const previousInvitationCount = appCtx.groupInvitations.length;
+				await syncGroupsFromAPI(); // This also fetches invitations
+				// Show notification for new group invitations
+				if (appCtx.groupInvitations.length > previousInvitationCount) {
+					const latestInvitation = appCtx.groupInvitations[0];
+					const groupName = latestInvitation?.group?.name || 'a group';
+					const inviterName = latestInvitation?.inviter?.username || 'Someone';
+					appCtx.addNotification(`${inviterName} invited you to ${groupName}`, 'info');
+				}
 			});
 
 			apiSubscribe('refetch_group_details', async (message: any) => {
 				if (message.groupId) {
-					console.log('[WebSocket] 🔄 Received refetch_group_details for group', message.groupId);
 					const members = await fetchGroupMembers(message.groupId);
 					appCtx.groupMembers.set(message.groupId, members);
 				}
@@ -217,6 +227,11 @@
 							appCtx.groupMembers.set(groupId, [...members]);
 						}
 					});
+
+					// Trigger sync event for delta sync
+					window.dispatchEvent(new CustomEvent('friend-came-online', {
+						detail: { friendId: message.userId }
+					}));
 				}
 			});
 
@@ -242,6 +257,102 @@
 							appCtx.groupMembers.set(groupId, [...members]);
 						}
 					});
+				}
+			});
+
+			apiSubscribe('group_log', (message: any) => {
+				if (message.log && message.groupId) {
+					// Emit custom event that the page can listen to
+					window.dispatchEvent(new CustomEvent('group-log-received', {
+						detail: {
+							log: message.log,
+							groupId: message.groupId,
+							senderId: message.senderId,
+							senderUsername: message.senderUsername
+						}
+					}));
+				}
+			});
+
+			apiSubscribe('log', (message: any) => {
+				if (message.log) {
+					// Emit custom event that the page can listen to
+					window.dispatchEvent(new CustomEvent('friend-log-received', {
+						detail: {
+							log: message.log
+						}
+					}));
+				}
+			});
+
+			apiSubscribe('sync_logs', (message: any) => {
+				if (message.logs && Array.isArray(message.logs)) {
+					// Emit custom event that the page can listen to
+					window.dispatchEvent(new CustomEvent('sync-logs-received', {
+						detail: {
+							logs: message.logs,
+							senderId: message.senderId,
+							hasMore: message.hasMore,
+							total: message.total,
+							offset: message.offset,
+							limit: message.limit
+						}
+					}));
+				}
+			});
+
+			// Handle batched friend logs (with optional compression)
+			apiSubscribe('batch_logs', async (message: any) => {
+				try {
+					let logs: any[];
+
+					// Check if message is compressed
+					if (message.compressed && message.compressedData) {
+						logs = await decompressLogs(message.compressedData);
+					} else {
+						logs = message.logs;
+					}
+
+					if (logs && Array.isArray(logs)) {
+						// Dispatch individual events for each log in the batch
+						logs.forEach((log: any) => {
+							window.dispatchEvent(new CustomEvent('friend-log-received', {
+								detail: { log }
+							}));
+						});
+					}
+				} catch (error) {
+					console.error('[Batch Decompression] Failed to decompress friend logs:', error);
+				}
+			});
+
+			// Handle batched group logs (with optional compression)
+			apiSubscribe('batch_group_logs', async (message: any) => {
+				try {
+					let logs: any[];
+
+					// Check if message is compressed
+					if (message.compressed && message.compressedData) {
+						logs = await decompressLogs(message.compressedData);
+					} else {
+						logs = message.logs;
+					}
+
+					if (logs && Array.isArray(logs) && message.groupId) {
+						// Dispatch individual events for each log in the batch
+						logs.forEach((log: any) => {
+							window.dispatchEvent(new CustomEvent('group-log-received', {
+								detail: {
+									log,
+									groupId: message.groupId,
+									senderId: message.senderId,
+									senderUsername: message.senderUsername
+								}
+							}));
+						});
+					}
+				} catch (error) {
+					console.error('[Batch Group Decompression] Failed to decompress group logs:', error);
 				}
 			});
 
@@ -296,7 +407,6 @@
 			if (!messageStr) return;
 
 			const message = JSON.parse(messageStr);
-			console.log('[Auth] Received message:', message.type);
 
 			// Handle auth_complete message with JWT
 			if (message.type === 'auth_complete' || message.type === 'desktop_auth_complete') {
@@ -322,8 +432,6 @@
 		message: any,
 		socket: WebSocket
 	): Promise<void> {
-		console.log('[Auth] ✅ Authentication complete!');
-
 		if (!message.data?.jwt || !message.data?.user) {
 			console.error('[Auth] Invalid auth_complete message - missing jwt or user');
 			return;
@@ -360,7 +468,6 @@
 		appCtx.ws = null;
 
 		await connectWebSocket();
-		console.log('[Auth] ✅ Signed in successfully');
 		appCtx.isAuthenticating = false;
 	}
 
@@ -369,17 +476,13 @@
 		appCtx.authError = null;
 		appCtx.isAuthenticating = true;
 
-		console.log('[Auth] 🚀 Starting Discord OAuth flow');
-
 		try {
 			// Connect WebSocket first to receive auth completion
 			appCtx.connectionStatus = 'connecting';
 			// Use dev WebSocket URL if available, otherwise production
 			const wsUrl = import.meta.env.VITE_WS_URL_DEV || import.meta.env.VITE_WS_URL_PROD;
 
-			console.log('[Auth] 🔌 Connecting to WebSocket:', wsUrl);
 			const socket = await WebSocket.connect(wsUrl);
-			console.log('[Auth] ✅ WebSocket connection established');
 
 			// Set up message listener for auth completion
 			socket.addListener(async (msg: any) => {
@@ -397,7 +500,6 @@
 			};
 
 			await socket.send(JSON.stringify(initPayload));
-			console.log('[Auth] ✅ Session initialized:', sessionId);
 
 			appCtx.ws = socket;
 			appCtx.connectionStatus = 'connected';
@@ -413,12 +515,7 @@
 			// State includes session ID so website can redirect back to desktop app
 			const discordAuthUrl = `discord://-/oauth2/authorize?client_id=${discordClientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}&state=${sessionId}`;
 
-			console.log('[Auth] Opening Discord app for OAuth authorization...');
-			console.log('[Auth] Redirect URI:', redirectUri);
-			console.log('[Auth] Session ID (state):', sessionId);
-			console.log('[Auth] Full Discord URL:', discordAuthUrl);
 			await openUrl(discordAuthUrl);
-			console.log('[Auth] Discord app opened, waiting for user to authorize...');
 
 		} catch (error) {
 			console.error('[Auth] ❌ Failed to initiate auth:', error);
@@ -453,8 +550,6 @@
 				}
 			}
 			appCtx.connectionStatus = 'disconnected';
-
-			console.log('[Auth] Successfully signed out');
 		} catch (error) {
 			console.error('Sign out failed:', error);
 		}
@@ -464,6 +559,90 @@
 	async function installUpdate() {
 		if (updateInfo) {
 			await updateInfo.downloadAndInstall();
+		}
+	}
+
+	// Handle accepting friend request
+	async function handleAcceptFriend(friendshipId: string) {
+		try {
+			appCtx.processingFriendRequests.add(friendshipId);
+			appCtx.processingFriendRequests = new Set(appCtx.processingFriendRequests);
+
+			const success = await apiAcceptFriendRequest(friendshipId);
+			if (success) {
+				appCtx.addNotification('Friend request accepted', 'success');
+			} else {
+				appCtx.addNotification('Failed to accept friend request', 'error');
+			}
+		} catch (error) {
+			console.error('Failed to accept friend request:', error);
+			appCtx.addNotification('Failed to accept friend request', 'error');
+		} finally {
+			appCtx.processingFriendRequests.delete(friendshipId);
+			appCtx.processingFriendRequests = new Set(appCtx.processingFriendRequests);
+		}
+	}
+
+	// Handle denying friend request
+	async function handleDenyFriend(friendshipId: string) {
+		try {
+			appCtx.processingFriendRequests.add(friendshipId);
+			appCtx.processingFriendRequests = new Set(appCtx.processingFriendRequests);
+
+			const success = await apiDenyFriendRequest(friendshipId);
+			if (success) {
+				appCtx.addNotification('Friend request denied', 'info');
+			} else {
+				appCtx.addNotification('Failed to deny friend request', 'error');
+			}
+		} catch (error) {
+			console.error('Failed to deny friend request:', error);
+			appCtx.addNotification('Failed to deny friend request', 'error');
+		} finally {
+			appCtx.processingFriendRequests.delete(friendshipId);
+			appCtx.processingFriendRequests = new Set(appCtx.processingFriendRequests);
+		}
+	}
+
+	// Handle accepting group invitation
+	async function handleAcceptInvitation(invitationId: string) {
+		try {
+			appCtx.processingGroupInvitations.add(invitationId);
+			appCtx.processingGroupInvitations = new Set(appCtx.processingGroupInvitations);
+
+			const result = await apiAcceptGroupInvitation(invitationId);
+			if (result) {
+				appCtx.addNotification('Group invitation accepted', 'success');
+			} else {
+				appCtx.addNotification('Failed to accept invitation', 'error');
+			}
+		} catch (error) {
+			console.error('Failed to accept group invitation:', error);
+			appCtx.addNotification('Failed to accept invitation', 'error');
+		} finally {
+			appCtx.processingGroupInvitations.delete(invitationId);
+			appCtx.processingGroupInvitations = new Set(appCtx.processingGroupInvitations);
+		}
+	}
+
+	// Handle denying group invitation
+	async function handleDenyInvitation(invitationId: string) {
+		try {
+			appCtx.processingGroupInvitations.add(invitationId);
+			appCtx.processingGroupInvitations = new Set(appCtx.processingGroupInvitations);
+
+			const success = await apiDenyGroupInvitation(invitationId);
+			if (success) {
+				appCtx.addNotification('Group invitation denied', 'info');
+			} else {
+				appCtx.addNotification('Failed to deny invitation', 'error');
+			}
+		} catch (error) {
+			console.error('Failed to deny group invitation:', error);
+			appCtx.addNotification('Failed to deny invitation', 'error');
+		} finally {
+			appCtx.processingGroupInvitations.delete(invitationId);
+			appCtx.processingGroupInvitations = new Set(appCtx.processingGroupInvitations);
 		}
 	}
 
@@ -493,7 +672,6 @@
 			const storedDiscordUserId = await store.get<string>('discordUserId');
 			if (storedDiscordUserId) {
 				appCtx.discordUserId = storedDiscordUserId;
-				console.log('[Init] Loaded Discord user ID:', appCtx.discordUserId);
 
 				const authData = await loadAuthData();
 				if (authData) {
@@ -503,7 +681,6 @@
 						username: authData.user.global_name || authData.user.username,
 						avatar: authData.user.avatar
 					};
-					console.log('[Init] Restored Discord auth session');
 				}
 			}
 
@@ -516,7 +693,6 @@
 				if (jwtToken) {
 					connectWebSocket();
 				} else {
-					console.log('[Init] No JWT token found - user needs to sign in again');
 					appCtx.connectionError = 'Authentication expired - please sign in again';
 					await handleSignOut();
 				}
@@ -556,28 +732,20 @@
 			// Helper function to process deep link URLs
 			const processDeepLink = async (url: string) => {
 				try {
-					console.log('[Deep Link] Processing URL:', url);
 					const urlObj = new URL(url);
 
 					// Only process picologs:// protocol URLs
 					if (urlObj.protocol !== 'picologs:') {
-						console.log('[Deep Link] Ignoring non-picologs URL');
 						return;
 					}
 
 					const normalizedPath = normalizeDeepLinkPath(urlObj);
-					console.log('[Deep Link] Protocol:', urlObj.protocol, 'Normalized path:', normalizedPath);
 
 					// Handle Discord OAuth callback
 					// Expected formats: picologs://auth/callback, picologs:///auth/callback, etc.
 					if (normalizedPath === 'auth/callback') {
-						console.log('[Deep Link] 🔐 Discord OAuth callback received');
 						const code = urlObj.searchParams.get('code');
 						const state = urlObj.searchParams.get('state');
-
-						console.log('[Deep Link] Code:', code ? 'present' : 'missing');
-						console.log('[Deep Link] State (session ID):', state);
-						console.log('[Deep Link] Expected session ID:', appCtx.authSessionId);
 
 						// Validate state parameter matches expected session ID
 						if (!state) {
@@ -609,9 +777,6 @@
 							return;
 						}
 
-						// State validation passed - proceed with OAuth flow
-						console.log('[Deep Link] ✅ State validation passed');
-
 						// Send OAuth code to server via WebSocket
 						const payload = {
 							type: 'discord_oauth_callback',
@@ -622,21 +787,16 @@
 							}
 						};
 
-						console.log('[Deep Link] Sending OAuth callback to server...');
 						await appCtx.ws.send(JSON.stringify(payload));
-						console.log('[Deep Link] ✅ OAuth callback sent, waiting for auth_complete...');
 					}
 					// Legacy deep link handler (for backward compatibility)
 					// Expected format: picologs://auth?data=...
 					else if (normalizedPath === 'auth') {
-						console.log('[Deep Link] Legacy auth protocol');
 						const authDataEncoded = urlObj.searchParams.get('data');
 						if (authDataEncoded) {
 							const authData = JSON.parse(decodeURIComponent(authDataEncoded));
 							await handleAuthComplete(authData);
 						}
-					} else {
-						console.log('[Deep Link] URL did not match expected format. Normalized path:', normalizedPath);
 					}
 				} catch (error) {
 					console.error('[Deep Link] Error parsing URL:', error);
@@ -644,15 +804,11 @@
 			};
 
 			// Listen for deep links from single-instance plugin
-			console.log('[Deep Link] Setting up single-instance listener...');
 			singleInstanceUnlisten = await listen<string>('deep-link-received', async (event) => {
-				console.log('[Deep Link] ✅ Received from single-instance:', event.payload);
 				await processDeepLink(event.payload);
 			});
-			console.log('[Deep Link] Single-instance listener registered');
 
 			unlisten = await onOpenUrl(async (urls) => {
-				console.log('[Deep Link] Received URLs:', urls);
 				for (const url of urls) {
 					await processDeepLink(url);
 				}
@@ -686,7 +842,15 @@
 		{handleSignIn}
 		{handleSignOut}
 		connectionError={appCtx.connectionError}
-		isAuthenticating={appCtx.isAuthenticating} />
+		isAuthenticating={appCtx.isAuthenticating}
+		friendRequests={appCtx.apiFriendRequests}
+		groupInvitations={appCtx.groupInvitations}
+		onAcceptFriend={handleAcceptFriend}
+		onDenyFriend={handleDenyFriend}
+		onAcceptInvitation={handleAcceptInvitation}
+		onDenyInvitation={handleDenyInvitation}
+		processingFriendRequests={appCtx.processingFriendRequests}
+		processingGroupInvitations={appCtx.processingGroupInvitations} />
 
 	<div class="overflow-hidden flex flex-col">
 		<!-- Main page content -->
@@ -704,4 +868,7 @@
 		{/if}
 	</div>
 </div>
+
+<!-- Notification toasts -->
+<NotificationToasts />
 

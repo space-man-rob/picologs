@@ -32,7 +32,6 @@
 		// Security: Verify origin
 		const allowedOrigins = [import.meta.env.VITE_WEBSITE_URL_PROD, import.meta.env.VITE_WEBSITE_URL_DEV];
 		if (!allowedOrigins.includes(event.origin)) {
-			console.warn('Ignored message from unauthorized origin:', event.origin);
 			return;
 		}
 
@@ -46,14 +45,13 @@
 				break;
 			case 'friend_list_updated':
 				// Handle friend list updates if needed
-				console.log('Friend list updated:', data);
 				break;
 			case 'group_updated':
 				// Handle group updates if needed
-				console.log('Group updated:', data);
 				break;
 			default:
-				console.log('Unknown message type from iframe:', type);
+				// Unknown message type - ignore
+				break;
 		}
 	}
 

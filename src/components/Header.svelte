@@ -18,7 +18,15 @@
 		discordUser,
 		handleSignIn,
 		handleSignOut,
-		isAuthenticating
+		isAuthenticating,
+		friendRequests = [],
+		groupInvitations = [],
+		onAcceptFriend,
+		onDenyFriend,
+		onAcceptInvitation,
+		onDenyInvitation,
+		processingFriendRequests = new Set(),
+		processingGroupInvitations = new Set()
 	} = $props();
 
 	async function handleClearLogs() {
@@ -33,6 +41,14 @@
 	}
 
 	let logVersionDropdownOpen = $state(false);
+	let showProfileDropdown = $state(false);
+	let showNotificationsDropdown = $state(false);
+
+	// Calculate notification count
+	let notificationCount = $derived(
+		(Array.isArray(friendRequests) ? friendRequests : []).filter((r: any) => r.direction === 'incoming').length +
+		(Array.isArray(groupInvitations) ? groupInvitations : []).length
+	);
 
 	async function selectVersion(option: 'Select new') {
 		logVersionDropdownOpen = false;
@@ -47,28 +63,15 @@
 		logVersionDropdownOpen = !logVersionDropdownOpen;
 	}
 
-	let userDropdownOpen = $state(false);
-
-	function toggleUserDropdown() {
-		userDropdownOpen = !userDropdownOpen;
-	}
-
-	function closeUserDropdown() {
-		userDropdownOpen = false;
-	}
-
 	function handleOpenProfile() {
-		closeUserDropdown();
 		goto('/profile');
 	}
 
 	function handleOpenFriends() {
-		closeUserDropdown();
 		goto('/friends');
 	}
 
 	function handleOpenGroups() {
-		closeUserDropdown();
 		goto('/groups');
 	}
 
@@ -116,10 +119,31 @@
 		showReconnectButton = true;
 		// Keep lastConnectionError so we don't show it again for the same error
 	}
+
+	// Close dropdowns when clicking outside
+	$effect(() => {
+		function handleClickOutside(event: MouseEvent) {
+			const target = event.target as HTMLElement;
+			if (showNotificationsDropdown && !target.closest('.notifications-dropdown')) {
+				showNotificationsDropdown = false;
+			}
+			if (showProfileDropdown && !target.closest('.profile-dropdown')) {
+				showProfileDropdown = false;
+			}
+			if (logVersionDropdownOpen && !target.closest('.log-version-dropdown')) {
+				logVersionDropdownOpen = false;
+			}
+		}
+
+		if (typeof document !== 'undefined') {
+			document.addEventListener('click', handleClickOutside);
+			return () => document.removeEventListener('click', handleClickOutside);
+		}
+	});
 </script>
 
 <header
-	class="h-[70px] flex justify-between items-center bg-[rgb(10,30,42)] border-b border-white/20 px-4 pl-1.5">
+	class="h-[70px] flex justify-between items-center bg-slate-900 border-b border-white/20 px-4 pl-1.5">
 	<div class="flex items-center gap-2 flex-shrink-0">
 		<img src="/pico.webp" alt="Picologs" class="w-12 h-12" />
 		<h1 class="text-2xl font-medium m-0 text-white hidden sm:block">Picologs</h1>
@@ -157,7 +181,7 @@
 			</button>
 		{/if}
 		{#if logLocation}
-			<div class="relative">
+			<div class="relative log-version-dropdown">
 				<button
 					class="bg-white/10 text-white border border-white/20 px-2 md:px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-1 md:gap-2 hover:bg-white/20 text-sm md:text-base"
 					onclick={toggleLogVersionDropdown}
@@ -183,7 +207,7 @@
 				</button>
 				{#if logVersionDropdownOpen}
 					<div
-						class="absolute top-full left-0 mt-2 bg-[rgb(10,30,42)] border border-white/20 rounded min-w-[120px] shadow-md z-[1000] overflow-hidden">
+						class="absolute top-full left-0 mt-2 bg-slate-900 border border-white/20 rounded min-w-[120px] shadow-lg z-[1000] overflow-hidden">
 						<button
 							class="w-full px-4 py-2 bg-transparent border-none text-white text-left cursor-pointer text-sm transition-colors duration-150 flex items-center hover:bg-white/10"
 							onclick={() => selectVersion('Select new')}>
@@ -209,10 +233,145 @@
 		</button>
 
 		{#if isSignedIn && discordUser}
-			<div class="relative">
+			<!-- Notifications Bell -->
+			<div class="relative notifications-dropdown">
 				<button
-					class="flex items-center justify-center rounded-full p-0 border-0 bg-transparent"
-					onclick={toggleUserDropdown}
+					onclick={() => showNotificationsDropdown = !showNotificationsDropdown}
+					class="relative p-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors text-xl border border-transparent hover:border-white/20"
+					title="Notifications">
+					🔔
+					{#if notificationCount > 0}
+						<span class="absolute top-0 right-0 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-xs font-semibold text-white">
+							{notificationCount}
+						</span>
+					{/if}
+				</button>
+
+				{#if showNotificationsDropdown}
+					{@const incomingFriendRequests = (Array.isArray(friendRequests) ? friendRequests : []).filter((r: any) => r.direction === 'incoming')}
+					<div class="absolute right-0 mt-2 w-80 md:w-96 max-w-[calc(100vw-2rem)] bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-[1000] max-h-[min(600px,80vh)] overflow-y-auto">
+						<div class="p-4 border-b border-gray-700">
+							<h3 class="text-lg font-semibold text-white">Notifications</h3>
+						</div>
+
+						{#if incomingFriendRequests.length === 0 && groupInvitations.length === 0}
+							<div class="p-8 text-center text-gray-400">
+								<div class="text-5xl mx-auto mb-2 opacity-50">🔔</div>
+								<p>No pending notifications</p>
+							</div>
+						{:else}
+							<div class="divide-y divide-gray-700">
+								{#each incomingFriendRequests as request}
+									<div class="p-4 hover:bg-gray-750">
+										<div class="flex items-start gap-3 mb-3">
+											{#if request.fromAvatar}
+												<img
+													src={`${import.meta.env.VITE_DISCORD_CDN_URL}/avatars/${request.fromDiscordId}/${request.fromAvatar}.png?size=64`}
+													alt={request.fromUsername}
+													class="w-10 h-10 rounded-full flex-shrink-0"
+												/>
+											{:else}
+												<div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 text-xl">
+													➕
+												</div>
+											{/if}
+											<div class="flex-1 min-w-0">
+												<p class="text-xs font-semibold text-blue-400 mb-1">Friend Request</p>
+												<p class="text-sm font-medium text-white">{request.fromUsername}</p>
+												{#if request.fromPlayer}
+													<p class="text-xs text-gray-400">{request.fromPlayer}</p>
+												{/if}
+												<p class="text-xs text-gray-500 mt-1">
+													{new Date(request.createdAt).toLocaleDateString()}
+												</p>
+											</div>
+										</div>
+										<div class="flex gap-2">
+											<button
+												onclick={() => onAcceptFriend?.(request.id)}
+												disabled={processingFriendRequests.has(request.id)}
+												class="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+												{#if processingFriendRequests.has(request.id)}
+													<span class="inline-block animate-spin">⏳</span>
+												{:else}
+													✓
+												{/if}
+												Accept
+											</button>
+											<button
+												onclick={() => onDenyFriend?.(request.id)}
+												disabled={processingFriendRequests.has(request.id)}
+												class="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 bg-white/10 text-white text-sm rounded border border-white/20 hover:bg-white/15 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
+												{#if processingFriendRequests.has(request.id)}
+													<span class="inline-block animate-spin">⏳</span>
+												{:else}
+													✕
+												{/if}
+												Deny
+											</button>
+										</div>
+									</div>
+								{/each}
+
+								{#each groupInvitations as invitation}
+									<div class="p-4 hover:bg-gray-750">
+										<div class="flex items-start gap-3 mb-3">
+											{#if invitation.group?.avatar}
+												<img
+													src={invitation.group.avatar}
+													alt={invitation.group.name}
+													class="w-10 h-10 rounded-lg object-cover flex-shrink-0"
+												/>
+											{:else}
+												<div class="p-2 bg-blue-600/20 rounded-lg flex-shrink-0 text-xl">
+													🙏
+												</div>
+											{/if}
+											<div class="flex-1 min-w-0">
+												<p class="text-xs font-semibold text-blue-400 mb-1">Join Group Request</p>
+												<p class="text-sm font-medium text-white">{invitation.group?.name || 'Unknown Group'}</p>
+												<p class="text-xs text-gray-400">Invited by {invitation.inviter?.username || 'Unknown User'}</p>
+												<p class="text-xs text-gray-500 mt-1">
+													{new Date(invitation.createdAt).toLocaleDateString()}
+												</p>
+											</div>
+										</div>
+										<div class="flex gap-2">
+											<button
+												onclick={() => onAcceptInvitation?.(invitation.id)}
+												disabled={processingGroupInvitations.has(invitation.id)}
+												class="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+												{#if processingGroupInvitations.has(invitation.id)}
+													<span class="inline-block animate-spin">⏳</span>
+												{:else}
+													✓
+												{/if}
+												Accept
+											</button>
+											<button
+												onclick={() => onDenyInvitation?.(invitation.id)}
+												disabled={processingGroupInvitations.has(invitation.id)}
+												class="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 bg-white/10 text-white text-sm rounded border border-white/20 hover:bg-white/15 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
+												{#if processingGroupInvitations.has(invitation.id)}
+													<span class="inline-block animate-spin">⏳</span>
+												{:else}
+													✕
+												{/if}
+												Deny
+											</button>
+										</div>
+									</div>
+								{/each}
+							</div>
+						{/if}
+					</div>
+				{/if}
+			</div>
+
+			<div class="relative profile-dropdown">
+				<button
+					onclick={() => showProfileDropdown = !showProfileDropdown}
+					class="flex items-center justify-center rounded-full p-0 border-0 bg-transparent cursor-pointer"
 					title={connectionError || (connectionStatus === 'connected' ? 'Online' : 'Offline')}>
 					<div class="relative flex items-center justify-center">
 						{#if discordUser.avatar && discordUser.id}
@@ -220,18 +379,18 @@
 								src={`${import.meta.env.VITE_DISCORD_CDN_URL}/avatars/${discordUser.id}/${discordUser.avatar}.png?size=64`}
 								alt={discordUser.username}
 								class="w-9 h-9 rounded-full border-2 transition-[border-color] duration-300"
-								class:border-[#4caf50]={connectionStatus === 'connected'}
+								class:border-green-500={connectionStatus === 'connected'}
 								class:shadow-[0_0_6px_rgba(76,175,80,0.4)]={connectionStatus === 'connected'}
-								class:border-[#f44336]={connectionStatus === 'disconnected'}
-								class:border-[#ff9800]={connectionStatus === 'connecting'} />
+								class:border-red-500={connectionStatus === 'disconnected'}
+								class:border-orange-500={connectionStatus === 'connecting'} />
 						{:else}
 							<div
-								class="w-9 h-9 rounded-full border-2 flex items-center justify-center bg-[rgba(88,101,242,0.5)] font-semibold text-[0.95rem] transition-[border-color] duration-300"
-								class:border-[#4caf50]={connectionStatus === 'connected'}
+								class="w-9 h-9 rounded-full border-2 flex items-center justify-center bg-indigo-600/50 font-semibold text-[0.95rem] transition-[border-color] duration-300"
+								class:border-green-500={connectionStatus === 'connected'}
 								class:shadow-[0_0_6px_rgba(76,175,80,0.4)]={connectionStatus === 'connected'}
-								class:border-[#f44336]={connectionStatus === 'disconnected'}
-								class:border-[#ff9800]={connectionStatus === 'connecting'}>
-								{discordUser.username.charAt(0).toUpperCase()}
+								class:border-red-500={connectionStatus === 'disconnected'}
+								class:border-orange-500={connectionStatus === 'connecting'}>
+								{(discordUser.username || 'U').charAt(0).toUpperCase()}
 							</div>
 						{/if}
 						{#if connectionStatus === 'connecting'}
@@ -239,53 +398,101 @@
 						{/if}
 					</div>
 				</button>
-				{#if userDropdownOpen}
-					<div
-						class="absolute top-[calc(100%+0.5rem)] right-0 bg-[rgb(15,35,47)] border border-[rgba(88,101,242,0.3)] rounded min-w-[200px] shadow-[0_4px_12px_rgba(0,0,0,0.3)] z-[1000] overflow-hidden">
-						<div class="px-4 py-3 flex flex-col gap-1">
-							<span class="text-white font-medium text-[0.95rem]">{discordUser.username}</span>
-							<span
-								class="text-xs font-normal"
-								class:text-[#4caf50]={connectionStatus === 'connected'}
-								class:text-[#f44336]={connectionStatus !== 'connected'}>
-								{connectionStatus === 'connected' ? 'Online' : 'Offline'}
-							</span>
+
+				{#if showProfileDropdown}
+				<div
+					class="absolute right-0 mt-2 w-64 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-[1000]"
+				>
+					<!-- Profile Info -->
+					<div class="p-4 border-b border-gray-700">
+						<div class="flex items-center gap-3 mb-3">
+							{#if discordUser.avatar && discordUser.id}
+								<img
+									src={`${import.meta.env.VITE_DISCORD_CDN_URL}/avatars/${discordUser.id}/${discordUser.avatar}.png?size=64`}
+									alt={discordUser.username}
+									class="w-12 h-12 rounded-full"
+								/>
+							{:else}
+								<div class="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-2xl">
+									👤
+								</div>
+							{/if}
+							<div class="flex-1 min-w-0">
+								<p class="text-sm font-semibold text-white truncate">{discordUser.username || 'User'}</p>
+								<p
+									class="text-xs font-normal truncate"
+									class:text-green-500={connectionStatus === 'connected'}
+									class:text-red-500={connectionStatus !== 'connected'}>
+									{connectionStatus === 'connected' ? 'Online' : 'Offline'}
+								</p>
+							</div>
 						</div>
-						<div class="h-px bg-white/10 my-1"></div>
+
+						{#if friendCode}
+							<button
+								onclick={() => {
+									navigator.clipboard.writeText(friendCode || '');
+									copiedStatusVisible = true;
+									setTimeout(() => {
+										copiedStatusVisible = false;
+									}, 1500);
+								}}
+								class="w-full flex items-center justify-between gap-2 px-3 py-2 bg-gray-700/50 rounded text-xs hover:bg-gray-700 transition-colors group"
+							>
+								<span class="text-gray-400">Friend Code</span>
+								<div class="flex items-center gap-2">
+									<span class="font-mono text-white">{friendCode}</span>
+									<span class="text-xs">📋</span>
+								</div>
+							</button>
+						{/if}
+					</div>
+
+					<!-- Actions -->
+					<div class="p-2">
 						<button
-							class="w-full px-4 py-2.5 bg-transparent border-none text-white text-left cursor-pointer text-sm transition-colors duration-150 flex items-center gap-2 hover:bg-[rgba(88,101,242,0.2)]"
-							onclick={handleOpenProfile}>
-							⚙️
-							<span>Profile</span>
+							class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded-lg transition-colors"
+							onclick={() => {
+								showProfileDropdown = false;
+								handleOpenProfile();
+							}}>
+							<span class="text-base">⚙️</span>
+							<span>Profile Settings</span>
 						</button>
 						<button
-							class="w-full px-4 py-2.5 bg-transparent border-none text-white text-left cursor-pointer text-sm transition-colors duration-150 flex items-center gap-2 hover:bg-[rgba(88,101,242,0.2)]"
-							onclick={handleOpenFriends}>
-							👨‍🚀
+							class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded-lg transition-colors"
+							onclick={() => {
+								showProfileDropdown = false;
+								handleOpenFriends();
+							}}>
+							<span class="text-base">👨‍🚀</span>
 							<span>Friends</span>
 						</button>
 						<button
-							class="w-full px-4 py-2.5 bg-transparent border-none text-white text-left cursor-pointer text-sm transition-colors duration-150 flex items-center gap-2 hover:bg-[rgba(88,101,242,0.2)]"
-							onclick={handleOpenGroups}>
-							🙏
+							class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded-lg transition-colors"
+							onclick={() => {
+								showProfileDropdown = false;
+								handleOpenGroups();
+							}}>
+							<span class="text-base">🙏</span>
 							<span>Groups</span>
 						</button>
-						<div class="h-px bg-white/10 my-1"></div>
 						<button
-							class="w-full px-4 py-2.5 bg-transparent border-none text-[#f44336] text-left cursor-pointer text-sm transition-colors duration-150 flex items-center gap-2 hover:bg-[rgba(244,67,54,0.1)]"
+							class="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
 							onclick={() => {
-								closeUserDropdown();
+								showProfileDropdown = false;
 								handleSignOut();
 							}}>
-							🚪
-							<span>Sign Out</span>
+							<span class="text-base">🚪</span>
+							<span>Sign out</span>
 						</button>
 					</div>
+				</div>
 				{/if}
 			</div>
 		{:else}
 			<button
-				class="bg-[#5865F2] text-white border border-[#4752C4] px-2 md:px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-1 md:gap-2 hover:bg-[#4752C4] disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base"
+				class="bg-indigo-600 text-white border border-indigo-700 px-2 md:px-4 py-2 font-medium rounded transition-colors duration-200 flex items-center gap-1 md:gap-2 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base"
 				onclick={handleSignIn}
 				disabled={isAuthenticating}>
 				{#if isAuthenticating}
@@ -313,7 +520,7 @@
 			}
 		}}>
 		<div
-			class="bg-[rgb(15,35,47)] border border-[#f44336]/50 rounded-lg shadow-[0_8px_32px_rgba(244,67,54,0.3)] max-w-md w-full mx-4"
+			class="bg-slate-800 border border-red-500/50 rounded-lg shadow-[0_8px_32px_rgba(239,68,68,0.3)] max-w-md w-full mx-4"
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby="dialog-title"
@@ -344,3 +551,4 @@
 		</div>
 	</div>
 {/if}
+

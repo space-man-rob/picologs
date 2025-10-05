@@ -50,6 +50,35 @@ export class AppContext {
 		clearLogs?: () => void;
 		logLocation?: string | null;
 	}>({});
+
+	// Notifications
+	notifications = $state<Array<{ id: string; message: string; type: 'info' | 'success' | 'error' }>>([]);
+
+	// Processing states for friend requests and group invitations
+	processingFriendRequests = $state<Set<string>>(new Set());
+	processingGroupInvitations = $state<Set<string>>(new Set());
+
+	/**
+	 * Add a notification toast that auto-dismisses after 5 seconds
+	 */
+	addNotification(message: string, type: 'info' | 'success' | 'error' = 'info') {
+		const id = crypto.randomUUID();
+		this.notifications = [...this.notifications, { id, message, type }];
+
+		// Auto-dismiss after 5 seconds
+		setTimeout(() => {
+			this.removeNotification(id);
+		}, 5000);
+
+		return id;
+	}
+
+	/**
+	 * Remove a notification by ID
+	 */
+	removeNotification(id: string) {
+		this.notifications = this.notifications.filter(n => n.id !== id);
+	}
 }
 
 const APP_CONTEXT_KEY = Symbol('app-context');

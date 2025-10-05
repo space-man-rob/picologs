@@ -39,7 +39,6 @@
 	// Watch for page changes - use postMessage after initial load
 	$effect(() => {
 		if (!appCtx.isSignedIn) {
-			console.log('[Iframe] Not signed in, clearing iframe');
 			iframeUrl = '';
 			isInitialized = false;
 			loadingState = 'error';
@@ -50,17 +49,25 @@
 		if (page && isInitialized && iframeElement?.contentWindow) {
 			// After initial load, use postMessage to navigate without reload
 			const targetPath = `/${pagePathMap[page]}`;
-			const baseUrl = import.meta.env.DEV ? 'http://localhost:5173' : 'https://picologs.com';
 
-			console.log('[Iframe] Sending postMessage to navigate to:', targetPath);
-			// Security: Specify exact targetOrigin (not '*') to ensure only trusted iframe can receive the message
+			// Get the actual iframe origin from the loaded iframe URL
+			// This handles both Tauri dev (http://localhost:1420) and website origins
+			let iframeOrigin: string;
+			try {
+				const url = new URL(iframeElement.src);
+				iframeOrigin = url.origin;
+			} catch (e) {
+				console.error('[Iframe] Failed to parse iframe origin:', e);
+				return;
+			}
+
+			// Security: Use the actual iframe origin (not the website URL) for postMessage
 			iframeElement.contentWindow.postMessage(
 				{ type: 'navigate', path: targetPath },
-				baseUrl // Explicit targetOrigin prevents message interception
+				iframeOrigin // Use iframe's actual origin, not the website baseUrl
 			);
 		} else if (page && !isInitialized) {
 			// Initial load - set the src
-			console.log('[Iframe] Initial load for page:', page);
 			loadingState = 'loading';
 			errorMessage = '';
 			loadIframeUrl();
@@ -94,7 +101,6 @@
 	}
 
 	function handleIframeLoad() {
-		console.log('[Iframe] Iframe loaded, marking as initialized');
 		isInitialized = true;
 	}
 </script>

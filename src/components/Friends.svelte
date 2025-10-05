@@ -33,7 +33,7 @@
 		<div class="flex flex-col px-2 pb-2">
 		{#each orderByOnlineAlphabetically as friend (friend.id)}
 			<div class="relative flex items-center">
-				<User user={friend} {handleRemoveClick} />
+				<User user={friend} />
 				{#if friend.status !== 'confirmed'}
 					<span class="absolute right-2 px-2 py-0.5 bg-yellow-500/10 text-yellow-500 rounded text-xs font-medium">Pending</span>
 				{/if}

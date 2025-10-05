@@ -83,12 +83,10 @@ export async function connectWebSocket(
 	skipAuth?: boolean
 ): Promise<any> {
 	if (ws && isConnected) {
-		console.log('[WS API] Already connected');
 		return ws;
 	}
 
 	try {
-		console.log('[WS API] Connecting to:', WS_URL, 'skipAuth:', skipAuth);
 		const socket = await WebSocket.connect(WS_URL);
 
 		ws = socket;
@@ -107,13 +105,10 @@ export async function connectWebSocket(
 				} else if (msg.type === 'Text' && msg.data) {
 					messageStr = msg.data;
 				} else {
-					console.log('[WS API] Received non-text message, skipping:', msg);
 					return;
 				}
 
 				const message = JSON.parse(messageStr);
-
-				console.log('[WS API] Received message:', message.type);
 
 				// Handle request-response pattern
 				if (message.requestId && pendingRequests.has(message.requestId)) {
@@ -140,7 +135,6 @@ export async function connectWebSocket(
 		// Get JWT token for authentication (unless skipAuth is true for OAuth flow)
 		const jwtToken = await getJwtToken();
 		if (!jwtToken && !skipAuth) {
-			console.error('[WS API] No JWT token found - authentication required');
 			throw new Error('Authentication required - please sign in again');
 		}
 
@@ -153,7 +147,6 @@ export async function connectWebSocket(
 					token: jwtToken
 				})
 			);
-			console.log('[WS API] Connected and registered with JWT token');
 		} else if (skipAuth) {
 			// Register without token for OAuth callback reception
 			await socket.send(
@@ -162,7 +155,6 @@ export async function connectWebSocket(
 					userId: discordUserId
 				})
 			);
-			console.log('[WS API] Connected for OAuth flow (no JWT yet)');
 		}
 
 		// Call onConnected callback if provided
@@ -336,6 +328,32 @@ export async function removeFriend(friendshipId: string): Promise<boolean> {
 		return true;
 	} catch (error) {
 		console.error('[WS API] Error removing friend:', error);
+		return false;
+	}
+}
+
+/**
+ * Accept group invitation via WebSocket
+ */
+export async function acceptGroupInvitation(invitationId: string): Promise<{ groupId: string } | null> {
+	try {
+		const response = await sendRequest('accept_group_invitation', { invitationId });
+		return response as { groupId: string } | null;
+	} catch (error) {
+		console.error('[WS API] Error accepting group invitation:', error);
+		return null;
+	}
+}
+
+/**
+ * Deny group invitation via WebSocket
+ */
+export async function denyGroupInvitation(invitationId: string): Promise<boolean> {
+	try {
+		await sendRequest('deny_group_invitation', { invitationId });
+		return true;
+	} catch (error) {
+		console.error('[WS API] Error denying group invitation:', error);
 		return false;
 	}
 }
