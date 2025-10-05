@@ -31,6 +31,21 @@
 	import { decompressLogs } from '$lib/compression';
 	import { loadAuthData, signOut, handleAuthComplete, getJwtToken } from '$lib/oauth';
 	import type { Friend as FriendType } from '../types';
+	import {
+		loadCachedFriends,
+		loadCachedGroups,
+		loadCachedGroupMembers,
+		saveFriendsCache,
+		saveGroupsCache,
+		saveGroupMembersCache
+	} from '$lib/cache';
+	import {
+		mergeFriends,
+		mergeGroups,
+		mergeGroupMembers,
+		friendsHaveChanged,
+		groupsHaveChanged
+	} from '$lib/merge';
 
 	let { children } = $props();
 
@@ -83,23 +98,39 @@
 			return;
 		}
 
-		const friends = await fetchFriends();
-		appCtx.apiFriends = friends;
+		appCtx.isSyncingFriends = true;
 
-		// Convert API friends to local format
-		appCtx.friendsList = friends.map((f) => ({
-			id: f.friendUserId,
-			discordId: f.friendDiscordId,
-			friendCode: '',
-			name: f.friendUsePlayerAsDisplayName && f.friendPlayer
-				? f.friendPlayer
-				: f.friendUsername,
-			avatar: f.friendAvatar,
-			status: 'confirmed' as const,
-			timezone: f.friendTimeZone || Intl.DateTimeFormat().resolvedOptions().timeZone,
-			isOnline: false,
-			isConnected: false
-		}));
+		try {
+			const friends = await fetchFriends();
+			appCtx.apiFriends = friends;
+
+			// Convert API friends to local format
+			const freshFriends = friends.map((f) => ({
+				id: f.friendUserId,
+				discordId: f.friendDiscordId,
+				friendCode: '',
+				name: f.friendUsePlayerAsDisplayName && f.friendPlayer
+					? f.friendPlayer
+					: f.friendUsername,
+				avatar: f.friendAvatar,
+				status: 'confirmed' as const,
+				timezone: f.friendTimeZone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+				isOnline: false,
+				isConnected: false
+			}));
+
+			// Only update if data has changed to avoid unnecessary re-renders
+			if (friendsHaveChanged(appCtx.friendsList, freshFriends)) {
+				// Merge with existing to preserve UI state
+				appCtx.friendsList = mergeFriends(appCtx.friendsList, freshFriends);
+
+				// Save to cache
+				await saveFriendsCache(appCtx.friendsList);
+			}
+		} finally {
+			appCtx.isSyncingFriends = false;
+			appCtx.isLoadingFriends = false;
+		}
 	}
 
 	// Sync friend requests from API
@@ -118,18 +149,35 @@
 			return;
 		}
 
-		const groups = await fetchGroups();
-		appCtx.groups = groups;
+		appCtx.isSyncingGroups = true;
 
-		// Fetch members for each group
-		for (const group of groups) {
-			const members = await fetchGroupMembers(group.id);
-			appCtx.groupMembers.set(group.id, members);
+		try {
+			const groups = await fetchGroups();
+
+			// Only update if data has changed
+			if (groupsHaveChanged(appCtx.groups, groups)) {
+				appCtx.groups = mergeGroups(appCtx.groups, groups);
+				await saveGroupsCache(appCtx.groups);
+			}
+
+			// Fetch members for each group
+			const freshGroupMembers = new Map<string, any[]>();
+			for (const group of groups) {
+				const members = await fetchGroupMembers(group.id);
+				freshGroupMembers.set(group.id, members);
+			}
+
+			// Merge group members
+			appCtx.groupMembers = mergeGroupMembers(appCtx.groupMembers, freshGroupMembers);
+			await saveGroupMembersCache(appCtx.groupMembers);
+
+			// Fetch pending invitations
+			const invitations = await fetchGroupInvitations();
+			appCtx.groupInvitations = invitations;
+		} finally {
+			appCtx.isSyncingGroups = false;
+			appCtx.isLoadingGroups = false;
 		}
-
-		// Fetch pending invitations
-		const invitations = await fetchGroupInvitations();
-		appCtx.groupInvitations = invitations;
 	}
 
 	// Connect WebSocket
@@ -684,9 +732,32 @@
 				}
 			}
 
+			// Load cached data immediately (stale-while-revalidate pattern)
+			if (appCtx.isSignedIn) {
+				// Load friends cache
+				const cachedFriends = await loadCachedFriends();
+				if (cachedFriends.length > 0) {
+					appCtx.friendsList = cachedFriends;
+					appCtx.isLoadingFriends = false;
+				}
+
+				// Load groups cache
+				const cachedGroups = await loadCachedGroups();
+				if (cachedGroups.length > 0) {
+					appCtx.groups = cachedGroups;
+					appCtx.isLoadingGroups = false;
+				}
+
+				// Load group members cache
+				const cachedGroupMembers = await loadCachedGroupMembers();
+				if (cachedGroupMembers.size > 0) {
+					appCtx.groupMembers = cachedGroupMembers;
+				}
+			}
+
 			// No explicit save needed - autoSave handles any initialization changes
 
-			// Connect WebSocket if signed in
+			// Connect WebSocket if signed in (will refresh data in background)
 			if (appCtx.isSignedIn && appCtx.discordUserId && !appCtx.ws) {
 				const jwtToken = await getJwtToken();
 

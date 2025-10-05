@@ -1,7 +1,11 @@
 <script lang="ts">
 	import type { Friend } from '../types';
 	import User from './User.svelte';
+	import Skeleton from './Skeleton.svelte';
 	import { ask } from '@tauri-apps/plugin-dialog';
+	import { getAppContext } from '$lib/appContext.svelte';
+
+	const appCtx = getAppContext();
 
 	let { friendsList = [], removeFriend } = $props();
 
@@ -27,7 +31,9 @@
 	<h4 class="px-3 py-2 text-white/60 font-medium text-xs uppercase tracking-wide">
 		Friends ({friendsList.filter((f: Friend) => f.status === 'confirmed').length})
 	</h4>
-	{#if friendsList.filter((f: Friend) => f.status === 'confirmed').length === 0}
+	{#if appCtx.isLoadingFriends && friendsList.length === 0}
+		<Skeleton count={3} />
+	{:else if friendsList.filter((f: Friend) => f.status === 'confirmed').length === 0}
 		<p class="text-sm text-white/40 text-center py-6">No friends yet</p>
 	{:else}
 		<div class="flex flex-col px-2 pb-2">

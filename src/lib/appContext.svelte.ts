@@ -33,6 +33,12 @@ export class AppContext {
 	// Selected user for feed filtering
 	selectedUserId = $state<string | null>(null);
 
+	// Loading states for data fetching
+	isLoadingFriends = $state(true);
+	isLoadingGroups = $state(true);
+	isSyncingFriends = $state(false);
+	isSyncingGroups = $state(false);
+
 	// Auth state
 	authSessionId = $state<string | null>(null);
 	authError = $state<string | null>(null);

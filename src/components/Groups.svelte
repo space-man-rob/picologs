@@ -2,6 +2,7 @@
 	import type { Group, GroupMember, Friend } from '../types';
 	import { getAppContext } from '$lib/appContext.svelte';
 	import User from './User.svelte';
+	import Skeleton from './Skeleton.svelte';
 
 	const appCtx = getAppContext();
 
@@ -51,7 +52,9 @@
 	<h4 class="px-3 py-2 text-white/60 font-medium text-xs uppercase tracking-wide">
 		Groups ({groups.length})
 	</h4>
-	{#if groups.length === 0}
+	{#if appCtx.isLoadingGroups && groups.length === 0}
+		<Skeleton count={2} />
+	{:else if groups.length === 0}
 		<p class="text-sm text-white/40 text-center py-6">No groups yet</p>
 	{:else}
 		<div class="flex flex-col px-2 pb-2 gap-2">
