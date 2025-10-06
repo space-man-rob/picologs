@@ -92,6 +92,25 @@ export async function connectWebSocket(
 		ws = socket;
 		isConnected = true;
 
+		// Listen for close events
+		socket.addListener((msg: any) => {
+			// Handle close events (when server closes connection)
+			if (msg.type === 'Close' || msg.type === 'close') {
+				console.log('[WS API] WebSocket closed by server:', msg);
+				isConnected = false;
+				ws = null;
+
+				// If close code is 1008, it's an authentication failure
+				if (msg.code === 1008 || (msg.data && msg.data.code === 1008)) {
+					console.error('[WS API] Authentication failed - token may be expired');
+					// Dispatch event for layout to handle
+					if (typeof window !== 'undefined') {
+						window.dispatchEvent(new CustomEvent('websocket-auth-failed'));
+					}
+				}
+			}
+		});
+
 		// Set up message handler
 		socket.addListener((msg: any) => {
 			try {
@@ -134,12 +153,14 @@ export async function connectWebSocket(
 
 		// Get JWT token for authentication (unless skipAuth is true for OAuth flow)
 		const jwtToken = await getJwtToken();
+		console.log('[WS API] JWT token retrieved:', jwtToken ? `${jwtToken.substring(0, 20)}...` : 'null');
 		if (!jwtToken && !skipAuth) {
 			throw new Error('Authentication required - please sign in again');
 		}
 
 		// Register with server
 		if (jwtToken) {
+			console.log('[WS API] Sending register message with userId:', discordUserId);
 			await socket.send(
 				JSON.stringify({
 					type: 'register',
@@ -147,6 +168,7 @@ export async function connectWebSocket(
 					token: jwtToken
 				})
 			);
+			console.log('[WS API] Register message sent');
 		} else if (skipAuth) {
 			// Register without token for OAuth callback reception
 			await socket.send(

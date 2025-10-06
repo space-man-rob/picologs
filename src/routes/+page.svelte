@@ -456,12 +456,16 @@
 				showGroups = savedShowGroups;
 			}
 
+			// Mark initial load as complete - now safe to save changes
+			initialToggleLoadDone = true;
+
 			// Update panel visibility based on saved state (with a slight delay to ensure resizerComponent is ready)
 			setTimeout(() => {
 				updatePanelVisibility();
 			}, 100);
 		} catch (error) {
 			// Use defaults if loading fails
+			initialToggleLoadDone = true;
 		}
 
 		// Listen for group logs from WebSocket
@@ -1208,15 +1212,13 @@
 		}
 	}
 
-	async function handleToggleFriends() {
+	function handleToggleFriends() {
 		showFriends = !showFriends;
-		await saveToggleState();
 		updatePanelVisibility();
 	}
 
-	async function handleToggleGroups() {
+	function handleToggleGroups() {
 		showGroups = !showGroups;
-		await saveToggleState();
 		updatePanelVisibility();
 	}
 
@@ -1234,22 +1236,42 @@
 		}
 	}
 
+	// Save toggle state when showFriends or showGroups changes
+	let initialToggleLoadDone = $state(false);
+	$effect(() => {
+		// Track dependencies
+		const friends = showFriends;
+		const groups = showGroups;
+
+		// Skip saving until initial load completes (set in onMount)
+		if (!initialToggleLoadDone) {
+			return;
+		}
+
+		saveToggleState();
+	});
+
 	// Check panel state periodically (in case it's collapsed via drag)
 	$effect(() => {
 		const interval = setInterval(() => {
 			if (resizerComponent) {
 				const wasCollapsed = isPanelCollapsed;
-				isPanelCollapsed = resizerComponent.isLeftPanelCollapsed();
+				const isCollapsed = resizerComponent.isLeftPanelCollapsed();
+				isPanelCollapsed = isCollapsed;
 
 				// If panel was manually collapsed via drag, hide both sections
-				if (!wasCollapsed && isPanelCollapsed) {
-					showFriends = false;
-					showGroups = false;
+				if (!wasCollapsed && isCollapsed) {
+					if (showFriends || showGroups) {
+						showFriends = false;
+						showGroups = false;
+					}
 				}
 				// If panel was manually expanded via drag, show both sections
-				else if (wasCollapsed && !isPanelCollapsed) {
-					showFriends = true;
-					showGroups = true;
+				else if (wasCollapsed && !isCollapsed) {
+					if (!showFriends || !showGroups) {
+						showFriends = true;
+						showGroups = true;
+					}
 				}
 			}
 		}, 100);
