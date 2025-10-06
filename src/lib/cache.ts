@@ -17,7 +17,6 @@ export async function loadCachedFriends(): Promise<Friend[]> {
 		const cached = await store.get<CacheData<Friend[]>>('friends_cache');
 		return cached?.data || [];
 	} catch (error) {
-		console.error('[Cache] Failed to load cached friends:', error);
 		return [];
 	}
 }
@@ -33,7 +32,7 @@ export async function saveFriendsCache(friends: Friend[]): Promise<void> {
 			timestamp: new Date().toISOString()
 		});
 	} catch (error) {
-		console.error('[Cache] Failed to save friends cache:', error);
+		// Silently fail
 	}
 }
 
@@ -46,7 +45,6 @@ export async function loadCachedGroups(): Promise<Group[]> {
 		const cached = await store.get<CacheData<Group[]>>('groups_cache');
 		return cached?.data || [];
 	} catch (error) {
-		console.error('[Cache] Failed to load cached groups:', error);
 		return [];
 	}
 }
@@ -62,7 +60,7 @@ export async function saveGroupsCache(groups: Group[]): Promise<void> {
 			timestamp: new Date().toISOString()
 		});
 	} catch (error) {
-		console.error('[Cache] Failed to save groups cache:', error);
+		// Silently fail
 	}
 }
 
@@ -80,7 +78,6 @@ export async function loadCachedGroupMembers(): Promise<Map<string, GroupMember[
 		}
 		return new Map();
 	} catch (error) {
-		console.error('[Cache] Failed to load cached group members:', error);
 		return new Map();
 	}
 }
@@ -97,7 +94,7 @@ export async function saveGroupMembersCache(groupMembers: Map<string, GroupMembe
 			timestamp: new Date().toISOString()
 		});
 	} catch (error) {
-		console.error('[Cache] Failed to save group members cache:', error);
+		// Silently fail
 	}
 }
 
@@ -109,6 +106,6 @@ export async function clearAllCache(): Promise<void> {
 		const store = await load(CACHE_STORE, { defaults: {}, autoSave: 100 });
 		await store.clear();
 	} catch (error) {
-		console.error('[Cache] Failed to clear cache:', error);
+		// Silently fail
 	}
 }

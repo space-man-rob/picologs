@@ -81,7 +81,7 @@
 				topHeight = loadedHeight;
 			}
 		} catch (error) {
-			console.error('Failed to load vertical resizer layout:', error);
+			// Silent failure - will use defaults
 		}
 	});
 

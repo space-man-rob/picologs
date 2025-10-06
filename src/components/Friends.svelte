@@ -13,22 +13,18 @@
 
 	async function handleAcceptFriend(friendshipId: string) {
 		try {
-			console.log('[Friends] Accepting friend request:', friendshipId);
 			appCtx.processingFriendRequests.add(friendshipId);
 			appCtx.processingFriendRequests = new Set(appCtx.processingFriendRequests);
 
 			const success = await acceptFriendRequest(friendshipId);
-			console.log('[Friends] Accept result:', success);
 
 			if (success) {
 				appCtx.addNotification('Friend request accepted', 'success');
 
 				// Manually refresh friend requests to update UI immediately
 				// The server should also send refetch_friend_requests, but this ensures immediate update
-				console.log('[Friends] Refreshing friend requests after accept...');
 				const requests = await fetchFriendRequests();
 				appCtx.apiFriendRequests = requests;
-				console.log('[Friends] Friend requests refreshed:', requests.length);
 			} else {
 				appCtx.addNotification('Failed to accept friend request', 'error');
 			}
@@ -43,21 +39,17 @@
 
 	async function handleDenyFriend(friendshipId: string) {
 		try {
-			console.log('[Friends] Denying friend request:', friendshipId);
 			appCtx.processingFriendRequests.add(friendshipId);
 			appCtx.processingFriendRequests = new Set(appCtx.processingFriendRequests);
 
 			const success = await denyFriendRequest(friendshipId);
-			console.log('[Friends] Deny result:', success);
 
 			if (success) {
 				appCtx.addNotification('Friend request ignored', 'info');
 
 				// Manually refresh friend requests to update UI immediately
-				console.log('[Friends] Refreshing friend requests after deny...');
 				const requests = await fetchFriendRequests();
 				appCtx.apiFriendRequests = requests;
-				console.log('[Friends] Friend requests refreshed:', requests.length);
 			} else {
 				appCtx.addNotification('Failed to ignore friend request', 'error');
 			}
@@ -95,22 +87,6 @@
 		appCtx.apiFriendRequests.filter((r: ApiFriendRequest) => r.direction === 'outgoing')
 	);
 
-	// Debug logging for friends and user data
-	$effect(() => {
-		console.log('[Friends Debug] Current user data:', $state.snapshot({
-			isSignedIn: appCtx.isSignedIn,
-			discordUser: appCtx.discordUser,
-			apiUserProfile: appCtx.apiUserProfile
-		}));
-		console.log('[Friends Debug] Friends list:', $state.snapshot(friendsList));
-		console.log('[Friends Debug] API friends:', $state.snapshot(appCtx.apiFriends));
-		console.log('[Friends Debug] Friend requests:', $state.snapshot({
-			total: appCtx.apiFriendRequests.length,
-			incoming: incomingRequests.length,
-			outgoing: outgoingRequests.length,
-			requests: appCtx.apiFriendRequests
-		}));
-	});
 </script>
 
 <div class="flex flex-col h-full overflow-y-auto min-w-[200px] scrollbar-custom">

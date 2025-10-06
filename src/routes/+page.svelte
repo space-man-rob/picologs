@@ -542,7 +542,15 @@
 			// Set file path immediately to prevent welcome screen flash
 			if (savedFile) {
 				file = savedFile;
-				// cachedLogLocation already set in layout onMount - no need to set it again
+
+				// Extract and set log location for header display
+				const pathParts = savedFile.split('\\');
+				appCtx.cachedLogLocation =
+					pathParts.length > 1
+						? pathParts[pathParts.length - 2]
+						: savedFile.split('/').length > 1
+							? savedFile.split('/').slice(-2, -1)[0]
+							: null;
 			}
 
 			if (savedEnvironment) {
@@ -578,6 +586,9 @@
 					// playerId will be extracted from Game.log when parsing
 				} catch (error) {
 					console.error('[Initialization] Failed to load saved log file on startup:', error);
+					console.error('[Initialization] Error details:', error instanceof Error ? error.message : error);
+					// Clear file on error so welcome screen shows
+					file = null;
 				}
 			}
 
@@ -589,6 +600,20 @@
 		return () => {
 			// Flush any pending batched logs before unmounting
 			flushLogBatches();
+
+			// Stop file watcher and polling
+			if (endWatch) {
+				endWatch();
+			}
+			if (pollInterval !== null) {
+				clearInterval(pollInterval);
+				pollInterval = null;
+			}
+			if (debounceTimer !== null) {
+				clearTimeout(debounceTimer);
+				debounceTimer = null;
+			}
+
 			window.removeEventListener('group-log-received', handleGroupLog as unknown as EventListener);
 			window.removeEventListener('friend-log-received', handleFriendLog as unknown as EventListener);
 			window.removeEventListener('friend-came-online', handleFriendCameOnline as unknown as EventListener);
@@ -641,18 +666,71 @@
 	});
 
 	let endWatch: () => void;
+	let pollInterval: number | null = null;
+	let debounceTimer: number | null = null;
 
 	async function handleInitialiseWatch(filePath: string) {
 		if (endWatch) {
 			endWatch();
 		}
-		endWatch = await watchImmediate(
-			filePath,
-			(event) => {
-				handleFile(filePath);
-			},
-			{ recursive: false }
-		);
+		if (pollInterval !== null) {
+			clearInterval(pollInterval);
+			pollInterval = null;
+		}
+		if (debounceTimer !== null) {
+			clearTimeout(debounceTimer);
+			debounceTimer = null;
+		}
+
+		// Watch the directory instead of the file (more reliable on Windows)
+		const directory = filePath.substring(0, filePath.lastIndexOf('\\'));
+		const fileName = filePath.substring(filePath.lastIndexOf('\\') + 1);
+
+		console.log('[FileWatch] Initializing watcher');
+		console.log('[FileWatch] Directory:', directory);
+		console.log('[FileWatch] File:', fileName);
+
+		try {
+			endWatch = await watchImmediate(
+				directory,
+				(event) => {
+					console.log('[FileWatch] Event:', {
+						type: event.type,
+						paths: event.paths
+					});
+
+					// Filter events for our specific file
+					const isOurFile = event.paths.some(p => {
+						const normalizedPath = p.replace(/\//g, '\\');
+						return normalizedPath.endsWith(fileName) || normalizedPath.includes(fileName);
+					});
+
+					if (isOurFile) {
+						console.log('[FileWatch] Game.log changed');
+
+						// Debounce: wait for writes to settle
+						if (debounceTimer !== null) {
+							clearTimeout(debounceTimer);
+						}
+
+						debounceTimer = setTimeout(() => {
+							handleFile(filePath);
+							debounceTimer = null;
+						}, 500) as unknown as number;
+					}
+				},
+				{ recursive: false }
+			);
+			console.log('[FileWatch] Watcher initialized successfully');
+		} catch (error) {
+			console.error('[FileWatch] Error initializing watcher:', error);
+		}
+
+		// Polling fallback (reduced to 5s since watcher should work now)
+		console.log('[FileWatch] Starting polling fallback (every 5s)');
+		pollInterval = setInterval(() => {
+			handleFile(filePath);
+		}, 5000) as unknown as number;
 	}
 
 	function parseLogTimestamp(raw: string): string {
@@ -985,11 +1063,11 @@
 	}
 
 	async function selectFile(environment?: 'LIVE' | 'PTU' | 'HOTFIX') {
-		// Store strategy: Use autoSave with 200ms debounce for file selection
-		// Multiple settings may be updated rapidly (file path, environment, player ID)
+		// Store strategy: Disable autoSave and explicitly save after all changes
+		// This ensures critical file path data is persisted immediately
 		const store = await load('store.json', {
 			defaults: {},
-			autoSave: 200
+			autoSave: false
 		});
 		const env = environment || selectedEnvironment;
 		const defaultPath = environment ? `C:\\Program Files\\Roberts Space Industries\\StarCitizen\\${env}\\` : undefined;
@@ -1020,7 +1098,9 @@
 				playerId = pathPartsForId.length > 1 ? pathPartsForId.slice(-2, -1)[0] : crypto.randomUUID();
 				await store.set('id', playerId);
 			}
-			// No explicit save needed - autoSave will persist all changes with 200ms debounce
+
+			// Explicitly save all changes immediately
+			await store.save();
 
 			await handleFile(selectedPath);
 			await handleInitialiseWatch(selectedPath);
@@ -1215,11 +1295,17 @@
 	function handleToggleFriends() {
 		showFriends = !showFriends;
 		updatePanelVisibility();
+		if (initialToggleLoadDone) {
+			saveToggleState();
+		}
 	}
 
 	function handleToggleGroups() {
 		showGroups = !showGroups;
 		updatePanelVisibility();
+		if (initialToggleLoadDone) {
+			saveToggleState();
+		}
 	}
 
 	function updatePanelVisibility() {
@@ -1236,20 +1322,8 @@
 		}
 	}
 
-	// Save toggle state when showFriends or showGroups changes
+	// Track if initial toggle state has been loaded
 	let initialToggleLoadDone = $state(false);
-	$effect(() => {
-		// Track dependencies
-		const friends = showFriends;
-		const groups = showGroups;
-
-		// Skip saving until initial load completes (set in onMount)
-		if (!initialToggleLoadDone) {
-			return;
-		}
-
-		saveToggleState();
-	});
 
 	// Check panel state periodically (in case it's collapsed via drag)
 	$effect(() => {
@@ -1264,6 +1338,9 @@
 					if (showFriends || showGroups) {
 						showFriends = false;
 						showGroups = false;
+						if (initialToggleLoadDone) {
+							saveToggleState();
+						}
 					}
 				}
 				// If panel was manually expanded via drag, show both sections
@@ -1271,6 +1348,9 @@
 					if (!showFriends || !showGroups) {
 						showFriends = true;
 						showGroups = true;
+						if (initialToggleLoadDone) {
+							saveToggleState();
+						}
 					}
 				}
 			}

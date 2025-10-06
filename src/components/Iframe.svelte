@@ -57,7 +57,6 @@
 				const url = new URL(iframeElement.src);
 				iframeOrigin = url.origin;
 			} catch (e) {
-				console.error('[Iframe] Failed to parse iframe origin:', e);
 				return;
 			}
 
@@ -80,7 +79,6 @@
 			const jwt = await getJwtToken();
 
 			if (!jwt) {
-				console.error('[Iframe] Failed to get JWT token');
 				loadingState = 'error';
 				errorMessage = 'Authentication failed. Please sign in again.';
 				return;
@@ -94,7 +92,6 @@
 			iframeUrl = url.toString();
 			loadingState = 'loaded';
 		} catch (error) {
-			console.error('[Iframe] Error loading iframe URL:', error);
 			loadingState = 'error';
 			errorMessage = 'Failed to load content. Please try again.';
 		}

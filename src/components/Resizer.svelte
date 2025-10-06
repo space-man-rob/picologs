@@ -160,7 +160,6 @@
 			columns[1].collapsed = newRightWidth < minColumnWidth;
 
 		} catch (error) {
-			console.error("Failed to load layout from store:", error);
 			// Fallback to initial props if store interaction fails or store is new
 			columns[0].width = initialLeftWidth;
 			columns[1].width = initialRightWidth;
@@ -172,7 +171,7 @@
 				try {
 					store = await loadStore(STORE_FILE_NAME, { defaults: {}, autoSave: 200 });
 				} catch (e) {
-					console.error("Failed to initialize store after error:", e);
+					// Silent failure - will use defaults
 				}
 			}
 		}

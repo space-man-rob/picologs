@@ -106,16 +106,13 @@
 	// Sync friends from API
 	async function syncFriendsFromAPI() {
 		if (!appCtx.isSignedIn) {
-			console.log('[Sync] Not signed in, skipping friend sync');
 			return;
 		}
 
-		console.log('[Sync] Starting friend sync...');
 		appCtx.isSyncingFriends = true;
 
 		try {
 			const friends = await fetchFriends();
-			console.log('[Sync] Fetched friends:', friends.length);
 			appCtx.apiFriends = friends;
 
 			// Convert API friends to local format
@@ -148,33 +145,23 @@
 	// Sync friend requests from API
 	async function syncFriendRequestsFromAPI() {
 		if (!appCtx.isSignedIn) {
-			console.log('[Sync] 🚫 Cannot sync friend requests - not signed in');
 			return;
 		}
 
-		console.log('[Sync] 📥 Starting friend request sync...');
 		const requests = await fetchFriendRequests();
-		console.log('[Sync] ✅ Fetched friend requests:', requests.length, 'total');
-		console.log('[Sync] 📊 Friend request breakdown:', {
-			incoming: requests.filter(r => r.direction === 'incoming').length,
-			outgoing: requests.filter(r => r.direction === 'outgoing').length
-		});
 		appCtx.apiFriendRequests = requests;
 	}
 
 	// Sync groups from API
 	async function syncGroupsFromAPI() {
 		if (!appCtx.isSignedIn) {
-			console.log('[Sync] Not signed in, skipping group sync');
 			return;
 		}
 
-		console.log('[Sync] Starting group sync...');
 		appCtx.isSyncingGroups = true;
 
 		try {
 			const groups = await fetchGroups();
-			console.log('[Sync] Fetched groups:', groups.length);
 
 			// Only update if data has changed
 			if (groupsHaveChanged(appCtx.groups, groups)) {
@@ -224,12 +211,10 @@
 		try {
 			// Set up subscriptions BEFORE connecting
 			apiSubscribe('registered', async (message: any) => {
-				console.log('[WebSocket] Received registered event, starting data sync...');
 				await syncUserProfileFromAPI();
 				await syncFriendsFromAPI();
 				await syncFriendRequestsFromAPI();
 				await syncGroupsFromAPI();
-				console.log('[WebSocket] Data sync complete');
 			});
 
 			apiSubscribe('refetch_friends', async () => {
@@ -242,20 +227,13 @@
 			});
 
 			apiSubscribe('refetch_friend_requests', async () => {
-				console.log('[Layout] 🔔 refetch_friend_requests message received!');
 				const previousRequestCount = appCtx.apiFriendRequests.length;
-				console.log('[Layout] 📊 Previous friend request count:', previousRequestCount);
 
 				await syncFriendRequestsFromAPI();
 
-				console.log('[Layout] 📊 New friend request count:', appCtx.apiFriendRequests.length);
-				console.log('[Layout] 🔍 Count increased?', appCtx.apiFriendRequests.length > previousRequestCount);
-
 				// Show notification for new friend requests (only if count increased)
 				if (appCtx.apiFriendRequests.length > previousRequestCount) {
-					console.log('[Layout] ✅ Showing notification - count increased!');
 					const latestRequest = appCtx.apiFriendRequests.find(r => r.direction === 'incoming');
-					console.log('[Layout] 📬 Latest incoming request:', latestRequest);
 					if (latestRequest) {
 						const requesterName = latestRequest.fromUsername || 'Someone';
 						appCtx.addNotification(`New friend request from ${requesterName}`, 'info');
@@ -437,10 +415,8 @@
 				}
 			});
 
-			console.log('[WebSocket] Connecting with user ID:', appCtx.discordUserId);
 			const socket = await apiConnectWebSocket(appCtx.discordUserId);
 			appCtx.ws = socket;
-			console.log('[WebSocket] Connection established');
 
 			appCtx.connectionStatus = 'connected';
 			appCtx.connectionError = null;
@@ -740,7 +716,6 @@
 		(async () => {
 			// Listen for WebSocket auth failure events
 			const handleAuthFailed = async () => {
-				console.log('[Layout] WebSocket auth failed, signing out user...');
 				await handleSignOut();
 			};
 			window.addEventListener('websocket-auth-failed', handleAuthFailed);
@@ -786,7 +761,6 @@
 			// Load cached data immediately (stale-while-revalidate pattern)
 			// Load cache regardless of sign-in status so data persists across sign-in/out
 			const cachedFriends = await loadCachedFriends();
-			console.log('[Cache] Loaded cached friends:', cachedFriends.length);
 			if (cachedFriends.length > 0) {
 				appCtx.friendsList = cachedFriends;
 			}
@@ -796,7 +770,6 @@
 
 			// Load groups cache
 			const cachedGroups = await loadCachedGroups();
-			console.log('[Cache] Loaded cached groups:', cachedGroups.length);
 			if (cachedGroups.length > 0) {
 				appCtx.groups = cachedGroups;
 			}
@@ -822,12 +795,10 @@
 
 			// Lazy validate auth and load user data in background
 			if (appCtx.isSignedIn && appCtx.discordUserId) {
-				console.log('[Auth] User is signed in, validating JWT...');
 				// Validate JWT token (if expired, sign out)
 				const jwtToken = await getJwtToken();
 
 				if (jwtToken) {
-					console.log('[Auth] JWT token found, loading auth data...');
 					// Load fresh auth data from disk
 					const authData = await loadAuthData();
 					if (authData) {
@@ -844,7 +815,6 @@
 
 					// Connect WebSocket if not already connected
 					if (!appCtx.ws && !appCtx.autoConnectionAttempted) {
-						console.log('[WebSocket] Initiating WebSocket connection...');
 						appCtx.autoConnectionAttempted = true;
 						connectWebSocket().catch(() => {
 							// Connection failed, allow retry after 5 seconds
@@ -852,19 +822,12 @@
 								appCtx.autoConnectionAttempted = false;
 							}, 5000);
 						});
-					} else if (appCtx.ws) {
-						console.log('[WebSocket] Already connected');
-					} else {
-						console.log('[WebSocket] Connection attempt already in progress or recently failed');
 					}
 				} else {
-					console.log('[Auth] No JWT token found, signing out...');
 					// Auth expired - sign out
 					appCtx.connectionError = 'Authentication expired - please sign in again';
 					await handleSignOut();
 				}
-			} else {
-				console.log('[Auth] User not signed in or no user ID');
 			}
 
 			check().then((update: any) => {

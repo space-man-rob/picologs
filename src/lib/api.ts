@@ -96,7 +96,6 @@ export async function connectWebSocket(
 		socket.addListener((msg: any) => {
 			// Handle close events (when server closes connection)
 			if (msg.type === 'Close' || msg.type === 'close') {
-				console.log('[WS API] WebSocket closed by server:', msg);
 				isConnected = false;
 				ws = null;
 
@@ -124,17 +123,13 @@ export async function connectWebSocket(
 				} else if (msg.type === 'Text' && msg.data) {
 					messageStr = msg.data;
 				} else {
-					console.log('[WS API] Skipping non-text message:', msg.type);
 					return;
 				}
 
-				console.log('[WS API] 📨 Raw message received:', messageStr.substring(0, 200));
 				const message = JSON.parse(messageStr);
-				console.log('[WS API] 📦 Parsed message type:', message.type, 'requestId:', message.requestId);
 
 				// Handle request-response pattern
 				if (message.requestId && pendingRequests.has(message.requestId)) {
-					console.log('[WS API] ✅ Handling request-response for:', message.requestId);
 					const { resolve, reject } = pendingRequests.get(message.requestId)!;
 					pendingRequests.delete(message.requestId);
 
@@ -148,12 +143,7 @@ export async function connectWebSocket(
 
 				// Handle subscribed messages
 				if (messageHandlers.has(message.type)) {
-					console.log('[WS API] 🔔 Calling handler for message type:', message.type);
-					console.log('[WS API] 📋 Available handlers:', Array.from(messageHandlers.keys()));
 					messageHandlers.get(message.type)!(message);
-				} else {
-					console.warn('[WS API] ⚠️ No handler registered for message type:', message.type);
-					console.log('[WS API] 📋 Available handlers:', Array.from(messageHandlers.keys()));
 				}
 			} catch (error) {
 				console.error('[WS API] Error handling message:', error);
@@ -162,14 +152,12 @@ export async function connectWebSocket(
 
 		// Get JWT token for authentication (unless skipAuth is true for OAuth flow)
 		const jwtToken = await getJwtToken();
-		console.log('[WS API] JWT token retrieved:', jwtToken ? `${jwtToken.substring(0, 20)}...` : 'null');
 		if (!jwtToken && !skipAuth) {
 			throw new Error('Authentication required - please sign in again');
 		}
 
 		// Register with server
 		if (jwtToken) {
-			console.log('[WS API] Sending register message with userId:', discordUserId);
 			await socket.send(
 				JSON.stringify({
 					type: 'register',
@@ -177,7 +165,6 @@ export async function connectWebSocket(
 					token: jwtToken
 				})
 			);
-			console.log('[WS API] Register message sent');
 		} else if (skipAuth) {
 			// Register without token for OAuth callback reception
 			await socket.send(
@@ -304,7 +291,6 @@ export async function fetchFriends(): Promise<ApiFriend[]> {
 export async function fetchFriendRequests(): Promise<ApiFriendRequest[]> {
 	try {
 		const response = await sendRequest<{ incoming: ApiFriendRequest[], outgoing: ApiFriendRequest[] }>('get_friend_requests');
-		console.log('[WS API] Friend requests response:', response);
 
 		if (!response) {
 			return [];
