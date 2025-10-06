@@ -74,6 +74,22 @@
 		goto('/groups');
 	}
 
+	// Format relative time (e.g., "2m ago", "3h ago", "5d ago")
+	function formatRelativeTime(timestamp: string): string {
+		const now = Date.now();
+		const then = new Date(timestamp).getTime();
+		const diffMs = now - then;
+		const diffMins = Math.floor(diffMs / 60000);
+		const diffHours = Math.floor(diffMs / 3600000);
+		const diffDays = Math.floor(diffMs / 86400000);
+
+		if (diffMins < 1) return 'Just now';
+		if (diffMins < 60) return `${diffMins}m ago`;
+		if (diffHours < 24) return `${diffHours}h ago`;
+		if (diffDays < 30) return `${diffDays}d ago`;
+		return new Date(timestamp).toLocaleDateString();
+	}
+
 	// Show dialog when connection error occurs
 	let showConnectionDialog = $state(false);
 	let lastConnectionError = $state<string | null>(null);
@@ -168,8 +184,7 @@
 			<button
 				class="text-white border border-white/5 px-2 md:px-3 py-1.5 font-medium rounded transition-colors duration-200 flex items-center gap-1 hover:bg-white/20 text-sm"
 				onclick={() => {
-					const textToCopy = `My Picologs Friend Code: ${friendCode || 'Not set'}`;
-					navigator.clipboard.writeText(textToCopy);
+					navigator.clipboard.writeText(friendCode || '');
 					copiedStatusVisible = true;
 					setTimeout(() => {
 						copiedStatusVisible = false;
@@ -259,25 +274,24 @@
 								{#each incomingFriendRequests as request}
 									<div class="p-4 hover:bg-overlay-light">
 										<div class="flex items-start gap-3 mb-3">
-											{#if request.fromAvatar}
+											{#if request.avatar}
 												<img
-													src={`${import.meta.env.VITE_DISCORD_CDN_URL}/avatars/${request.fromDiscordId}/${request.fromAvatar}.png?size=64`}
-													alt={request.fromUsername}
+													src={`${import.meta.env.VITE_DISCORD_CDN_URL}/avatars/${request.discordId}/${request.avatar}.png?size=64`}
+													alt={request.username}
 													class="w-10 h-10 rounded-full flex-shrink-0"
 												/>
 											{:else}
-												<div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 text-xl">
-													➕
+												<div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 text-white font-semibold">
+													{request.username?.charAt(0).toUpperCase() || '?'}
 												</div>
 											{/if}
 											<div class="flex-1 min-w-0">
-												<p class="text-xs font-semibold text-blue-400 mb-1">Friend Request</p>
-												<p class="text-sm font-medium text-white">{request.fromUsername}</p>
-												{#if request.fromPlayer}
-													<p class="text-xs text-muted">{request.fromPlayer}</p>
+												<p class="text-sm font-medium text-white">{request.username || 'Unknown User'}</p>
+												{#if request.player}
+													<p class="text-xs text-muted">{request.player}</p>
 												{/if}
 												<p class="text-xs text-subtle mt-1">
-													{new Date(request.createdAt).toLocaleDateString()}
+													{formatRelativeTime(request.createdAt)}
 												</p>
 											</div>
 										</div>
@@ -287,22 +301,20 @@
 												disabled={processingFriendRequests.has(request.id)}
 												class="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
 												{#if processingFriendRequests.has(request.id)}
-													<span class="inline-block animate-spin">⏳</span>
+													Processing...
 												{:else}
-													✓
+													Accept
 												{/if}
-												Accept
 											</button>
 											<button
 												onclick={() => onDenyFriend?.(request.id)}
 												disabled={processingFriendRequests.has(request.id)}
 												class="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-white text-sm rounded border border-white/5 hover:bg-white/15 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
 												{#if processingFriendRequests.has(request.id)}
-													<span class="inline-block animate-spin">⏳</span>
+													Processing...
 												{:else}
-													✕
+													Ignore
 												{/if}
-												Deny
 											</button>
 										</div>
 									</div>

@@ -123,9 +123,7 @@
 				id: f.friendUserId,
 				discordId: f.friendDiscordId,
 				friendCode: '',
-				name: f.friendUsePlayerAsDisplayName && f.friendPlayer
-					? f.friendPlayer
-					: f.friendUsername,
+				name: f.friendDisplayName, // Server already sends the correct display name
 				avatar: f.friendAvatar,
 				status: 'confirmed' as const,
 				timezone: f.friendTimeZone || Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -150,10 +148,17 @@
 	// Sync friend requests from API
 	async function syncFriendRequestsFromAPI() {
 		if (!appCtx.isSignedIn) {
+			console.log('[Sync] 🚫 Cannot sync friend requests - not signed in');
 			return;
 		}
 
+		console.log('[Sync] 📥 Starting friend request sync...');
 		const requests = await fetchFriendRequests();
+		console.log('[Sync] ✅ Fetched friend requests:', requests.length, 'total');
+		console.log('[Sync] 📊 Friend request breakdown:', {
+			incoming: requests.filter(r => r.direction === 'incoming').length,
+			outgoing: requests.filter(r => r.direction === 'outgoing').length
+		});
 		appCtx.apiFriendRequests = requests;
 	}
 
@@ -237,11 +242,20 @@
 			});
 
 			apiSubscribe('refetch_friend_requests', async () => {
+				console.log('[Layout] 🔔 refetch_friend_requests message received!');
 				const previousRequestCount = appCtx.apiFriendRequests.length;
+				console.log('[Layout] 📊 Previous friend request count:', previousRequestCount);
+
 				await syncFriendRequestsFromAPI();
+
+				console.log('[Layout] 📊 New friend request count:', appCtx.apiFriendRequests.length);
+				console.log('[Layout] 🔍 Count increased?', appCtx.apiFriendRequests.length > previousRequestCount);
+
 				// Show notification for new friend requests (only if count increased)
 				if (appCtx.apiFriendRequests.length > previousRequestCount) {
+					console.log('[Layout] ✅ Showing notification - count increased!');
 					const latestRequest = appCtx.apiFriendRequests.find(r => r.direction === 'incoming');
+					console.log('[Layout] 📬 Latest incoming request:', latestRequest);
 					if (latestRequest) {
 						const requesterName = latestRequest.fromUsername || 'Someone';
 						appCtx.addNotification(`New friend request from ${requesterName}`, 'info');

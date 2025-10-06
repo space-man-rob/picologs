@@ -1,7 +1,17 @@
 {
   "permissions": {
     "allow": [
-      "WebSearch"
+      "Bash(gh pull:*)",
+      "Bash(git pull:*)",
+      "Bash(git checkout:*)",
+      "Bash(npm run tauri:*)",
+      "Bash(npm i)",
+      "Bash(node:*)",
+      "Bash(nvm install:*)",
+      "Bash(nvm:*)",
+      "Bash(ping:*)",
+      "Bash(curl:*)",
+      "Bash(flyctl apps:*)"
     ],
     "deny": [],
     "ask": []

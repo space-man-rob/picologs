@@ -17,11 +17,11 @@ export interface ApiFriend {
 	createdAt: string;
 	friendUserId: string;
 	friendDiscordId: string;
-	friendUsername: string;
+	friendDisplayName: string; // Server sends friendDisplayName, not friendUsername
 	friendAvatar: string | null;
 	friendPlayer: string | null;
 	friendTimeZone: string | null;
-	friendUsePlayerAsDisplayName: boolean | null;
+	friendUsePlayerAsDisplayName?: boolean | null;
 }
 
 /**
@@ -124,13 +124,17 @@ export async function connectWebSocket(
 				} else if (msg.type === 'Text' && msg.data) {
 					messageStr = msg.data;
 				} else {
+					console.log('[WS API] Skipping non-text message:', msg.type);
 					return;
 				}
 
+				console.log('[WS API] 📨 Raw message received:', messageStr.substring(0, 200));
 				const message = JSON.parse(messageStr);
+				console.log('[WS API] 📦 Parsed message type:', message.type, 'requestId:', message.requestId);
 
 				// Handle request-response pattern
 				if (message.requestId && pendingRequests.has(message.requestId)) {
+					console.log('[WS API] ✅ Handling request-response for:', message.requestId);
 					const { resolve, reject } = pendingRequests.get(message.requestId)!;
 					pendingRequests.delete(message.requestId);
 
@@ -144,7 +148,12 @@ export async function connectWebSocket(
 
 				// Handle subscribed messages
 				if (messageHandlers.has(message.type)) {
+					console.log('[WS API] 🔔 Calling handler for message type:', message.type);
+					console.log('[WS API] 📋 Available handlers:', Array.from(messageHandlers.keys()));
 					messageHandlers.get(message.type)!(message);
+				} else {
+					console.warn('[WS API] ⚠️ No handler registered for message type:', message.type);
+					console.log('[WS API] 📋 Available handlers:', Array.from(messageHandlers.keys()));
 				}
 			} catch (error) {
 				console.error('[WS API] Error handling message:', error);
@@ -294,8 +303,18 @@ export async function fetchFriends(): Promise<ApiFriend[]> {
  */
 export async function fetchFriendRequests(): Promise<ApiFriendRequest[]> {
 	try {
-		const requests = await sendRequest<ApiFriendRequest[]>('get_friend_requests');
-		return requests || [];
+		const response = await sendRequest<{ incoming: ApiFriendRequest[], outgoing: ApiFriendRequest[] }>('get_friend_requests');
+		console.log('[WS API] Friend requests response:', response);
+
+		if (!response) {
+			return [];
+		}
+
+		// Combine incoming and outgoing into a flat array
+		const incoming = (response.incoming || []).map(req => ({ ...req, direction: 'incoming' as const }));
+		const outgoing = (response.outgoing || []).map(req => ({ ...req, direction: 'outgoing' as const }));
+
+		return [...incoming, ...outgoing];
 	} catch (error) {
 		console.error('[WS API] Error fetching friend requests:', error);
 		return [];
