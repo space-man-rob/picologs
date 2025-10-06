@@ -234,7 +234,7 @@
 		{:else}
 			<button
 				class="text-white border border-white/5 px-2 md:px-3 py-1.5 font-medium rounded transition-colors duration-200 flex items-center gap-1 hover:bg-white/20 text-sm"
-				onclick={selectFile}
+				onclick={() => selectFile()}
 				title="Select Game.log file">
 				📄 <span class="hidden sm:inline">Select Game.log file</span>
 			</button>

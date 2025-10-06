@@ -794,6 +794,16 @@
 				autoSave: 300
 			});
 
+			// Clean up corrupted store data (fix for event object being stored)
+			const selectedEnv = await store.get<any>('selectedEnvironment');
+			if (selectedEnv && typeof selectedEnv === 'object' && selectedEnv.isTrusted !== undefined) {
+				// This is an event object, not a valid environment - delete it
+				await store.delete('selectedEnvironment');
+			}
+
+			// Reset authentication state to prevent stuck button
+			appCtx.isAuthenticating = false;
+
 			// Load persisted auth state FIRST to prevent layout shift
 			const storedDiscordUserId = await store.get<string>('discordUserId');
 			const cachedFriendCode = await store.get<string>('friendCode');

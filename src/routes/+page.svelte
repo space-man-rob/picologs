@@ -1070,23 +1070,26 @@
 	}
 
 	async function selectFile(environment?: 'LIVE' | 'PTU' | 'HOTFIX') {
+		// Type guard: Ensure environment is actually a valid environment string, not an event object
+		const validEnvironment = (environment === 'LIVE' || environment === 'PTU' || environment === 'HOTFIX') ? environment : undefined;
+
 		// Store strategy: Disable autoSave and explicitly save after all changes
 		// This ensures critical file path data is persisted immediately
 		const store = await load('store.json', {
 			defaults: {},
 			autoSave: false
 		});
-		const env = environment || selectedEnvironment;
+		const env = validEnvironment || selectedEnvironment;
 
 		// Try to find Star Citizen logs automatically first
-		let defaultPath: string | undefined = environment ? `C:\\Program Files\\Roberts Space Industries\\StarCitizen\\${env}\\` : undefined;
+		let defaultPath: string | undefined = validEnvironment ? `C:\\Program Files\\Roberts Space Industries\\StarCitizen\\${env}\\` : undefined;
 
 		try {
 			const foundPaths = await invoke<string[]>('find_star_citizen_logs');
 			if (foundPaths && foundPaths.length > 0) {
 				// If we have a specific environment, try to find a matching log
-				if (environment) {
-					const matchingLog = foundPaths.find(p => p.includes(`\\${environment}\\`));
+				if (validEnvironment) {
+					const matchingLog = foundPaths.find(p => p.includes(`\\${validEnvironment}\\`));
 					if (matchingLog) {
 						// Extract directory from the log file path
 						const lastSlashIndex = matchingLog.lastIndexOf('\\');
@@ -1133,9 +1136,9 @@
 			await store.set('lastFile', selectedPath);
 
 			// Store the environment
-			if (environment) {
-				selectedEnvironment = environment;
-				await store.set('selectedEnvironment', environment);
+			if (validEnvironment) {
+				selectedEnvironment = validEnvironment;
+				await store.set('selectedEnvironment', validEnvironment);
 			}
 
 			let storedPlayerId = await store.get<string>('id');

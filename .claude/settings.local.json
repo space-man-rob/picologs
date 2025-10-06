@@ -11,7 +11,16 @@
       "Bash(nvm:*)",
       "Bash(ping:*)",
       "Bash(curl:*)",
-      "Bash(flyctl apps:*)"
+      "Bash(flyctl apps:*)",
+      "WebSearch",
+      "Bash(gh secret:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)",
+      "Bash(gh release list:*)",
+      "Bash(gh release view:*)"
     ],
     "deny": [],
     "ask": []
