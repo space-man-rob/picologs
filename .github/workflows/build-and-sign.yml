@@ -52,6 +52,14 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          CERTIFICATE_PROFILE_NAME: ${{ secrets.CERTIFICATE_PROFILE_NAME }}
+          VITE_DISCORD_CLIENT_ID: ${{ secrets.VITE_DISCORD_CLIENT_ID }}
+          VITE_DISCORD_API_ENDPOINT: ${{ secrets.VITE_DISCORD_API_ENDPOINT }}
+          VITE_DISCORD_OAUTH_URL: ${{ secrets.VITE_DISCORD_OAUTH_URL }}
+          VITE_DISCORD_CDN_URL: ${{ secrets.VITE_DISCORD_CDN_URL }}
+          VITE_WS_URL_PROD: ${{ secrets.VITE_WS_URL_PROD }}
+          VITE_WEBSITE_URL_PROD: ${{ secrets.VITE_WEBSITE_URL_PROD }}
+          VITE_FLEET_VIEWER_URL: ${{ secrets.VITE_FLEET_VIEWER_URL }}
         with:
           tagName: app-v__VERSION__
           releaseName: 'App v__VERSION__'
