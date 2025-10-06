@@ -2,6 +2,7 @@
 	import { readTextFile, watchImmediate, writeFile } from '@tauri-apps/plugin-fs';
 	import { load } from '@tauri-apps/plugin-store';
 	import { open } from '@tauri-apps/plugin-dialog';
+	import { invoke } from '@tauri-apps/api/core';
 	import Item from '../components/Item.svelte';
 	import { onMount, tick } from 'svelte';
 	import { fade } from 'svelte/transition';
@@ -1070,7 +1071,31 @@
 			autoSave: false
 		});
 		const env = environment || selectedEnvironment;
-		const defaultPath = environment ? `C:\\Program Files\\Roberts Space Industries\\StarCitizen\\${env}\\` : undefined;
+
+		// Try to find Star Citizen logs automatically first
+		let defaultPath: string | undefined = environment ? `C:\\Program Files\\Roberts Space Industries\\StarCitizen\\${env}\\` : undefined;
+
+		try {
+			const foundPaths = await invoke<string[]>('find_star_citizen_logs');
+			if (foundPaths && foundPaths.length > 0) {
+				// If we have a specific environment, try to find a matching log
+				if (environment) {
+					const matchingLog = foundPaths.find(p => p.includes(`\\${environment}\\`));
+					if (matchingLog) {
+						// Extract directory from the log file path
+						const lastSlashIndex = matchingLog.lastIndexOf('\\');
+						defaultPath = matchingLog.substring(0, lastSlashIndex + 1);
+					}
+				} else {
+					// Use the first found log's directory
+					const firstLog = foundPaths[0];
+					const lastSlashIndex = firstLog.lastIndexOf('\\');
+					defaultPath = firstLog.substring(0, lastSlashIndex + 1);
+				}
+			}
+		} catch (error) {
+			console.log('Could not auto-detect Star Citizen logs:', error);
+		}
 
 		const selectedPath = await open({
 			multiple: false,
