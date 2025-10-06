@@ -603,8 +603,10 @@
 		try {
 			// Connect WebSocket first to receive auth completion
 			appCtx.connectionStatus = 'connecting';
-			// Use dev WebSocket URL if available, otherwise production
-			const wsUrl = import.meta.env.VITE_WS_URL_DEV || import.meta.env.VITE_WS_URL_PROD;
+			// Use production WebSocket URL in production builds, dev URL in dev mode
+			const wsUrl = import.meta.env.PROD
+				? import.meta.env.VITE_WS_URL_PROD
+				: (import.meta.env.VITE_WS_URL_DEV || import.meta.env.VITE_WS_URL_PROD);
 
 			const socket = await WebSocket.connect(wsUrl);
 
@@ -632,7 +634,9 @@
 			// Open Discord app directly to OAuth authorization
 			// Discord only accepts https:// redirect URIs, so we use website as intermediary
 			const discordClientId = import.meta.env.VITE_DISCORD_CLIENT_ID;
-			const websiteUrl = import.meta.env.VITE_WEBSITE_URL_DEV || import.meta.env.VITE_WEBSITE_URL_PROD || 'https://picologs.com';
+			const websiteUrl = import.meta.env.PROD
+				? import.meta.env.VITE_WEBSITE_URL_PROD
+				: (import.meta.env.VITE_WEBSITE_URL_DEV || import.meta.env.VITE_WEBSITE_URL_PROD);
 			const redirectUri = `${websiteUrl}/auth/desktop/callback`;
 			const scope = 'identify';
 
