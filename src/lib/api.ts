@@ -98,6 +98,11 @@ export async function connectWebSocket(
 	}
 
 	try {
+		if (!WS_URL) {
+			throw new Error('WebSocket URL is not configured. Please check environment variables.');
+		}
+
+		console.log('[WS API] Connecting to:', WS_URL);
 		const socket = await WebSocket.connect(WS_URL);
 
 		ws = socket;

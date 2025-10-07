@@ -608,6 +608,19 @@
 				? import.meta.env.VITE_WS_URL_PROD
 				: (import.meta.env.VITE_WS_URL_DEV || import.meta.env.VITE_WS_URL_PROD);
 
+			console.log('[Auth] WebSocket URL:', wsUrl);
+			console.log('[Auth] Environment variables:', {
+				PROD: import.meta.env.PROD,
+				VITE_WS_URL_PROD: import.meta.env.VITE_WS_URL_PROD,
+				VITE_WS_URL_DEV: import.meta.env.VITE_WS_URL_DEV,
+				VITE_WEBSITE_URL_PROD: import.meta.env.VITE_WEBSITE_URL_PROD,
+				VITE_DISCORD_CLIENT_ID: import.meta.env.VITE_DISCORD_CLIENT_ID
+			});
+
+			if (!wsUrl) {
+				throw new Error('WebSocket URL is not configured. Please check environment variables.');
+			}
+
 			const socket = await WebSocket.connect(wsUrl);
 
 			// Set up message listener for auth completion
