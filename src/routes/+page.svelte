@@ -474,7 +474,7 @@
 
 		// Listen for group logs from WebSocket
 		const handleGroupLog = async (event: CustomEvent) => {
-			const { log, groupId, senderId, senderUsername } = event.detail;
+			const { log, groupId, senderId, senderDisplayName } = event.detail;
 
 			// Add log to fileContent and disk
 			const newLog = { ...log, userId: senderId };

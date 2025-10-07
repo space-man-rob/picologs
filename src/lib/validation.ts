@@ -46,7 +46,7 @@ export const GroupLogSchema = z.object({
 	log: LogSchema,
 	groupId: z.string().uuid(),
 	senderId: z.string().uuid(),
-	senderUsername: z.string().max(MAX_USERNAME_LENGTH)
+	senderDisplayName: z.string().max(MAX_USERNAME_LENGTH)
 });
 
 /**
@@ -57,7 +57,7 @@ export const BatchGroupLogsSchema = z.object({
 	logs: z.array(LogSchema).optional(),
 	groupId: z.string().uuid(),
 	senderId: z.string().uuid(),
-	senderUsername: z.string().max(MAX_USERNAME_LENGTH),
+	senderDisplayName: z.string().max(MAX_USERNAME_LENGTH),
 	compressed: z.boolean().optional(),
 	compressedData: z.string().optional()
 });

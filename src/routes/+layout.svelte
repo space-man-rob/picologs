@@ -361,7 +361,7 @@
 							log: validated.log,
 							groupId: validated.groupId,
 							senderId: validated.senderId,
-							senderUsername: validated.senderUsername
+							senderDisplayName: validated.senderDisplayName
 						}
 					}));
 				} else {
@@ -463,7 +463,7 @@
 									log,
 									groupId: validated.groupId,
 									senderId: validated.senderId,
-									senderUsername: validated.senderUsername
+									senderDisplayName: validated.senderDisplayName
 								}
 							}));
 						});
