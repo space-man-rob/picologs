@@ -18,12 +18,18 @@
       "identifier": "fs:scope",
       "description": "Restricts file system access to only Star Citizen log directories and app data. Prevents arbitrary file system access.",
       "allow": [
-        "$APPDATA/**",
-        "$HOME/AppData/Roaming/Roberts Space Industries/**",
-        "$HOME/Documents/Roberts Space Industries/**",
-        "C:\\Program Files\\Roberts Space Industries\\**",
-        "C:\\Program Files (x86)\\Roberts Space Industries\\**",
-        "$HOME/Program Files/Roberts Space Industries/**"
+        { "path": "$APPDATA" },
+        { "path": "$APPDATA/*" },
+        { "path": "$HOME/AppData" },
+        { "path": "$HOME/AppData/*" },
+        { "path": "$HOME/Documents" },
+        { "path": "$HOME/Documents/*" },
+        { "path": "$HOME/Downloads" },
+        { "path": "$HOME/Downloads/*" },
+        { "path": "$HOME/Library" },
+        { "path": "$HOME/Library/*" },
+        { "path": "$HOME/Library/Application Support" },
+        { "path": "$HOME/Library/Application Support/*" }
       ]
     },
     "dialog:default",

@@ -88,7 +88,8 @@ export const SyncLogsSchema = z.object({
  */
 export const UserPresenceSchema = z.object({
 	type: z.enum(['user_online', 'user_offline']),
-	userId: z.string().uuid()
+	userId: z.string(), // Discord ID (not UUID)
+	timestamp: z.string().optional()
 });
 
 /**

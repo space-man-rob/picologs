@@ -1,6 +1,6 @@
 import { getContext, setContext } from 'svelte';
 import type { Friend as FriendType, Group, GroupMember, GroupInvitation } from '../types';
-import type { ApiFriend } from './api';
+import type { ApiFriend, ApiUserProfile } from './api';
 
 /**
  * Shared application context for authentication, WebSocket connection, friends, and groups data.
@@ -24,7 +24,7 @@ export class AppContext {
 	friendsList = $state<FriendType[]>([]);
 	apiFriends = $state<ApiFriend[]>([]);
 	apiFriendRequests = $state<any[]>([]);
-	apiUserProfile = $state<{ friendCode: string | null } | null>(null);
+	apiUserProfile = $state<ApiUserProfile | null>(null);
 
 	// Cached friend code (loaded from store immediately on app start)
 	cachedFriendCode = $state<string | null>(null);

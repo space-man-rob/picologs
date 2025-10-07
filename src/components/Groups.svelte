@@ -48,7 +48,7 @@
 	}
 </script>
 
-<div class="flex flex-col h-full overflow-y-auto min-w-[200px] scrollbar-custom">
+<div class="flex flex-col h-full overflow-y-auto overflow-x-hidden min-w-[200px] scrollbar-custom">
 	<h4 class="px-3 py-2 text-white/60 font-medium text-xs uppercase tracking-wide">
 		Groups ({groups.length})
 	</h4>

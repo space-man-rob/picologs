@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { readTextFile, watchImmediate, writeFile } from '@tauri-apps/plugin-fs';
+	import { readTextFile, watchImmediate, writeFile, BaseDirectory } from '@tauri-apps/plugin-fs';
 	import { load } from '@tauri-apps/plugin-store';
 	import { open } from '@tauri-apps/plugin-dialog';
 	import { invoke } from '@tauri-apps/api/core';
@@ -98,9 +98,8 @@
 		return null;
 	}
 
-	async function getLogFilePath(): Promise<string> {
-		const dir = await appDataDir();
-		return dir.endsWith('/') ? `${dir}logs.json` : `${dir}/logs.json`;
+	function getLogFilePath(): string {
+		return 'logs.json';
 	}
 
 	// Utility to deduplicate and sort logs by id and timestamp
@@ -120,8 +119,8 @@
 
 	async function loadLogsFromDisk(): Promise<Log[]> {
 		try {
-			const filePath = await getLogFilePath();
-			const text = await readTextFile(filePath);
+			const filePath = getLogFilePath();
+			const text = await readTextFile(filePath, { baseDir: BaseDirectory.AppData });
 			return dedupeAndSortLogs(JSON.parse(text) as Log[]);
 		} catch (e) {
 			return [];
@@ -131,8 +130,8 @@
 	async function saveLogsToDisk(logs: Log[]): Promise<void> {
 		const encoder = new TextEncoder();
 		const data = encoder.encode(JSON.stringify(dedupeAndSortLogs(logs), null, 2));
-		const filePath = await getLogFilePath();
-		await writeFile(filePath, data);
+		const filePath = getLogFilePath();
+		await writeFile(filePath, data, { baseDir: BaseDirectory.AppData });
 	}
 
 	// Load friend sync timestamps from Tauri store
@@ -557,6 +556,10 @@
 			// Load the Game.log file if previously selected
 			if (savedFile && file) {
 				try {
+					console.log('[Initialization] Attempting to load file:', file);
+					console.log('[Initialization] File path length:', file.length);
+					console.log('[Initialization] Character at position 41:', file.charAt(41));
+
 					// Load existing logs from disk and deduplicate any existing duplicates
 					const savedLogs = await loadLogsFromDisk();
 					// Run deduplication on load to clean up any pre-existing duplicates
@@ -568,10 +571,18 @@
 					fileContent = dedupedSavedLogs;
 
 					// Set prevLineCount to current file length to avoid re-processing old logs on startup
-					const linesText = await readTextFile(file);
-					const currentLineCount = linesText.split('\n').length;
-					prevLineCount = currentLineCount;
-					lineCount = currentLineCount;
+					// Note: We need to be careful with paths containing special characters
+					// The fs plugin may interpret them as glob patterns
+					try {
+						const linesText = await readTextFile(file);
+						const currentLineCount = linesText.split('\n').length;
+						prevLineCount = currentLineCount;
+						lineCount = currentLineCount;
+					} catch (readError) {
+						console.warn('[Initialization] Could not read file for line count, starting from 0:', readError);
+						prevLineCount = 0;
+						lineCount = 0;
+					}
 
 					handleInitialiseWatch(file);
 					// playerId will be extracted from Game.log when parsing
@@ -1404,7 +1415,6 @@
 </script>
 
 <main class="p-0 text-white flex flex-col h-full overflow-hidden">
-
 	{#if appCtx.isSignedIn && appCtx.discordUser}
 		{#key 'main-page'}
 		<div class="flex flex-col h-full overflow-hidden">
@@ -1418,17 +1428,19 @@
 								</div>
 							{/if}
 							{#if showGroups && showFriends}
-								<VerticalResizer storeKey="friendsGroupsResizerHeight">
-									{#snippet topPanel()}
-										<Groups
-											groups={appCtx.groups}
-											groupMembers={appCtx.groupMembers}
-										/>
-									{/snippet}
-									{#snippet bottomPanel()}
-										<Friends friendsList={appCtx.friendsList} removeFriend={handleRemoveFriend} />
-									{/snippet}
-								</VerticalResizer>
+								<div class="flex-1 min-h-0 h-full">
+									<VerticalResizer storeKey="friendsGroupsResizerHeight">
+										{#snippet topPanel()}
+											<Groups
+												groups={appCtx.groups}
+												groupMembers={appCtx.groupMembers}
+											/>
+										{/snippet}
+										{#snippet bottomPanel()}
+											<Friends friendsList={appCtx.friendsList} removeFriend={handleRemoveFriend} />
+										{/snippet}
+									</VerticalResizer>
+								</div>
 							{:else if showGroups}
 								<div class="flex-1 min-h-0 overflow-hidden">
 									<Groups
@@ -1552,8 +1564,8 @@
 				</div>
 			{/if}
 		</div>
-		{/key}
-		{:else}
+	{/key}
+	{:else}
 			<div class="flex flex-col h-full overflow-hidden">
 				<div class="flex-1 min-h-0 relative">
 					<div
@@ -1640,7 +1652,7 @@
 					</div>
 				{/if}
 			</div>
-		{/if}
+	{/if}
 </main>
 
 <style>
