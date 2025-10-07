@@ -26,13 +26,27 @@
 	function getBgColor(type: 'success' | 'error' | 'info') {
 		switch (type) {
 			case 'success':
-				return 'bg-green-600/20';
+				return 'bg-green-600';
 			case 'error':
-				return 'bg-red-600/20';
+				return 'bg-red-600';
 			case 'info':
-				return 'bg-blue-600/20';
+				return 'bg-indigo-600';
 			default:
-				return 'bg-blue-600/20';
+				return 'bg-indigo-600';
+		}
+	}
+
+	// Get border color based on notification type
+	function getBorderColor(type: 'success' | 'error' | 'info') {
+		switch (type) {
+			case 'success':
+				return 'border-green-500/50';
+			case 'error':
+				return 'border-red-500/50';
+			case 'info':
+				return 'border-indigo-500/50';
+			default:
+				return 'border-indigo-500/50';
 		}
 	}
 </script>
@@ -50,15 +64,19 @@
 	{#each appCtx.notifications as notification (notification.id)}
 		<div
 			transition:fly={{ y: 20, duration: 300 }}
-			class="bg-panel-dark border border-panel rounded-lg shadow-lg overflow-hidden"
+			class="bg-slate-800/95 backdrop-blur-sm border-2 {getBorderColor(notification.type)} rounded-lg shadow-xl overflow-hidden"
 		>
 			<div class="p-4">
 				<div class="flex items-start gap-3">
-					<div class="flex-shrink-0 p-2 {getBgColor(notification.type)} rounded-lg">
-						<span class="text-xl">{getEmoji(notification.type)}</span>
+					<div class="flex-shrink-0 p-2 {getBgColor(notification.type)} rounded-lg text-white">
+						{#if notification.customIcon}
+							{@html notification.customIcon}
+						{:else}
+							<span class="text-xl">{getEmoji(notification.type)}</span>
+						{/if}
 					</div>
 					<div class="flex-1 min-w-0">
-						<p class="text-sm text-muted break-words">
+						<p class="text-sm text-white break-words">
 							{notification.message}
 						</p>
 					</div>
@@ -68,7 +86,7 @@
 							e.stopPropagation();
 							appCtx.removeNotification(notification.id);
 						}}
-						class="flex-shrink-0 p-1 text-muted hover:text-white transition-colors"
+						class="flex-shrink-0 p-1 text-white/60 hover:text-white transition-colors"
 					>
 						<span class="text-base">✕</span>
 					</button>

@@ -52,6 +52,7 @@ export class AppContext {
 	authError = $state<string | null>(null);
 	jwtToken = $state<string | null>(null);
 	isAuthenticating = $state(false);
+	authNotificationId = $state<string | null>(null);
 
 	// Reconnection state
 	reconnectAttempts = $state(0);
@@ -66,23 +67,25 @@ export class AppContext {
 	}>({});
 
 	// Notifications
-	notifications = $state<Array<{ id: string; message: string; type: 'info' | 'success' | 'error' }>>([]);
+	notifications = $state<Array<{ id: string; message: string; type: 'info' | 'success' | 'error'; customIcon?: string }>>([]);
 
 	// Processing states for friend requests and group invitations
 	processingFriendRequests = $state<Set<string>>(new Set());
 	processingGroupInvitations = $state<Set<string>>(new Set());
 
 	/**
-	 * Add a notification toast that auto-dismisses after 5 seconds
+	 * Add a notification toast that auto-dismisses after 5 seconds (unless autoDismiss is false)
 	 */
-	addNotification(message: string, type: 'info' | 'success' | 'error' = 'info') {
+	addNotification(message: string, type: 'info' | 'success' | 'error' = 'info', customIcon?: string, autoDismiss: boolean = true) {
 		const id = crypto.randomUUID();
-		this.notifications = [...this.notifications, { id, message, type }];
+		this.notifications = [...this.notifications, { id, message, type, customIcon }];
 
-		// Auto-dismiss after 5 seconds
-		setTimeout(() => {
-			this.removeNotification(id);
-		}, 5000);
+		// Auto-dismiss after 5 seconds if enabled
+		if (autoDismiss) {
+			setTimeout(() => {
+				this.removeNotification(id);
+			}, 5000);
+		}
 
 		return id;
 	}
