@@ -35,13 +35,8 @@ jobs:
       - name: install dependencies (windows only)
         run: cargo install trusted-signing-cli
 
-      - name: install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
       - name: install frontend dependencies
-        run: pnpm install
+        run: npm ci
 
       - uses: tauri-apps/tauri-action@v0
         id: tauri
