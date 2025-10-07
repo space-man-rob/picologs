@@ -21,6 +21,7 @@
 	} from '$lib/api';
 	import { getAppContext } from '$lib/appContext.svelte';
 	import { compressLogs, shouldCompressLogs } from '$lib/compression';
+	import { safeMatch } from '$lib/regex-utils';
 
 	// Get shared app context from layout
 	const appCtx = getAppContext();
@@ -440,34 +441,36 @@
 		}
 	}
 
-	onMount(async () => {
+	onMount(() => {
 		// Load sync timestamps on mount
 		loadFriendSyncTimestamps();
 
 		// Load saved toggle state
-		try {
-			const store = await load('store.json', { defaults: {}, autoSave: 200 });
-			const savedShowFriends = await store.get<boolean>('showFriends');
-			const savedShowGroups = await store.get<boolean>('showGroups');
+		(async () => {
+			try {
+				const store = await load('store.json', { defaults: {}, autoSave: 200 });
+				const savedShowFriends = await store.get<boolean>('showFriends');
+				const savedShowGroups = await store.get<boolean>('showGroups');
 
-			if (savedShowFriends !== null && savedShowFriends !== undefined) {
-				showFriends = savedShowFriends;
+				if (savedShowFriends !== null && savedShowFriends !== undefined) {
+					showFriends = savedShowFriends;
+				}
+				if (savedShowGroups !== null && savedShowGroups !== undefined) {
+					showGroups = savedShowGroups;
+				}
+
+				// Mark initial load as complete - now safe to save changes
+				initialToggleLoadDone = true;
+
+				// Update panel visibility based on saved state (with a slight delay to ensure resizerComponent is ready)
+				setTimeout(() => {
+					updatePanelVisibility();
+				}, 100);
+			} catch (error) {
+				// Use defaults if loading fails
+				initialToggleLoadDone = true;
 			}
-			if (savedShowGroups !== null && savedShowGroups !== undefined) {
-				showGroups = savedShowGroups;
-			}
-
-			// Mark initial load as complete - now safe to save changes
-			initialToggleLoadDone = true;
-
-			// Update panel visibility based on saved state (with a slight delay to ensure resizerComponent is ready)
-			setTimeout(() => {
-				updatePanelVisibility();
-			}, 100);
-		} catch (error) {
-			// Use defaults if loading fails
-			initialToggleLoadDone = true;
-		}
+		})();
 
 		// Listen for group logs from WebSocket
 		const handleGroupLog = async (event: CustomEvent) => {
@@ -862,7 +865,8 @@
 					) {
 						const regex =
 							/'([^']+)' \[(\d+)\] in zone '([^']+)' killed by '([^']+)' \[(\d+)\] using '([^']+)' \[Class ([^\]]+)\] with damage type '([^']+)' from direction x: ([\d\.\-]+), y: ([\d\.\-]+), z: ([\d\.\-]+)/;
-						const match = line.match(regex);
+						// SECURITY: Use safe regex match with timeout protection
+						const match = safeMatch(regex, line, 200);
 
 						if (match) {
 							const victimName = match[1];
@@ -909,7 +913,8 @@
 					) {
 						const regex =
 							/'([^']+)' \[(\d+)\] in zone '([^']+)' killed by '([^']+)' \[(\d+)\] using '([^']+)' \[Class ([^\]]+)\] with damage type '([^']+)' from direction x: ([\d\.\-]+), y: ([\d\.\-]+), z: ([\d\.\-]+)/;
-						const match = line.match(regex);
+						// SECURITY: Use safe regex match with timeout protection
+						const match = safeMatch(regex, line, 200);
 
 						if (match) {
 							const victimName = match[1];
@@ -951,10 +956,11 @@
 							};
 						}
 					} else if (line.match(/<Vehicle Destruction>/)) {
-						const vehicle = line.match(/Vehicle '(.*?)' \[.*?\]/)?.[1];
+						// SECURITY: Use safe regex match with timeout protection
+						const vehicle = safeMatch(/Vehicle '(.*?)' \[.*?\]/, line)?.[1];
 						const shipType = getShipType(vehicle || '');
-						const destroyer = getName(line.match(/caused by '(.*?)' \[.*?\]/)?.[1] || '');
-						const destroyLevelMatch = line.match(/destroyLevel from '(.*?)' to '(.*?)'/);
+						const destroyer = getName(safeMatch(/caused by '(.*?)' \[.*?\]/, line)?.[1] || '');
+						const destroyLevelMatch = safeMatch(/destroyLevel from '(.*?)' to '(.*?)'/, line);
 						const destroyLevelTo = destroyLevelMatch?.[2];
 						const isSoftDeath = destroyLevelTo?.toLowerCase().includes('soft');
 						logEntry = {
@@ -997,9 +1003,9 @@
 							open: false
 						};
 					} else if (line.match(/<Vehicle Control Flow>/)) {
-						const shipNameMatch = line.match(/'([A-Za-z0-9_]+)_\d+'/);
-						const shipIdMatch = line
-							.match(/\[(\d+)\]/g)
+						// SECURITY: Use safe regex match with timeout protection
+						const shipNameMatch = safeMatch(/'([A-Za-z0-9_]+)_\d+'/, line);
+						const shipIdMatch = safeMatch(/\[(\d+)\]/g, line)
 							?.pop()
 							?.match(/\d+/)?.[0];
 						const shipName = shipNameMatch?.[1];
@@ -1105,6 +1111,21 @@
 		});
 
 		if (typeof selectedPath === 'string' && selectedPath) {
+			// SECURITY: Validate file path to ensure it's a Star Citizen log file
+			const validPathPatterns = [
+				/Roberts Space Industries[\\\/]StarCitizen[\\\/](LIVE|PTU|HOTFIX)[\\\/]Game\.log$/i,
+				/StarCitizen[\\\/](LIVE|PTU|HOTFIX)[\\\/]Game\.log$/i,
+				// Allow any path ending with /Game.log for development/testing
+				/Game\.log$/i
+			];
+
+			const isValidPath = validPathPatterns.some(regex => regex.test(selectedPath));
+			if (!isValidPath) {
+				console.warn('[Security] Invalid log file path selected:', selectedPath);
+				alert('Please select a valid Star Citizen Game.log file.\n\nExpected location:\nRoberts Space Industries\\StarCitizen\\[LIVE|PTU|HOTFIX]\\Game.log');
+				return;
+			}
+
 			file = selectedPath;
 			fileContent = [];
 			prevLineCount = 0;

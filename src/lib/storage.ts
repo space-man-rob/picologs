@@ -29,7 +29,8 @@ class TauriStorageAdapter implements StorageAdapter {
 
 	async get<T>(key: string): Promise<T | null> {
 		const store = await loadTauriStore(this.storePath, { defaults: {}, autoSave: this.autoSave });
-		return await store.get<T>(key);
+		const value = await store.get<T>(key);
+		return value ?? null;
 	}
 
 	async set(key: string, value: unknown): Promise<void> {

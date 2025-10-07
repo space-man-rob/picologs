@@ -6,7 +6,18 @@
 import WebSocket from '@tauri-apps/plugin-websocket';
 import { getJwtToken } from './oauth';
 
-const WS_URL = import.meta.env.VITE_WS_URL_DEV || import.meta.env.VITE_WS_URL_PROD;
+// SECURITY: Determine WebSocket URL with production safety checks
+const WS_URL = (() => {
+	const isDev = import.meta.env.MODE === 'development';
+	const url = isDev ? import.meta.env.VITE_WS_URL_DEV : import.meta.env.VITE_WS_URL_PROD;
+
+	// SECURITY: In production builds, MUST use secure WebSocket (wss://)
+	if (!isDev && url && !url.startsWith('wss://')) {
+		throw new Error('SECURITY: Production builds must use secure WebSocket (wss://)');
+	}
+
+	return url || import.meta.env.VITE_WS_URL_PROD;
+})();
 
 /**
  * Friend data from API

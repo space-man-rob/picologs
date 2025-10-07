@@ -16,9 +16,14 @@
     "fs:allow-app-write",
     {
       "identifier": "fs:scope",
+      "description": "Restricts file system access to only Star Citizen log directories and app data. Prevents arbitrary file system access.",
       "allow": [
         "$APPDATA/**",
-        "**"
+        "$HOME/AppData/Roaming/Roberts Space Industries/StarCitizen/**/*.log",
+        "$HOME/Documents/Roberts Space Industries/StarCitizen/**/*.log",
+        "C:\\Program Files\\Roberts Space Industries\\StarCitizen\\**\\*.log",
+        "C:\\Program Files (x86)\\Roberts Space Industries\\StarCitizen\\**\\*.log",
+        "$HOME/Program Files/Roberts Space Industries/StarCitizen/**/*.log"
       ]
     },
     "dialog:default",

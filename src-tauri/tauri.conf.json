@@ -21,7 +21,7 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; connect-src 'self' ws://localhost:8080 wss://picologs-server.fly.dev https://cdn.discordapp.com https://picologs.com http://localhost:5173; img-src 'self' data: https: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:; frame-src https://picologs.com http://localhost:5173; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self';"
     }
   },
   "bundle": {
