@@ -176,7 +176,7 @@ describe('Validation Schemas', () => {
 				},
 				groupId: '550e8400-e29b-41d4-a716-446655440000',
 				senderId: '550e8400-e29b-41d4-a716-446655440000',
-				senderUsername: 'SenderUser',
+				senderDisplayName: 'SenderUser',
 			};
 
 			const result = GroupLogSchema.safeParse(validMessage);
@@ -197,7 +197,7 @@ describe('Validation Schemas', () => {
 				},
 				groupId: 'not-a-uuid',
 				senderId: '550e8400-e29b-41d4-a716-446655440000',
-				senderUsername: 'SenderUser',
+				senderDisplayName: 'SenderUser',
 			};
 
 			const result = GroupLogSchema.safeParse(invalidMessage);

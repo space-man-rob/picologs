@@ -5,6 +5,7 @@
 
 import WebSocket from '@tauri-apps/plugin-websocket';
 import { getJwtToken } from './oauth';
+import { createWebSocketConnection, sendJsonMessage, parseJsonMessage } from './websocket-helper';
 
 // SECURITY: Determine WebSocket URL with production safety checks
 const WS_URL = (() => {
@@ -97,112 +98,74 @@ export async function connectWebSocket(
 		return ws;
 	}
 
-	try {
-		if (!WS_URL) {
-			throw new Error('WebSocket URL is not configured. Please check environment variables.');
-		}
-
-		console.log('[WS API] Connecting to:', WS_URL);
-		const socket = await WebSocket.connect(WS_URL);
-
-		ws = socket;
-		isConnected = true;
-
-		// Listen for close events
-		socket.addListener((msg: any) => {
-			// Handle close events (when server closes connection)
-			if (msg.type === 'Close' || msg.type === 'close') {
-				isConnected = false;
-				ws = null;
-
-				// If close code is 1008, it's an authentication failure
-				if (msg.code === 1008 || (msg.data && msg.data.code === 1008)) {
-					console.error('[WS API] Authentication failed - token may be expired');
-					// Dispatch event for layout to handle
-					if (typeof window !== 'undefined') {
-						window.dispatchEvent(new CustomEvent('websocket-auth-failed'));
-					}
-				}
-			}
-		});
-
-		// Set up message handler
-		socket.addListener((msg: any) => {
-			try {
-				// Handle different message formats from Tauri WebSocket
-				let messageStr: string;
-
-				if (typeof msg === 'string') {
-					messageStr = msg;
-				} else if (msg.data && typeof msg.data === 'string') {
-					messageStr = msg.data;
-				} else if (msg.type === 'Text' && msg.data) {
-					messageStr = msg.data;
-				} else {
-					return;
-				}
-
-				const message = JSON.parse(messageStr);
-
-				// Handle request-response pattern
-				if (message.requestId && pendingRequests.has(message.requestId)) {
-					const { resolve, reject } = pendingRequests.get(message.requestId)!;
-					pendingRequests.delete(message.requestId);
-
-					if (message.type === 'error') {
-						reject(new Error(message.error || 'Unknown error'));
-					} else {
-						resolve(message.data);
-					}
-					return;
-				}
-
-				// Handle subscribed messages
-				if (messageHandlers.has(message.type)) {
-					messageHandlers.get(message.type)!(message);
-				}
-			} catch (error) {
-				console.error('[WS API] Error handling message:', error);
-			}
-		});
-
-		// Get JWT token for authentication (unless skipAuth is true for OAuth flow)
-		const jwtToken = await getJwtToken();
-		if (!jwtToken && !skipAuth) {
-			throw new Error('Authentication required - please sign in again');
-		}
-
-		// Register with server
-		if (jwtToken) {
-			await socket.send(
-				JSON.stringify({
-					type: 'register',
-					userId: discordUserId,
-					token: jwtToken
-				})
-			);
-		} else if (skipAuth) {
-			// Register without token for OAuth callback reception
-			await socket.send(
-				JSON.stringify({
-					type: 'register',
-					userId: discordUserId
-				})
-			);
-		}
-
-		// Call onConnected callback if provided
-		if (onConnected) {
-			onConnected();
-		}
-
-		return socket;
-	} catch (error) {
-		console.error('[WS API] Connection failed:', error);
-		ws = null;
-		isConnected = false;
-		throw error;
+	if (!WS_URL) {
+		throw new Error('WebSocket URL is not configured. Please check environment variables.');
 	}
+
+	console.log('[WS API] Connecting to:', WS_URL);
+
+	// Create connection using unified helper
+	const connection = await createWebSocketConnection({
+		url: WS_URL,
+		timeout: 10000,
+		onMessage: async (msg: any) => {
+			const message = parseJsonMessage(msg);
+			if (!message) return;
+
+			// Handle request-response pattern
+			if (message.requestId && pendingRequests.has(message.requestId)) {
+				const { resolve, reject } = pendingRequests.get(message.requestId)!;
+				pendingRequests.delete(message.requestId);
+
+				if (message.type === 'error') {
+					reject(new Error(message.error || 'Unknown error'));
+				} else {
+					resolve(message.data);
+				}
+				return;
+			}
+
+			// Handle subscribed messages
+			if (messageHandlers.has(message.type)) {
+				messageHandlers.get(message.type)!(message);
+			}
+		},
+		onClose: (code?: number) => {
+			isConnected = false;
+			ws = null;
+
+			// If close code is 1008, it's an authentication failure
+			if (code === 1008) {
+				console.error('[WS API] Authentication failed - token may be expired');
+				if (typeof window !== 'undefined') {
+					window.dispatchEvent(new CustomEvent('websocket-auth-failed'));
+				}
+			}
+		}
+	});
+
+	ws = connection.socket;
+	isConnected = true;
+
+	// Get JWT token for authentication (unless skipAuth is true for OAuth flow)
+	const jwtToken = await getJwtToken();
+	if (!jwtToken && !skipAuth) {
+		throw new Error('Authentication required - please sign in again');
+	}
+
+	// Register with server using unified send helper
+	const registerMessage = jwtToken
+		? { type: 'register', userId: discordUserId, token: jwtToken }
+		: { type: 'register', userId: discordUserId };
+
+	await connection.send(JSON.stringify(registerMessage));
+
+	// Call onConnected callback if provided
+	if (onConnected) {
+		onConnected();
+	}
+
+	return connection.socket;
 }
 
 /**

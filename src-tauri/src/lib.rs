@@ -1,5 +1,6 @@
 use tauri::Emitter;
-use std::path::PathBuf;
+use tauri::Manager;
+use tauri::menu::{Menu, MenuItemBuilder};
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -11,6 +12,7 @@ fn greet(name: &str) -> String {
 fn find_star_citizen_logs() -> Result<Vec<String>, String> {
     #[cfg(windows)]
     {
+        use std::path::PathBuf;
         use winreg::enums::*;
         use winreg::RegKey;
 
@@ -111,6 +113,58 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_updater::Builder::new().pubkey("dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDdCRDA5MjA5MDI3NUI1NEIKUldSTHRYVUNDWkxRZTBsSWpYbmd2SGprNmVmTHpwaW5PTGFCUFdtdXNpOCszWmdjOXF4S2RaaTMK").build())
+        .setup(|app| {
+            // Open devtools in debug builds for easier debugging
+            #[cfg(debug_assertions)]
+            {
+                if let Some(window) = app.get_webview_window("main") {
+                    window.open_devtools();
+                }
+            }
+
+            // Create Help menu items
+            let terms = MenuItemBuilder::with_id("terms", "Terms of Service").build(app)?;
+            let privacy = MenuItemBuilder::with_id("privacy", "Privacy Policy").build(app)?;
+
+            // Get the default menu
+            let menu = Menu::default(app.handle())?;
+
+            // Find and modify the existing Help submenu
+            if let Ok(items) = menu.items() {
+                for item in items {
+                    if let Some(submenu) = item.as_submenu() {
+                        if let Ok(text) = submenu.text() {
+                            if text == "Help" {
+                                // Add separator and our items to the existing Help menu
+                                submenu.append(
+                                    &tauri::menu::PredefinedMenuItem::separator(app)?
+                                )?;
+                                submenu.append(&terms)?;
+                                submenu.append(&privacy)?;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            app.set_menu(menu)?;
+
+            // Handle menu events
+            app.on_menu_event(move |_app_handle, event| {
+                match event.id().as_ref() {
+                    "terms" => {
+                        let _ = tauri_plugin_opener::open_url("https://picologs.com/terms", None::<&str>);
+                    }
+                    "privacy" => {
+                        let _ = tauri_plugin_opener::open_url("https://picologs.com/privacy", None::<&str>);
+                    }
+                    _ => {}
+                }
+            });
+
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![greet, find_star_citizen_logs])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

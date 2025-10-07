@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { load } from '@tauri-apps/plugin-store';
 	import { ask } from '@tauri-apps/plugin-dialog';
 	import { goto } from '$app/navigation';
@@ -95,7 +96,9 @@
 	let showConnectionDialog = $state(false);
 	let lastConnectionError = $state<string | null>(null);
 	let showReconnectButton = $state(false);
-	let errorDialogTimer = $state<number | null>(null);
+
+	// NOT reactive - just stores the timer ID
+	let errorDialogTimer: number | null = null;
 
 	$effect(() => {
 		// Show dialog only when error changes (new error occurred) and user is signed in
@@ -117,9 +120,13 @@
 				clearTimeout(errorDialogTimer);
 				errorDialogTimer = null;
 			}
-			showConnectionDialog = false;
-			showReconnectButton = false;
-			lastConnectionError = null;
+			// Use untrack to avoid triggering the effect when updating state
+			// This follows Svelte 5 best practices: avoid updating state in effects
+			untrack(() => {
+				showConnectionDialog = false;
+				showReconnectButton = false;
+				lastConnectionError = null;
+			});
 		}
 	});
 

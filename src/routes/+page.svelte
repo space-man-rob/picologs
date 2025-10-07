@@ -22,6 +22,7 @@
 	import { getAppContext } from '$lib/appContext.svelte';
 	import { compressLogs, shouldCompressLogs } from '$lib/compression';
 	import { safeMatch } from '$lib/regex-utils';
+	import { sendSyncLogsRequest, sendBatchLogs, sendBatchGroupLogs, sendUpdateMyDetails } from '$lib/websocket-messages';
 
 	// Get shared app context from layout
 	const appCtx = getAppContext();
@@ -187,15 +188,14 @@
 				});
 			}
 
-			// Send sync request with delta parameters
-			await appCtx.ws.send(JSON.stringify({
-				type: 'sync_logs',
+			// Send sync request with timeout protection
+			await sendSyncLogsRequest(appCtx.ws, {
 				targetUserId: friendId,
 				logs: logsToSend,
 				since: lastSyncTimestamp || null,
 				limit: 100,
 				offset: 0
-			}));
+			});
 
 			// Update sync timestamp after successful sync
 			updateFriendSyncTimestamp(friendId);
@@ -349,18 +349,14 @@
 		if (friendLogsBuffer.length > 0) {
 			try {
 				const useCompression = shouldCompressLogs(friendLogsBuffer);
-				let message: any = {
-					type: 'batch_logs'
-				};
 
 				if (useCompression) {
-					message.compressed = true;
-					message.compressedData = await compressLogs(friendLogsBuffer);
+					const compressedData = await compressLogs(friendLogsBuffer);
+					await sendBatchLogs(appCtx.ws, friendLogsBuffer, true, compressedData);
 				} else {
-					message.logs = friendLogsBuffer;
+					await sendBatchLogs(appCtx.ws, friendLogsBuffer, false);
 				}
 
-				await appCtx.ws.send(JSON.stringify(message));
 				friendLogsBuffer = [];
 			} catch (error) {
 				console.error('[WebSocket] Error sending batched friend logs:', error);
@@ -372,19 +368,13 @@
 			if (logs.length > 0) {
 				try {
 					const useCompression = shouldCompressLogs(logs);
-					let message: any = {
-						type: 'batch_group_logs',
-						groupId
-					};
 
 					if (useCompression) {
-						message.compressed = true;
-						message.compressedData = await compressLogs(logs);
+						const compressedData = await compressLogs(logs);
+						await sendBatchGroupLogs(appCtx.ws, groupId, logs, true, compressedData);
 					} else {
-						message.logs = logs;
+						await sendBatchGroupLogs(appCtx.ws, groupId, logs, false);
 					}
-
-					await appCtx.ws.send(JSON.stringify(message));
 				} catch (error) {
 					console.error(`[WebSocket] Error sending batched group logs to ${groupId}:`, error);
 				}
@@ -547,14 +537,11 @@
 			if (savedFile) {
 				file = savedFile;
 
-				// Extract and set log location for header display
-				const pathParts = savedFile.split('\\');
+				// Extract and set log location for header display (platform-agnostic)
+				const pathSep = savedFile.includes('/') ? '/' : '\\';
+				const pathParts = savedFile.split(pathSep);
 				appCtx.cachedLogLocation =
-					pathParts.length > 1
-						? pathParts[pathParts.length - 2]
-						: savedFile.split('/').length > 1
-							? savedFile.split('/').slice(-2, -1)[0]
-							: null;
+					pathParts.length > 1 ? pathParts[pathParts.length - 2] : null;
 			}
 
 			if (savedEnvironment) {
@@ -687,8 +674,11 @@
 		}
 
 		// Watch the directory instead of the file (more reliable on Windows)
-		const directory = filePath.substring(0, filePath.lastIndexOf('\\'));
-		const fileName = filePath.substring(filePath.lastIndexOf('\\') + 1);
+		// Use platform-agnostic path separator detection
+		const pathSeparator = filePath.includes('/') ? '/' : '\\';
+		const lastSeparatorIndex = filePath.lastIndexOf(pathSeparator);
+		const directory = filePath.substring(0, lastSeparatorIndex);
+		const fileName = filePath.substring(lastSeparatorIndex + 1);
 
 		console.log('[FileWatch] Initializing watcher');
 		console.log('[FileWatch] Directory:', directory);
@@ -705,7 +695,10 @@
 
 					// Filter events for our specific file
 					const isOurFile = event.paths.some(p => {
-						const normalizedPath = p.replace(/\//g, '\\');
+						// Normalize path to use same separator as the original filePath
+						const normalizedPath = pathSeparator === '/'
+							? p.replace(/\\/g, '/')
+							: p.replace(/\//g, '\\');
 						return normalizedPath.endsWith(fileName) || normalizedPath.includes(fileName);
 					});
 
@@ -751,13 +744,11 @@
 
 		try {
 			tickCounter = 0;
-			const pathParts = filePath.split('\\');
+			// Extract log location from path (platform-agnostic)
+			const pathSep = filePath.includes('/') ? '/' : '\\';
+			const pathParts = filePath.split(pathSep);
 			appCtx.cachedLogLocation =
-				pathParts.length > 1
-					? pathParts[pathParts.length - 2]
-					: filePath.split('/').length > 1
-						? filePath.split('/').slice(-2, -1)[0]
-						: null;
+				pathParts.length > 1 ? pathParts[pathParts.length - 2] : null;
 
 			const linesText = await readTextFile(filePath);
 			const lineBreak = linesText.split('\n');
@@ -819,16 +810,13 @@
 
 						if (playerName && playerName !== oldPlayerName) {
 							if (appCtx.ws && appCtx.discordUserId) {
-								// Fire-and-forget WebSocket send (don't block log parsing)
-								appCtx.ws.send(
-									JSON.stringify({
-										type: 'update_my_details',
-										userId: appCtx.discordUserId, // Use Discord ID for WebSocket
-										playerName: playerName,
-										playerId: playerId, // Include SC player ID as metadata
-										timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-									})
-								).catch(() => {
+								// Fire-and-forget WebSocket send with timeout protection (don't block log parsing)
+								sendUpdateMyDetails(appCtx.ws, {
+									userId: appCtx.discordUserId, // Use Discord ID for WebSocket
+									playerName: playerName,
+									playerId: playerId, // Include SC player ID as metadata
+									timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+								}).catch(() => {
 									// Silently fail - will retry on next update
 								});
 							}
@@ -1089,16 +1077,21 @@
 			if (foundPaths && foundPaths.length > 0) {
 				// If we have a specific environment, try to find a matching log
 				if (validEnvironment) {
-					const matchingLog = foundPaths.find(p => p.includes(`\\${validEnvironment}\\`));
+					// Check for environment in path using both separators
+					const matchingLog = foundPaths.find(p =>
+						p.includes(`/${validEnvironment}/`) || p.includes(`\\${validEnvironment}\\`)
+					);
 					if (matchingLog) {
-						// Extract directory from the log file path
-						const lastSlashIndex = matchingLog.lastIndexOf('\\');
+						// Extract directory from the log file path (platform-agnostic)
+						const pathSep = matchingLog.includes('/') ? '/' : '\\';
+						const lastSlashIndex = matchingLog.lastIndexOf(pathSep);
 						defaultPath = matchingLog.substring(0, lastSlashIndex + 1);
 					}
 				} else {
 					// Use the first found log's directory
 					const firstLog = foundPaths[0];
-					const lastSlashIndex = firstLog.lastIndexOf('\\');
+					const pathSep = firstLog.includes('/') ? '/' : '\\';
+					const lastSlashIndex = firstLog.lastIndexOf(pathSep);
 					defaultPath = firstLog.substring(0, lastSlashIndex + 1);
 				}
 			}

@@ -30,6 +30,7 @@
 	} from '$lib/api';
 	import { decompressLogs } from '$lib/compression';
 	import { loadAuthData, signOut, handleAuthComplete, getJwtToken } from '$lib/oauth';
+	import { createWebSocketConnection, sendJsonMessage, parseJsonMessage } from '$lib/websocket-helper';
 	import type { Friend as FriendType } from '../types';
 	import {
 		loadCachedFriends,
@@ -487,10 +488,18 @@
 			return Promise.resolve();
 		} catch (error) {
 			console.error('[WebSocket] Failed to connect:', error);
+
+			// Show user-friendly error toast
+			const errorMessage = error instanceof Error && error.message.includes('timeout')
+				? "Can't connect to server - connection timed out"
+				: 'Failed to connect to server';
+
+			appCtx.addNotification(errorMessage, 'error');
+
 			appCtx.connectionStatus = 'disconnected';
-			appCtx.connectionError = 'Failed to connect to server. Retrying...';
+			appCtx.connectionError = errorMessage;
 			appCtx.ws = null;
-			appCtx.autoConnectionAttempted = false;
+			// Don't reset autoConnectionAttempted here - let the retry timer control it
 
 			appCtx.friendsList = appCtx.friendsList.map((friend) => ({ ...friend, isOnline: false }));
 			return Promise.reject(error instanceof Error ? error : new Error('Failed to connect'));
@@ -635,11 +644,13 @@
 				throw new Error('WebSocket URL is not configured. Please check environment variables.');
 			}
 
-			const socket = await WebSocket.connect(wsUrl);
-
-			// Set up message listener for auth completion
-			socket.addListener(async (msg: any) => {
-				await handleAuthWebSocketMessage(msg, socket);
+			// Create WebSocket connection using unified helper
+			const connection = await createWebSocketConnection({
+				url: wsUrl,
+				timeout: 10000,
+				onMessage: async (msg: any) => {
+					await handleAuthWebSocketMessage(msg, connection.socket);
+				}
 			});
 
 			// SECURITY: Generate session ID with timestamp for single-use validation
@@ -653,9 +664,10 @@
 				requestId: 'init_auth'
 			};
 
-			await socket.send(JSON.stringify(initPayload));
+			// Send init message using unified send helper
+			await connection.send(JSON.stringify(initPayload));
 
-			appCtx.ws = socket;
+			appCtx.ws = connection.socket;
 			appCtx.connectionStatus = 'connected';
 
 			// Open Discord app directly to OAuth authorization
@@ -680,8 +692,16 @@
 
 		} catch (error) {
 			console.error('[Auth] ❌ Failed to initiate auth:', error);
+
+			// Show user-friendly error toast
+			const errorMessage = error instanceof Error && error.message.includes('timeout')
+				? "Can't connect to server - connection timed out"
+				: 'Failed to connect to server. Please try again.';
+
+			appCtx.addNotification(errorMessage, 'error');
+
 			appCtx.connectionStatus = 'disconnected';
-			appCtx.authError = 'Failed to connect to server. Please try again.';
+			appCtx.authError = errorMessage;
 		}
 	}
 
@@ -936,10 +956,7 @@
 					if (!appCtx.ws && !appCtx.autoConnectionAttempted) {
 						appCtx.autoConnectionAttempted = true;
 						connectWebSocket().catch(() => {
-							// Connection failed, allow retry after 5 seconds
-							setTimeout(() => {
-								appCtx.autoConnectionAttempted = false;
-							}, 5000);
+							// Connection failed - user can manually retry from the UI
 						});
 					}
 				} else {
@@ -1045,20 +1062,30 @@
 							console.error('[Deep Link] ❌ WebSocket not connected');
 							appCtx.authError = 'Authentication failed - server connection lost';
 							appCtx.isAuthenticating = false;
+							appCtx.addNotification('Authentication failed - server connection lost', 'error');
 							return;
 						}
 
-						// Send OAuth code to server via WebSocket (use the validated session ID)
-						const payload = {
-							type: 'discord_oauth_callback',
-							requestId: 'oauth_callback',
-							data: {
-								code,
-								sessionId: usedSessionId
-							}
-						};
+						try {
+							// Send OAuth code to server via WebSocket (use the validated session ID)
+							const payload = {
+								type: 'discord_oauth_callback',
+								requestId: 'oauth_callback',
+								data: {
+									code,
+									sessionId: usedSessionId
+								}
+							};
 
-						await appCtx.ws.send(JSON.stringify(payload));
+							// Send using unified helper
+							await sendJsonMessage(appCtx.ws, payload);
+						} catch (sendError) {
+							console.error('[Deep Link] ❌ Failed to send OAuth callback:', sendError);
+							appCtx.authError = 'Authentication failed - server not responding';
+							appCtx.isAuthenticating = false;
+							appCtx.addNotification('Authentication failed - server not responding', 'error');
+							return;
+						}
 					}
 					// Legacy deep link handler (for backward compatibility)
 					// Expected format: picologs://auth?data=...
