@@ -47,6 +47,17 @@
 		groupsHaveChanged
 	} from '$lib/merge';
 	import { getStorageValue, setStorageValue, deleteStorageValue } from '$lib/storage';
+	import {
+		validateMessage,
+		SingleLogSchema,
+		GroupLogSchema,
+		SyncLogsSchema,
+		BatchLogsSchema,
+		BatchGroupLogsSchema,
+		UserPresenceSchema,
+		RefetchGroupDetailsSchema,
+		AuthCompleteSchema
+	} from '$lib/validation';
 
 	let { children } = $props();
 
@@ -196,6 +207,15 @@
 			return Promise.reject(new Error('No user ID available'));
 		}
 
+		// SECURITY: Validate Discord user ID format before connecting
+		// Discord IDs are 17-19 digit numeric strings
+		if (!/^\d{17,19}$/.test(appCtx.discordUserId)) {
+			console.error('[Auth Security] Invalid Discord user ID format:', appCtx.discordUserId);
+			appCtx.connectionError = 'Invalid user ID - please sign in again';
+			await handleSignOut();
+			return Promise.reject(new Error('Invalid user ID format'));
+		}
+
 		if (appCtx.ws) {
 			return Promise.resolve();
 		}
@@ -258,16 +278,22 @@
 			});
 
 			apiSubscribe('refetch_group_details', async (message: any) => {
-				if (message.groupId) {
-					const members = await fetchGroupMembers(message.groupId);
-					appCtx.groupMembers.set(message.groupId, members);
+				// SECURITY: Validate incoming refetch group details message
+				const validated = validateMessage(RefetchGroupDetailsSchema, message);
+				if (validated && validated.groupId) {
+					const members = await fetchGroupMembers(validated.groupId);
+					appCtx.groupMembers.set(validated.groupId, members);
+				} else {
+					console.warn('[Security] Invalid refetch_group_details message received:', message);
 				}
 			});
 
 			apiSubscribe('user_online', async (message: any) => {
-				if (message.userId) {
+				// SECURITY: Validate incoming user online message
+				const validated = validateMessage(UserPresenceSchema, message);
+				if (validated && validated.userId) {
 					// Update friend status
-					const friendIndex = appCtx.friendsList.findIndex((f) => f.id === message.userId);
+					const friendIndex = appCtx.friendsList.findIndex((f) => f.id === validated.userId);
 					if (friendIndex !== -1) {
 						appCtx.friendsList = [
 							...appCtx.friendsList.slice(0, friendIndex),
@@ -278,7 +304,7 @@
 
 					// Update group members online status
 					appCtx.groupMembers.forEach((members, groupId) => {
-						const member = members.find(m => m.discordId === message.userId);
+						const member = members.find(m => m.discordId === validated.userId);
 						if (member) {
 							member.isOnline = true;
 							member.isConnected = true;
@@ -289,15 +315,19 @@
 
 					// Trigger sync event for delta sync
 					window.dispatchEvent(new CustomEvent('friend-came-online', {
-						detail: { friendId: message.userId }
+						detail: { friendId: validated.userId }
 					}));
+				} else {
+					console.warn('[Security] Invalid user_online message received:', message);
 				}
 			});
 
 			apiSubscribe('user_offline', (message: any) => {
-				if (message.userId) {
+				// SECURITY: Validate incoming user offline message
+				const validated = validateMessage(UserPresenceSchema, message);
+				if (validated && validated.userId) {
 					// Update friend status
-					const friendIndex = appCtx.friendsList.findIndex((f) => f.id === message.userId);
+					const friendIndex = appCtx.friendsList.findIndex((f) => f.id === validated.userId);
 					if (friendIndex !== -1) {
 						appCtx.friendsList = [
 							...appCtx.friendsList.slice(0, friendIndex),
@@ -308,7 +338,7 @@
 
 					// Update group members offline status
 					appCtx.groupMembers.forEach((members, groupId) => {
-						const member = members.find(m => m.discordId === message.userId);
+						const member = members.find(m => m.discordId === validated.userId);
 						if (member) {
 							member.isOnline = false;
 							member.isConnected = false;
@@ -316,60 +346,81 @@
 							appCtx.groupMembers.set(groupId, [...members]);
 						}
 					});
+				} else {
+					console.warn('[Security] Invalid user_offline message received:', message);
 				}
 			});
 
 			apiSubscribe('group_log', (message: any) => {
-				if (message.log && message.groupId) {
+				// SECURITY: Validate incoming group log message
+				const validated = validateMessage(GroupLogSchema, message);
+				if (validated) {
 					// Emit custom event that the page can listen to
 					window.dispatchEvent(new CustomEvent('group-log-received', {
 						detail: {
-							log: message.log,
-							groupId: message.groupId,
-							senderId: message.senderId,
-							senderUsername: message.senderUsername
+							log: validated.log,
+							groupId: validated.groupId,
+							senderId: validated.senderId,
+							senderUsername: validated.senderUsername
 						}
 					}));
+				} else {
+					console.warn('[Security] Invalid group_log message received:', message);
 				}
 			});
 
 			apiSubscribe('log', (message: any) => {
-				if (message.log) {
+				// SECURITY: Validate incoming log message
+				const validated = validateMessage(SingleLogSchema, message);
+				if (validated) {
 					// Emit custom event that the page can listen to
 					window.dispatchEvent(new CustomEvent('friend-log-received', {
 						detail: {
-							log: message.log
+							log: validated.log
 						}
 					}));
+				} else {
+					console.warn('[Security] Invalid log message received:', message);
 				}
 			});
 
 			apiSubscribe('sync_logs', (message: any) => {
-				if (message.logs && Array.isArray(message.logs)) {
+				// SECURITY: Validate incoming sync logs message
+				const validated = validateMessage(SyncLogsSchema, message);
+				if (validated) {
 					// Emit custom event that the page can listen to
 					window.dispatchEvent(new CustomEvent('sync-logs-received', {
 						detail: {
-							logs: message.logs,
-							senderId: message.senderId,
-							hasMore: message.hasMore,
-							total: message.total,
-							offset: message.offset,
-							limit: message.limit
+							logs: validated.logs,
+							senderId: validated.senderId,
+							hasMore: validated.hasMore,
+							total: validated.total,
+							offset: validated.offset,
+							limit: validated.limit
 						}
 					}));
+				} else {
+					console.warn('[Security] Invalid sync_logs message received:', message);
 				}
 			});
 
 			// Handle batched friend logs (with optional compression)
 			apiSubscribe('batch_logs', async (message: any) => {
 				try {
+					// SECURITY: Validate incoming batch logs message
+					const validated = validateMessage(BatchLogsSchema, message);
+					if (!validated) {
+						console.warn('[Security] Invalid batch_logs message received:', message);
+						return;
+					}
+
 					let logs: any[];
 
 					// Check if message is compressed
-					if (message.compressed && message.compressedData) {
-						logs = await decompressLogs(message.compressedData);
+					if (validated.compressed && validated.compressedData) {
+						logs = await decompressLogs(validated.compressedData);
 					} else {
-						logs = message.logs;
+						logs = validated.logs || [];
 					}
 
 					if (logs && Array.isArray(logs)) {
@@ -388,24 +439,31 @@
 			// Handle batched group logs (with optional compression)
 			apiSubscribe('batch_group_logs', async (message: any) => {
 				try {
+					// SECURITY: Validate incoming batch group logs message
+					const validated = validateMessage(BatchGroupLogsSchema, message);
+					if (!validated) {
+						console.warn('[Security] Invalid batch_group_logs message received:', message);
+						return;
+					}
+
 					let logs: any[];
 
 					// Check if message is compressed
-					if (message.compressed && message.compressedData) {
-						logs = await decompressLogs(message.compressedData);
+					if (validated.compressed && validated.compressedData) {
+						logs = await decompressLogs(validated.compressedData);
 					} else {
-						logs = message.logs;
+						logs = validated.logs || [];
 					}
 
-					if (logs && Array.isArray(logs) && message.groupId) {
+					if (logs && Array.isArray(logs)) {
 						// Dispatch individual events for each log in the batch
 						logs.forEach((log: any) => {
 							window.dispatchEvent(new CustomEvent('group-log-received', {
 								detail: {
 									log,
-									groupId: message.groupId,
-									senderId: message.senderId,
-									senderUsername: message.senderUsername
+									groupId: validated.groupId,
+									senderId: validated.senderId,
+									senderUsername: validated.senderUsername
 								}
 							}));
 						});
@@ -491,25 +549,30 @@
 		message: any,
 		socket: WebSocket
 	): Promise<void> {
-		if (!message.data?.jwt || !message.data?.user) {
-			console.error('[Auth] Invalid auth_complete message - missing jwt or user');
+		// SECURITY: Validate auth_complete message
+		const validated = validateMessage(AuthCompleteSchema, message);
+		if (!validated) {
+			console.error('[Auth Security] Invalid auth_complete message received:', message);
+			appCtx.authError = 'Authentication failed - invalid server response';
+			appCtx.connectionStatus = 'disconnected';
+			appCtx.isAuthenticating = false;
 			return;
 		}
 
 		await handleAuthComplete({
-			jwt: message.data.jwt,
-			user: message.data.user
+			jwt: validated.data.jwt,
+			user: validated.data.user
 		});
 
 		// Extract user ID from JWT
-		const [, payloadB64] = message.data.jwt.split('.');
+		const [, payloadB64] = validated.data.jwt.split('.');
 		const payload = JSON.parse(atob(payloadB64));
 
 		appCtx.discordUserId = payload.userId;
 		const userData = {
-			id: message.data.user.discordId,
-			username: message.data.user.username,
-			avatar: message.data.user.avatar
+			id: validated.data.user.discordId,
+			username: validated.data.user.username,
+			avatar: validated.data.user.avatar
 		};
 		appCtx.discordUser = userData;
 		appCtx.isSignedIn = true;
@@ -550,8 +613,9 @@
 				await handleAuthWebSocketMessage(msg, socket);
 			});
 
-			// Generate session ID and send init message
-			const sessionId = crypto.randomUUID();
+			// SECURITY: Generate session ID with timestamp for single-use validation
+			// Format: {uuid}:{timestamp}
+			const sessionId = `${crypto.randomUUID()}:${Date.now()}`;
 			appCtx.authSessionId = sessionId;
 
 			const initPayload = {
@@ -732,7 +796,11 @@
 			const cachedDiscordUser = await store.get<{ id: string; username: string; avatar: string | null }>('discordUser');
 			const savedFile = await store.get<string>('lastFile');
 
-			if (storedDiscordUserId) {
+			// SECURITY: Validate Discord user ID format (17-19 digit numeric string)
+			// This prevents corrupted store data (e.g., "LIVE", environment names) from being used
+			const isValidDiscordId = storedDiscordUserId && /^\d{17,19}$/.test(storedDiscordUserId);
+
+			if (isValidDiscordId) {
 				// Set auth state from cache
 				appCtx.discordUserId = storedDiscordUserId;
 				appCtx.isSignedIn = true;
@@ -745,6 +813,12 @@
 					appCtx.discordUser = cachedDiscordUser;
 				}
 			} else {
+				// Invalid or missing Discord ID - clear corrupted auth data
+				if (storedDiscordUserId && !isValidDiscordId) {
+					console.warn('[Auth Security] Invalid Discord ID detected in store, clearing:', storedDiscordUserId);
+					await store.delete('discordUserId');
+					await store.delete('discordUser');
+				}
 				// No stored auth - user is not signed in
 				appCtx.isSignedIn = false;
 				appCtx.discordUser = null;
@@ -879,7 +953,7 @@
 						const code = urlObj.searchParams.get('code');
 						const state = urlObj.searchParams.get('state');
 
-						// Validate state parameter matches expected session ID
+						// SECURITY: Validate state parameter matches expected session ID
 						if (!state) {
 							console.error('[Deep Link] ⚠️ SECURITY: Missing state parameter in OAuth callback');
 							appCtx.authError = 'Authentication failed - invalid callback (missing state)';
@@ -895,6 +969,26 @@
 							return;
 						}
 
+						// SECURITY: Validate timestamp in state to prevent replay attacks
+						// State format: {uuid}:{timestamp}
+						const stateParts = state.split(':');
+						if (stateParts.length === 2) {
+							const timestamp = parseInt(stateParts[1], 10);
+							const age = Date.now() - timestamp;
+							const MAX_STATE_AGE = 5 * 60 * 1000; // 5 minutes
+
+							if (age > MAX_STATE_AGE) {
+								console.error('[Deep Link] ⚠️ SECURITY: OAuth state expired (age: ${age}ms)');
+								appCtx.authError = 'Authentication timed out - please try again';
+								appCtx.isAuthenticating = false;
+								return;
+							}
+						}
+
+						// SECURITY: Clear session ID to enforce single-use
+						const usedSessionId = appCtx.authSessionId;
+						appCtx.authSessionId = null;
+
 						if (!code) {
 							console.error('[Deep Link] ❌ Missing authorization code in OAuth callback');
 							appCtx.authError = 'OAuth callback failed - missing authorization code';
@@ -909,13 +1003,13 @@
 							return;
 						}
 
-						// Send OAuth code to server via WebSocket
+						// Send OAuth code to server via WebSocket (use the validated session ID)
 						const payload = {
 							type: 'discord_oauth_callback',
 							requestId: 'oauth_callback',
 							data: {
 								code,
-								sessionId: state
+								sessionId: usedSessionId
 							}
 						};
 
@@ -997,6 +1091,7 @@
 		{handleSignIn}
 		{handleSignOut}
 		connectionError={appCtx.connectionError}
+		authError={appCtx.authError}
 		isAuthenticating={appCtx.isAuthenticating}
 		friendRequests={appCtx.apiFriendRequests}
 		groupInvitations={appCtx.groupInvitations}

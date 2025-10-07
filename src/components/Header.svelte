@@ -19,6 +19,7 @@
 		handleSignIn,
 		handleSignOut,
 		isAuthenticating,
+		authError,
 		friendRequests = [],
 		groupInvitations = [],
 		onAcceptFriend,
@@ -519,6 +520,13 @@
 					<span class="sm:hidden">Sign in</span>
 				{/if}
 			</button>
+
+			<!-- Auth Error Display -->
+			{#if authError && !isSignedIn}
+				<div class="absolute top-full right-0 mt-2 bg-red-900/90 text-white text-sm px-3 py-2 rounded shadow-lg max-w-xs z-50">
+					{authError}
+				</div>
+			{/if}
 		{/if}
 	</aside>
 </header>
