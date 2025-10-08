@@ -119,16 +119,20 @@ npm run tauri [command]
 - `tauri-plugin-dialog`: Native file dialogs for log file selection
 - `tauri-plugin-opener`: Opening URLs in system browser
 - `tauri-plugin-updater`: Auto-update functionality
-- `tauri-plugin-deep-link`: Deep link handling for OAuth callback (legacy)
-- `tauri-plugin-single-instance`: Prevent multiple app instances
+- `tauri-plugin-deep-link`: Deep link handling for OAuth callback
+- `tauri-plugin-single-instance`: Prevent multiple app instances (forwards deep links to first instance)
 - `tauri-plugin-http`: HTTP client for API calls
 - `tauri-plugin-process`: Process management
+- `tauri-plugin-persisted-scope`: Persistent file system permissions
 
 **Rust Backend:**
 
 - Minimal Rust code in `src-tauri/src/lib.rs`
-- Single demo command: `greet(name: &str)`
-- All heavy lifting done in TypeScript frontend via Tauri plugins
+- Commands:
+  - `greet(name: &str)`: Demo greeting command
+  - `find_star_citizen_logs()`: Auto-detects Star Citizen log file locations via Windows registry and %APPDATA%
+- Menu integration: Custom Help menu items for Terms of Service and Privacy Policy
+- Most heavy lifting done in TypeScript frontend via Tauri plugins
 
 ### File Watching and Log Processing
 
@@ -145,7 +149,100 @@ npm run tauri [command]
 - Structured log format with event types, metadata, and player info
 - Event types: `connection`, `vehicle_control_flow`, `actor_death`, `location_change`, etc.
 
+**Log Grouping & Features:**
+
+- **Killing Spree Detection**: Automatically groups sequential kills within 2-minute window
+  - Minimum 2 kills to create a spree
+  - Parent log shows total kill count with red highlight
+  - Child logs expandable to see individual kills
+  - Visual indicator: Red border and background (`bg-red-500/10 border-l-4 border-red-500`)
+
+- **Delta Sync**: Efficient log synchronization with friends
+  - Tracks last sync timestamp per friend in `friendSyncTimestamps` (SvelteMap)
+  - Only sends logs newer than last sync timestamp
+  - Stored in Tauri store: `store.json` → `friendSyncTimestamps`
+  - Triggered when friend comes online
+
+- **Batch Sending**: Reduces network overhead
+  - Buffers logs: 2.5 second interval OR 8 logs (whichever first)
+  - Separate buffers for friends and each group
+  - Compression support for large batches (>1KB threshold)
+  - Auto-flushes on component unmount
+
+### Ship Image System
+
+**Ship Data & Images:**
+
+- Ship database sourced from Fleet Yards API (https://fleetyards.net/)
+- Ship data stored in `src/libs/fleet.json`
+- Ship images cached as WebP files in `static/ships/` directory
+- Image naming convention: `{slug}__iso_l_{hash}.webp`
+- Images served from `/ships/` route in production
+
+**Ship Matching Logic (`src/components/Item.svelte`):**
+
+1. **Direct match**: Tries exact match on vehicle name from logs
+2. **Progressive shortening**: Removes suffix parts until match found
+3. **Fuzzy search fallback**: Uses Fuse.js to find closest match by name/slug/identifier
+4. Displays ship image for `vehicle_control_flow` and `destruction` event types
+5. Special "hard death" effect: Split ship image for complete destruction (destroyLevel === '2')
+
+### Groups Feature
+
+**Group Management:**
+
+- Users can create and join groups for organized log sharing
+- Group roles: `owner`, `admin`, `member` with granular permissions
+- Permissions: `canInvite`, `canRemoveMembers`, `canEditGroup`
+- Group invitations flow: pending → accepted/denied
+- Real-time group log broadcasting via WebSocket
+- Group members' logs displayed when group is selected
+- Group avatars stored and served from website (`/uploads/avatars/`)
+
+**Group WebSocket Messages:**
+
+- `batch_group_logs`: Send logs to all group members
+- `group_log`: Receive logs from group members
+- Compression support for large log batches (like friend logs)
+
 ## Common Development Patterns
+
+**Using Lucide Icons:**
+
+- **IMPORTANT**: Import from `@lucide/svelte`, NOT `lucide-svelte`
+- Example: `import { Copy, Check } from '@lucide/svelte';`
+- Use with size prop: `<Copy size={16} />`
+
+**CSS Variables & Styling Patterns:**
+
+- **Background colors** (defined in Tailwind config):
+  - `bg-primary`: Main background color
+  - `bg-panel`: Panel/card background (used for dropdowns, modals, dialogs)
+  - `bg-overlay-dark`: Dark overlay background
+  - `bg-overlay-light`: Light overlay background
+  - `bg-overlay-card`: Card background
+
+- **Border opacity patterns**: Consistent across UI
+  - `border-white/5`: Subtle borders on panels and dropdowns
+  - `border-white/10`: Standard borders
+
+- **Text opacity patterns**: For hierarchy
+  - `text-white/50`: Secondary text (timestamps, metadata)
+  - `text-white/70`: Muted text (help text, placeholders)
+  - `text-muted`: Semantic muted text color
+  - `text-subtle`: Very subtle text
+
+- **Hover states**: Always include transitions
+  - `hover:bg-white/20`: Buttons and interactive elements
+  - `hover:text-white`: Icon buttons and links
+  - `transition-colors`: Standard for color transitions
+  - `transition-opacity duration-200`: For opacity changes
+
+- **Dropdown/Modal consistency**:
+  - Always use `bg-panel` for background
+  - Always use `border-white/5` for borders
+  - Include `shadow-xl` for elevation
+  - Use `rounded-lg` for consistent border radius
 
 **Adding New WebSocket Message Handlers:**
 
@@ -161,11 +258,60 @@ npm run tauri [command]
 3. Mutations trigger reactivity automatically (no `.set()` needed)
 4. For page-specific actions, update `appCtx.pageActions` object
 
+**UI/UX Patterns:**
+
+- **Scroll Banner**: "You're viewing old logs" popup
+  - Appears when user scrolls away from bottom (debounced 1 second)
+  - Uses `bg-panel` with `border-white/5` for consistency
+  - Fade in/out transitions (200ms)
+  - "Jump To Present" button scrolls to bottom smoothly
+
+- **Auto-scroll behavior**:
+  - Automatically scrolls to bottom when new logs arrive (only if user was already at bottom)
+  - Tracks `atTheBottom` state via scroll event listener
+  - Initial scroll to bottom on page load
+  - Uses `tick()` to wait for DOM updates before scrolling
+
+- **Expandable log cards**:
+  - Click to expand/collapse individual log entries
+  - Show full original log text in code-style box
+  - Copy button (Lucide Copy/Check icons) in top-right corner
+  - Hover states with transitions for better UX
+
+- **Panel management**:
+  - Resizable panels with drag handles (Resizer/VerticalResizer components)
+  - Panel state persisted to Tauri store
+  - Toggle buttons for Friends/Groups visibility
+  - Automatic collapse when both sections hidden
+
 **Adding Tauri Commands:**
 
 1. Define Rust function in `src-tauri/src/lib.rs` with `#[tauri::command]`
 2. Add to `invoke_handler!` macro in `run()` function
 3. Call from TypeScript using `invoke('command_name', { args })`
+
+**Performance & Error Handling:**
+
+- **Regex Safety**: Use `safeMatch()` from `src/lib/regex-utils.ts`
+  - Includes timeout protection (default 200ms)
+  - Prevents regex DoS attacks
+  - Example: `safeMatch(regex, line, 200)`
+
+- **Compression**: Automatic for large data transfers
+  - Threshold: 1KB+ (checked via `shouldCompressLogs()`)
+  - Uses gzip compression via `compressLogs()`
+  - Applied to both friend and group log batches
+
+- **Memory Management**:
+  - Log limit: 1000 most recent logs kept in memory
+  - Older logs automatically pruned
+  - Deduplication on every save to prevent bloat
+
+- **Error Handling Patterns**:
+  - Silent failures with `.catch(() => {})` for non-critical operations
+  - Fire-and-forget for background operations (e.g., WebSocket sends)
+  - No error dialogs for routine failures (sync, updates, etc.)
+  - User-facing errors only for critical actions
 
 **Updating Dependencies:**
 
@@ -178,15 +324,37 @@ npm run tauri [command]
 **Star Citizen Integration:**
 
 - Parses Game.log files from `%APPDATA%\Roberts Space Industries\StarCitizen\{ENVIRONMENT}\`
-- Extracts player name and ID from log file header
+- Extracts player name and ID from log file header (`EntityId` field)
+- Auto-detects log location via Rust command `find_star_citizen_logs()`
 - Recognizes event patterns for kills, deaths, vehicle control, location changes
 - Ship data sourced from Fleet Yards (https://fleetyards.net/)
+- NPC detection: Checks for `PU_` prefix or `_NPC_` in names
+- "Unknown" entity handling: Special emoji display (🤷‍♂️ Unknown)
+
+**Event Type Parsing:**
+
+- `actor_death`: Extracts victim, killer, weapon, damage type, zone, and direction
+- `vehicle_control_flow`: Ship boarding events with ship name/ID
+- `destruction`: Vehicle/ship destruction with destroy level (soft vs hard death)
+- `location_change`: Inventory requests in different locations
+- `system_quit`: Player disconnect events
+- All events include metadata for detailed display when expanded
 
 **Multi-User Sync:**
 
 - Friend system allows sharing logs between users in real-time
-- Online presence tracked via WebSocket presence events
+- Online presence tracked via WebSocket presence events (`user_online`, `user_offline`)
 - Timezone support for displaying friend activity in local time
+- Friend codes: 6-character UUIDs for easy sharing
+- Request/response flow: pending → accepted/denied
+
+**Log Display Filtering:**
+
+- Default view: Shows own logs + friends' logs only
+- User selection: Filters to show only selected user's logs
+- Group selection: Filters to show all group members' logs
+- Displayed logs are reactive (`$derived.by`) based on selection state
+- User display names pulled from group members or friends list
 
 **Build Configuration:**
 
@@ -194,3 +362,4 @@ npm run tauri [command]
 - Vite dev server on port 1420 (required by Tauri)
 - HMR via WebSocket on port 1421
 - Rust source code excluded from Vite watch
+- Uses npm (not pnpm) for package management

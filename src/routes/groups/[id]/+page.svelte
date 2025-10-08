@@ -542,7 +542,7 @@
 									<button
 										onclick={cancelEditing}
 										disabled={isUploading}
-										class="px-4 py-2 btn-white-overlay text-white rounded-lg border disabled:opacity-50 disabled:cursor-not-allowed"
+										class="flex items-center gap-2 px-4 py-2 btn-white-overlay text-white rounded-lg border disabled:opacity-50 disabled:cursor-not-allowed"
 									>
 										<X size={18} />
 										<span>Cancel</span>

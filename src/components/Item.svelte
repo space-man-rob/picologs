@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { formatDistance } from 'date-fns';
 	import { onMount, onDestroy } from 'svelte';
+	import { Copy, Check } from '@lucide/svelte';
 	import Fuse from 'fuse.js';
 	import fleet from '../libs/fleet.json';
 	import type { Log } from '../types';
@@ -256,7 +257,7 @@
 				<div
 					role="button"
 					tabindex="0"
-					class="absolute top-2 right-2 text-base cursor-pointer"
+					class="absolute top-2 right-2 cursor-pointer text-white/70 hover:text-white transition-colors"
 					onclick={copyToClipboard}
 					onkeydown={(e) => {
 						if (e.key === 'Enter' || e.key === ' ') {
@@ -266,7 +267,11 @@
 					}}
 					title="Copy to clipboard"
 				>
-					{copied ? '✅' : '📋'}
+					{#if copied}
+						<Check size={16} />
+					{:else}
+						<Copy size={16} />
+					{/if}
 				</div>
 				{original}
 			</div>

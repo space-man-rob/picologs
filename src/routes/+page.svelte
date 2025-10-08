@@ -1502,7 +1502,7 @@
 									<div
 										in:fade={{ duration: 200 }}
 										out:fade={{ duration: 200 }}
-										class="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-[#404249] text-white px-4 py-2.5 rounded-lg shadow-xl border border-white/10"
+										class="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-panel text-white px-4 py-2.5 rounded-lg shadow-xl border border-white/5"
 									>
 										<span class="text-sm font-medium">You're viewing old logs</span>
 										<button
@@ -1642,7 +1642,7 @@
 					<div
 						in:fade={{ duration: 200 }}
 						out:fade={{ duration: 200 }}
-						class="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-[#404249] text-white px-4 py-2.5 rounded-lg shadow-xl border border-white/10"
+						class="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-panel text-white px-4 py-2.5 rounded-lg shadow-xl border border-white/5"
 					>
 						<span class="text-sm font-medium">You're viewing old logs</span>
 						<button
