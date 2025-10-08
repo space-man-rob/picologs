@@ -113,7 +113,6 @@
 				copySuccess = false;
 			}, 2000);
 		} catch (error) {
-			console.error('Failed to copy friend code:', error);
 			appCtx.addNotification('Failed to copy friend code', 'error');
 		}
 	}
@@ -165,8 +164,6 @@
 
 			appCtx.addNotification('Profile updated successfully', 'success', '✓');
 		} catch (error) {
-			console.error('Failed to save profile:', error);
-
 			// Rollback local state on error
 			player = originalPlayer || '';
 			timeZone = originalTimeZone || 'UTC';

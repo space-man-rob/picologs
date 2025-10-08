@@ -151,7 +151,6 @@ export function validateMessage<T>(schema: z.ZodSchema<T>, message: unknown): T 
 		return schema.parse(message);
 	} catch (error) {
 		if (error instanceof z.ZodError) {
-			console.error('[Security] Message validation failed:', error.issues);
 		}
 		return null;
 	}

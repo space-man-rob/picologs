@@ -191,7 +191,6 @@
 		// SECURITY: Validate Discord user ID format before connecting
 		// Discord IDs are 17-19 digit numeric strings
 		if (!/^\d{17,19}$/.test(appCtx.discordUserId)) {
-			console.error('[Auth Security] Invalid Discord user ID format:', appCtx.discordUserId);
 			appCtx.connectionError = 'Invalid user ID - please sign in again';
 			await handleSignOut();
 			return Promise.reject(new Error('Invalid user ID format'));
@@ -264,8 +263,6 @@
 				if (validated && validated.groupId) {
 					const members = await fetchGroupMembers(validated.groupId);
 					appCtx.groupMembers.set(validated.groupId, members);
-				} else {
-					console.warn('[Security] Invalid refetch_group_details message received:', message);
 				}
 			});
 
@@ -300,8 +297,6 @@
 							detail: { friendId: validated.userId }
 						})
 					);
-				} else {
-					console.warn('[Security] Invalid user_online message received:', message);
 				}
 			});
 
@@ -399,7 +394,6 @@
 					// SECURITY: Validate incoming batch logs message
 					const validated = validateMessage(BatchLogsSchema, message);
 					if (!validated) {
-						console.warn('[Security] Invalid batch_logs message received:', message);
 						return;
 					}
 
@@ -423,7 +417,7 @@
 						});
 					}
 				} catch (error) {
-					console.error('[Batch Decompression] Failed to decompress friend logs:', error);
+					// Failed to decompress friend logs
 				}
 			});
 
@@ -433,7 +427,6 @@
 					// SECURITY: Validate incoming batch group logs message
 					const validated = validateMessage(BatchGroupLogsSchema, message);
 					if (!validated) {
-						console.warn('[Security] Invalid batch_group_logs message received:', message);
 						return;
 					}
 
@@ -462,7 +455,7 @@
 						});
 					}
 				} catch (error) {
-					console.error('[Batch Group Decompression] Failed to decompress group logs:', error);
+					// Failed to decompress group logs
 				}
 			});
 
@@ -479,8 +472,6 @@
 
 			return Promise.resolve();
 		} catch (error) {
-			console.error('[WebSocket] Failed to connect:', error);
-
 			// Show user-friendly error toast
 			const errorMessage =
 				error instanceof Error && error.message.includes('timeout')
@@ -531,7 +522,6 @@
 
 			// Handle error message
 			if (message.type === 'error') {
-				console.error('[Auth] ❌ Auth error:', message.message);
 				appCtx.authError = message.message || 'Authentication failed';
 				appCtx.connectionStatus = 'disconnected';
 
@@ -542,9 +532,7 @@
 				}
 			}
 		} catch (error) {
-			if (!(error instanceof SyntaxError)) {
-				console.error('[Auth] Error handling message:', error);
-			}
+			// Ignore SyntaxError and other errors during message handling
 		}
 	}
 
@@ -553,7 +541,6 @@
 		// SECURITY: Validate auth_complete message
 		const validated = validateMessage(AuthCompleteSchema, message);
 		if (!validated) {
-			console.error('[Auth Security] Invalid auth_complete message received:', message);
 			appCtx.authError = 'Authentication failed - invalid server response';
 			appCtx.connectionStatus = 'disconnected';
 
@@ -599,7 +586,7 @@
 		try {
 			await socket.disconnect();
 		} catch (e) {
-			console.error('[Auth] Error disconnecting temp socket:', e);
+			// Error disconnecting temp socket
 		}
 		appCtx.ws = null;
 
@@ -617,15 +604,6 @@
 			const wsUrl = import.meta.env.PROD
 				? import.meta.env.VITE_WS_URL_PROD
 				: import.meta.env.VITE_WS_URL_DEV || import.meta.env.VITE_WS_URL_PROD;
-
-			console.log('[Auth] WebSocket URL:', wsUrl);
-			console.log('[Auth] Environment variables:', {
-				PROD: import.meta.env.PROD,
-				VITE_WS_URL_PROD: import.meta.env.VITE_WS_URL_PROD,
-				VITE_WS_URL_DEV: import.meta.env.VITE_WS_URL_DEV,
-				VITE_WEBSITE_URL_PROD: import.meta.env.VITE_WEBSITE_URL_PROD,
-				VITE_DISCORD_CLIENT_ID: import.meta.env.VITE_DISCORD_CLIENT_ID
-			});
 
 			if (!wsUrl) {
 				throw new Error('WebSocket URL is not configured. Please check environment variables.');
@@ -683,8 +661,6 @@
 			);
 			appCtx.authNotificationId = notificationId;
 		} catch (error) {
-			console.error('[Auth] ❌ Failed to initiate auth:', error);
-
 			// Show user-friendly error toast
 			const errorMessage =
 				error instanceof Error && error.message.includes('timeout')
@@ -719,12 +695,12 @@
 				try {
 					await appCtx.ws.disconnect();
 				} catch (error) {
-					console.error('[WebSocket] Error disconnecting:', error);
+					// Error disconnecting WebSocket
 				}
 			}
 			appCtx.connectionStatus = 'disconnected';
 		} catch (error) {
-			console.error('Sign out failed:', error);
+			// Sign out failed
 		}
 	}
 
@@ -748,7 +724,6 @@
 				appCtx.addNotification('Failed to accept friend request', 'error');
 			}
 		} catch (error) {
-			console.error('Failed to accept friend request:', error);
 			appCtx.addNotification('Failed to accept friend request', 'error');
 		} finally {
 			appCtx.processingFriendRequests.delete(friendshipId);
@@ -769,7 +744,6 @@
 				appCtx.addNotification('Failed to deny friend request', 'error');
 			}
 		} catch (error) {
-			console.error('Failed to deny friend request:', error);
 			appCtx.addNotification('Failed to deny friend request', 'error');
 		} finally {
 			appCtx.processingFriendRequests.delete(friendshipId);
@@ -790,7 +764,6 @@
 				appCtx.addNotification('Failed to accept invitation', 'error');
 			}
 		} catch (error) {
-			console.error('Failed to accept group invitation:', error);
 			appCtx.addNotification('Failed to accept invitation', 'error');
 		} finally {
 			appCtx.processingGroupInvitations.delete(invitationId);
@@ -811,7 +784,6 @@
 				appCtx.addNotification('Failed to deny invitation', 'error');
 			}
 		} catch (error) {
-			console.error('Failed to deny group invitation:', error);
 			appCtx.addNotification('Failed to deny invitation', 'error');
 		} finally {
 			appCtx.processingGroupInvitations.delete(invitationId);
@@ -881,10 +853,6 @@
 			} else {
 				// Invalid or missing Discord ID - clear corrupted auth data
 				if (storedDiscordUserId && !isValidDiscordId) {
-					console.warn(
-						'[Auth Security] Invalid Discord ID detected in store, clearing:',
-						storedDiscordUserId
-					);
 					await store.delete('discordUserId');
 					await store.delete('discordUser');
 				}
@@ -1021,17 +989,12 @@
 
 						// SECURITY: Validate state parameter matches expected session ID
 						if (!state) {
-							console.error('[Deep Link] ⚠️ SECURITY: Missing state parameter in OAuth callback');
 							appCtx.authError = 'Authentication failed - invalid callback (missing state)';
 							appCtx.isAuthenticating = false;
 							return;
 						}
 
 						if (state !== appCtx.authSessionId) {
-							console.error(
-								'[Deep Link] ⚠️ SECURITY: State parameter mismatch - possible CSRF attack'
-							);
-							console.error('[Deep Link] Expected:', appCtx.authSessionId, 'Received:', state);
 							appCtx.authError = 'Authentication failed - session mismatch. Please try again.';
 							appCtx.isAuthenticating = false;
 							return;
@@ -1046,7 +1009,6 @@
 							const MAX_STATE_AGE = 5 * 60 * 1000; // 5 minutes
 
 							if (age > MAX_STATE_AGE) {
-								console.error('[Deep Link] ⚠️ SECURITY: OAuth state expired (age: ${age}ms)');
 								appCtx.authError = 'Authentication timed out - please try again';
 								appCtx.isAuthenticating = false;
 								return;
@@ -1058,14 +1020,12 @@
 						appCtx.authSessionId = null;
 
 						if (!code) {
-							console.error('[Deep Link] ❌ Missing authorization code in OAuth callback');
 							appCtx.authError = 'OAuth callback failed - missing authorization code';
 							appCtx.isAuthenticating = false;
 							return;
 						}
 
 						if (!appCtx.ws) {
-							console.error('[Deep Link] ❌ WebSocket not connected');
 							appCtx.authError = 'Authentication failed - server connection lost';
 							appCtx.isAuthenticating = false;
 							appCtx.addNotification('Authentication failed - server connection lost', 'error');
@@ -1086,7 +1046,6 @@
 							// Send using unified helper
 							await sendJsonMessage(appCtx.ws, payload);
 						} catch (sendError) {
-							console.error('[Deep Link] ❌ Failed to send OAuth callback:', sendError);
 							appCtx.authError = 'Authentication failed - server not responding';
 							appCtx.isAuthenticating = false;
 							appCtx.addNotification('Authentication failed - server not responding', 'error');
@@ -1103,7 +1062,7 @@
 						}
 					}
 				} catch (error) {
-					console.error('[Deep Link] Error parsing URL:', error);
+					// Error parsing deep link URL
 				}
 			};
 
@@ -1147,7 +1106,7 @@
 					await deleteStorageValue('store.json', 'selectedGroupId');
 				}
 			} catch (error) {
-				console.error('[Layout Debug] Error saving selectedGroupId:', error);
+				// Error saving selectedGroupId
 			}
 		})();
 	});

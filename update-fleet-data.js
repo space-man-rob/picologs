@@ -69,7 +69,6 @@ function transformShipData(ships) {
 	for (const ship of ships) {
 		// Skip ships without required data
 		if (!ship.slug || !ship.name || !ship.variants || ship.variants.length === 0) {
-			console.warn(`Skipping ship without required data: ${ship.name || 'unknown'}`);
 			continue;
 		}
 
@@ -111,31 +110,16 @@ function transformShipData(ships) {
 
 async function main() {
 	try {
-		console.log(`Fetching ship data from ${HANGAR_LINK_URL}...`);
 		const ships = await fetchJson(HANGAR_LINK_URL);
-
-		console.log(`Received ${ships.length} ships`);
-		console.log('Transforming data...');
 
 		const fleetData = transformShipData(ships);
 		const shipCount = Object.keys(fleetData).length;
 
-		console.log(`Transformed ${shipCount} ships`);
-		console.log(`Writing to ${OUTPUT_PATH}...`);
-
 		fs.writeFileSync(OUTPUT_PATH, JSON.stringify(fleetData, null, 2), 'utf8');
-
-		console.log('✅ Fleet data updated successfully!');
-		console.log(`📊 Total ships: ${shipCount}`);
 
 		// Show sample of generated keys
 		const sampleKeys = Object.keys(fleetData).slice(0, 5);
-		console.log('\nSample ship keys:');
-		sampleKeys.forEach((key) => {
-			console.log(`  - ${key} (${fleetData[key].name})`);
-		});
 	} catch (error) {
-		console.error('❌ Error updating fleet data:', error);
 		process.exit(1);
 	}
 }

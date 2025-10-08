@@ -356,7 +356,7 @@
 
 				friendLogsBuffer = [];
 			} catch (err) {
-				console.error('[WebSocket] Error sending batched friend logs:', err);
+				// Error sending batched friend logs
 			}
 		}
 
@@ -373,7 +373,7 @@
 						await sendBatchGroupLogs(appCtx.ws, groupId, logs, false);
 					}
 				} catch (err) {
-					console.error(`[WebSocket] Error sending batched group logs to ${groupId}:`, err);
+					// Error sending batched group logs
 				}
 			}
 		}
@@ -423,7 +423,7 @@
 					scheduleBatchFlush();
 				}
 			} catch (err) {
-				console.error('[WebSocket] Error buffering log:', err);
+				// Error buffering log
 			}
 		}
 	}
@@ -469,7 +469,7 @@
 			fileContent = dedupeAndSortLogs([...fileContent, newLog]);
 
 			if (appCtx.isSignedIn) {
-				appendLogToDisk(newLog).catch(console.error);
+				appendLogToDisk(newLog).catch(() => {});
 			}
 		};
 
@@ -483,7 +483,7 @@
 			fileContent = dedupeAndSortLogs([...fileContent, newLog]);
 
 			if (appCtx.isSignedIn) {
-				appendLogToDisk(newLog).catch(console.error);
+				appendLogToDisk(newLog).catch(() => {});
 			}
 		};
 
@@ -491,7 +491,7 @@
 		const handleFriendCameOnline = (event: Event) => {
 			if (!(event instanceof CustomEvent)) return;
 			const { friendId } = event.detail;
-			requestLogSyncFromFriend(friendId).catch(console.error);
+			requestLogSyncFromFriend(friendId).catch(() => {});
 		};
 
 		// Listen for sync_logs messages (receiving synced logs from friends)
@@ -506,7 +506,7 @@
 
 			if (appCtx.isSignedIn) {
 				// Save all logs to disk
-				saveLogsToDisk(fileContent).catch(console.error);
+				saveLogsToDisk(fileContent).catch(() => {});
 			}
 
 			// Update sync timestamp for this friend
@@ -555,9 +555,6 @@
 			// Load the Game.log file if previously selected
 			if (savedFile && file) {
 				try {
-					console.log('[Initialization] Attempting to load file:', file);
-					console.log('[Initialization] File path length:', file.length);
-					console.log('[Initialization] Character at position 41:', file.charAt(41));
 
 					// Load existing logs from disk and deduplicate any existing duplicates
 					const savedLogs = await loadLogsFromDisk();
@@ -578,10 +575,6 @@
 						prevLineCount = currentLineCount;
 						lineCount = currentLineCount;
 					} catch (readError) {
-						console.warn(
-							'[Initialization] Could not read file for line count, starting from 0:',
-							readError
-						);
 						prevLineCount = 0;
 						lineCount = 0;
 					}
@@ -589,11 +582,6 @@
 					handleInitialiseWatch(file);
 					// playerId will be extracted from Game.log when parsing
 				} catch (err) {
-					console.error('[Initialization] Failed to load saved log file on startup:', err);
-					console.error(
-						'[Initialization] Error details:',
-						err instanceof Error ? err.message : err
-					);
 					// Clear file on error so welcome screen shows
 					file = null;
 				}
@@ -611,11 +599,9 @@
 			// Stop file watcher and polling
 			if (endWatch) {
 				try {
-					Promise.resolve(endWatch()).catch((error) => {
-						console.warn('[FileWatch] Error stopping watcher during cleanup:', error);
-					});
+					Promise.resolve(endWatch()).catch(() => {});
 				} catch (error) {
-					console.warn('[FileWatch] Error calling endWatch:', error);
+					// Error calling endWatch
 				}
 				endWatch = null;
 			}
@@ -688,7 +674,7 @@
 			try {
 				await Promise.resolve(endWatch());
 			} catch (error) {
-				console.warn('[FileWatch] Error stopping previous watcher:', error);
+				// Error stopping previous watcher
 			}
 			endWatch = null;
 		}
@@ -708,19 +694,10 @@
 		const directory = filePath.substring(0, lastSeparatorIndex);
 		const fileName = filePath.substring(lastSeparatorIndex + 1);
 
-		console.log('[FileWatch] Initializing watcher');
-		console.log('[FileWatch] Directory:', directory);
-		console.log('[FileWatch] File:', fileName);
-
 		try {
 			endWatch = await watchImmediate(
 				directory,
 				(event) => {
-					console.log('[FileWatch] Event:', {
-						type: event.type,
-						paths: event.paths
-					});
-
 					// Filter events for our specific file
 					const isOurFile = event.paths.some((p) => {
 						// Normalize path to use same separator as the original filePath
@@ -730,8 +707,6 @@
 					});
 
 					if (isOurFile) {
-						console.log('[FileWatch] Game.log changed');
-
 						// Debounce: wait for writes to settle
 						if (debounceTimer !== null) {
 							clearTimeout(debounceTimer);
@@ -745,13 +720,11 @@
 				},
 				{ recursive: false }
 			);
-			console.log('[FileWatch] Watcher initialized successfully');
 		} catch (err) {
-			console.error('[FileWatch] Error initializing watcher:', err);
+			// Error initializing watcher
 		}
 
 		// Polling fallback (reduced to 5s since watcher should work now)
-		console.log('[FileWatch] Starting polling fallback (every 5s)');
 		pollInterval = setInterval(() => {
 			handleFile(filePath);
 		}, 5000) as unknown as number;
@@ -1077,7 +1050,7 @@
 				}, 0);
 			}
 		} catch (err) {
-			console.error('[FileHandler] Failed to process log file:', err);
+			// Failed to process log file
 		}
 	}
 
@@ -1125,7 +1098,7 @@
 				}
 			}
 		} catch (err) {
-			console.log('Could not auto-detect Star Citizen logs:', err);
+			// Could not auto-detect Star Citizen logs
 		}
 
 		const selectedPath = await open({
@@ -1146,7 +1119,6 @@
 
 			const isValidPath = validPathPatterns.some((regex) => regex.test(selectedPath));
 			if (!isValidPath) {
-				console.warn('[Security] Invalid log file path selected:', selectedPath);
 				alert(
 					'Please select a valid Star Citizen Game.log file.\n\nExpected location:\nRoberts Space Industries\\StarCitizen\\[LIVE|PTU|HOTFIX]\\Game.log'
 				);

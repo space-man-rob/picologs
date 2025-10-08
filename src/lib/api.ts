@@ -124,8 +124,6 @@ export async function connectWebSocket(
 		throw new Error('WebSocket URL is not configured. Please check environment variables.');
 	}
 
-	console.log('[WS API] Connecting to:', WS_URL);
-
 	// Create connection using unified helper
 	const connection = await createWebSocketConnection({
 		url: WS_URL,
@@ -139,18 +137,9 @@ export async function connectWebSocket(
 				const { resolve, reject } = pendingRequests.get(message.requestId)!;
 				pendingRequests.delete(message.requestId);
 
-				console.log(
-					'[WS API] Received response for requestId:',
-					message.requestId,
-					'type:',
-					message.type
-				);
-
 				if (message.type === 'error') {
-					console.error('[WS API] Error response:', message);
 					reject(new Error(message.error || message.message || 'Unknown error'));
 				} else {
-					console.log('[WS API] Success response data:', message.data);
 					resolve(message.data);
 				}
 				return;
@@ -167,7 +156,6 @@ export async function connectWebSocket(
 
 			// If close code is 1008, it's an authentication failure
 			if (code === 1008) {
-				console.error('[WS API] Authentication failed - token may be expired');
 				if (typeof window !== 'undefined') {
 					window.dispatchEvent(new CustomEvent('websocket-auth-failed'));
 				}
@@ -213,7 +201,7 @@ export async function disconnectWebSocket(): Promise<void> {
 		try {
 			await ws.disconnect();
 		} catch (error) {
-			console.error('[WS API] Error disconnecting:', error);
+			// Error disconnecting
 		}
 		ws = null;
 		isConnected = false;
@@ -289,7 +277,6 @@ export async function fetchUserProfile(): Promise<ApiUserProfile | null> {
 		const profile = await sendRequest<ApiUserProfile>('get_user_profile');
 		return profile;
 	} catch (error) {
-		console.error('[WS API] Error fetching user profile:', error);
 		return null;
 	}
 }
@@ -302,7 +289,6 @@ export async function fetchFriends(): Promise<ApiFriend[]> {
 		const friends = await sendRequest<ApiFriend[]>('get_friends');
 		return friends || [];
 	} catch (error) {
-		console.error('[WS API] Error fetching friends:', error);
 		return [];
 	}
 }
@@ -333,7 +319,6 @@ export async function fetchFriendRequests(): Promise<ApiFriendRequest[]> {
 
 		return [...incoming, ...outgoing];
 	} catch (error) {
-		console.error('[WS API] Error fetching friend requests:', error);
 		return [];
 	}
 }
@@ -346,7 +331,6 @@ export async function sendFriendRequest(friendCode: string): Promise<boolean> {
 		await sendRequest('send_friend_request', { friendCode });
 		return true;
 	} catch (error) {
-		console.error('[WS API] Error sending friend request:', error);
 		return false;
 	}
 }
@@ -359,7 +343,6 @@ export async function acceptFriendRequest(friendshipId: string): Promise<boolean
 		await sendRequest('accept_friend_request', { friendshipId });
 		return true;
 	} catch (error) {
-		console.error('[WS API] Error accepting friend request:', error);
 		return false;
 	}
 }
@@ -372,7 +355,6 @@ export async function denyFriendRequest(friendshipId: string): Promise<boolean> 
 		await sendRequest('deny_friend_request', { friendshipId });
 		return true;
 	} catch (error) {
-		console.error('[WS API] Error denying friend request:', error);
 		return false;
 	}
 }
@@ -385,7 +367,6 @@ export async function removeFriend(friendshipId: string): Promise<boolean> {
 		await sendRequest('remove_friend', { friendshipId });
 		return true;
 	} catch (error) {
-		console.error('[WS API] Error removing friend:', error);
 		return false;
 	}
 }
@@ -400,7 +381,6 @@ export async function acceptGroupInvitation(
 		const response = await sendRequest('accept_group_invitation', { invitationId });
 		return response as { groupId: string } | null;
 	} catch (error) {
-		console.error('[WS API] Error accepting group invitation:', error);
 		return null;
 	}
 }
@@ -413,7 +393,6 @@ export async function denyGroupInvitation(invitationId: string): Promise<boolean
 		await sendRequest('deny_group_invitation', { invitationId });
 		return true;
 	} catch (error) {
-		console.error('[WS API] Error denying group invitation:', error);
 		return false;
 	}
 }
@@ -444,7 +423,6 @@ export async function updateUserProfile(data: {
 		const updatedProfile = await sendRequest<ApiUserProfile>('update_user_profile', data);
 		return updatedProfile;
 	} catch (error) {
-		console.error('[WS API] Error updating user profile:', error);
 		throw error;
 	}
 }
@@ -488,7 +466,6 @@ export async function fetchGroups(): Promise<ApiGroup[]> {
 		const groups = await sendRequest<ApiGroup[]>('get_groups');
 		return groups || [];
 	} catch (error) {
-		console.error('[WS API] Error fetching groups:', error);
 		return [];
 	}
 }
@@ -507,7 +484,6 @@ export async function fetchGroupsWithMembers(): Promise<{
 		}>('get_groups', { includeMembers: true });
 		return response || { groups: [], members: {} };
 	} catch (error) {
-		console.error('[WS API] Error fetching groups with members:', error);
 		return { groups: [], members: {} };
 	}
 }
@@ -517,17 +493,9 @@ export async function fetchGroupsWithMembers(): Promise<{
  */
 export async function fetchGroupMembers(groupId: string): Promise<ApiGroupMember[]> {
 	try {
-		console.log('[WS API] Requesting group members for groupId:', groupId);
 		const members = await sendRequest<ApiGroupMember[]>('get_group_members', { groupId });
-		console.log('[WS API] Received group members:', members);
 		return members || [];
 	} catch (error) {
-		console.error('[WS API] Error fetching group members:', error);
-		console.error('[WS API] Error type:', typeof error);
-		console.error(
-			'[WS API] Error keys:',
-			error && typeof error === 'object' ? Object.keys(error) : 'N/A'
-		);
 		return [];
 	}
 }
@@ -563,7 +531,6 @@ export async function fetchGroupInvitations(): Promise<ApiGroupInvitation[]> {
 		const invitations = await sendRequest<ApiGroupInvitation[]>('get_group_invitations');
 		return invitations || [];
 	} catch (error) {
-		console.error('[WS API] Error fetching group invitations:', error);
 		return [];
 	}
 }
@@ -581,7 +548,6 @@ export async function createGroup(data: {
 		const response = await sendRequest<{ id: string }>('create_group', data);
 		return response;
 	} catch (error) {
-		console.error('[WS API] Error creating group:', error);
 		return null;
 	}
 }
@@ -600,7 +566,6 @@ export async function updateGroup(data: {
 		const response = await sendRequest<ApiGroup>('update_group', data);
 		return response;
 	} catch (error) {
-		console.error('[WS API] Error updating group:', error);
 		throw error;
 	}
 }
@@ -613,7 +578,6 @@ export async function leaveGroup(groupId: string): Promise<boolean> {
 		await sendRequest('leave_group', { groupId });
 		return true;
 	} catch (error) {
-		console.error('[WS API] Error leaving group:', error);
 		return false;
 	}
 }
@@ -629,7 +593,6 @@ export async function inviteFriendToGroup(data: {
 		const response = await sendRequest<{ id: string }>('invite_friend_to_group', data);
 		return response;
 	} catch (error) {
-		console.error('[WS API] Error inviting friend to group:', error);
 		return null;
 	}
 }
@@ -645,7 +608,6 @@ export async function removeMemberFromGroup(data: {
 		await sendRequest('remove_member_from_group', data);
 		return true;
 	} catch (error) {
-		console.error('[WS API] Error removing member from group:', error);
 		return false;
 	}
 }
@@ -694,7 +656,6 @@ export async function uploadAvatar(file: File): Promise<string> {
 		const result = await response.json();
 		return result.url;
 	} catch (error) {
-		console.error('[API] Error uploading avatar:', error);
 		throw error;
 	}
 }

@@ -22,12 +22,6 @@
 	// Find group in cached data
 	let group = $derived.by(() => {
 		const foundGroup = appCtx.groups.find((g) => g.id === groupId);
-		console.log('[Group Detail] Looking for group ID:', groupId);
-		console.log(
-			'[Group Detail] Available groups:',
-			appCtx.groups.map((g) => ({ id: g.id, name: g.name }))
-		);
-		console.log('[Group Detail] Found group:', foundGroup);
 		return foundGroup;
 	});
 
@@ -60,58 +54,40 @@
 
 	// Load members when component mounts or groupId changes
 	$effect(() => {
-		console.log('[Group Detail] Effect triggered - groupId:', groupId, 'group:', group);
-		console.log('[Group Detail] Connection status:', appCtx.connectionStatus);
-		console.log('[Group Detail] Is signed in:', appCtx.isSignedIn);
-
 		// Only load members if user is signed in and WebSocket is connected
 		if (groupId && appCtx.isSignedIn && appCtx.connectionStatus === 'connected') {
 			loadMembers();
 		} else if (groupId && (!appCtx.isSignedIn || appCtx.connectionStatus !== 'connected')) {
-			console.log('[Group Detail] Waiting for connection before loading members');
 			isLoading = false;
 		}
 	});
 
 	async function loadMembers() {
-		console.log('[Group Detail] loadMembers called - groupId:', groupId, 'group exists:', !!group);
-
 		if (!groupId) {
-			console.log('[Group Detail] No groupId available');
 			isLoading = false;
 			return;
 		}
 
 		if (!group) {
-			console.log('[Group Detail] No group found in cache, cannot load members');
 			isLoading = false;
 			return;
 		}
 
 		// Double-check connection status before making request
 		if (!appCtx.isSignedIn || appCtx.connectionStatus !== 'connected') {
-			console.log('[Group Detail] Not connected, skipping member fetch');
 			isLoading = false;
 			return;
 		}
 
-		console.log('[Group Detail] Fetching members for group:', group.name);
 		isLoading = true;
 		try {
 			const membersList = await fetchGroupMembers(groupId);
-			console.log('[Group Detail] Received members:', membersList);
 			members = membersList;
 		} catch (error) {
-			console.error('[Group Detail] Error loading members:', error);
-			console.error('[Group Detail] Error details:', {
-				message: error instanceof Error ? error.message : String(error),
-				stack: error instanceof Error ? error.stack : undefined
-			});
 			// Don't show error notification - group might just be loading
 			// appCtx.addNotification('Error loading group members', 'error');
 		} finally {
 			isLoading = false;
-			console.log('[Group Detail] Loading complete - isLoading:', isLoading);
 		}
 	}
 
@@ -194,7 +170,6 @@
 				try {
 					avatarUrl = await uploadAvatar(avatarFile);
 				} catch (error) {
-					console.error('[Group Detail] Error uploading avatar:', error);
 					uploadError = error instanceof Error ? error.message : 'Failed to upload avatar';
 					isUploading = false;
 					return;
@@ -219,7 +194,6 @@
 			// Refresh groups list
 			appCtx.isSyncingGroups = true;
 		} catch (error) {
-			console.error('[Group Detail] Error updating group:', error);
 			appCtx.addNotification('Failed to update group', 'error');
 		}
 	}
@@ -294,7 +268,6 @@
 				appCtx.addNotification('Failed to leave group', 'error');
 			}
 		} catch (error) {
-			console.error('[Group Detail] Error leaving group:', error);
 			appCtx.addNotification('Error leaving group', 'error');
 		}
 	}
@@ -334,7 +307,6 @@
 				inviteSuccess = '';
 			}, 2000);
 		} catch (error) {
-			console.error('[Group Detail] Error inviting friends:', error);
 			inviteError = 'Failed to send invitations';
 		} finally {
 			isSendingInvites = false;
@@ -371,7 +343,6 @@
 				appCtx.addNotification('Failed to remove member', 'error');
 			}
 		} catch (error) {
-			console.error('[Group Detail] Error removing member:', error);
 			appCtx.addNotification('Error removing member', 'error');
 		} finally {
 			isRemoving = false;

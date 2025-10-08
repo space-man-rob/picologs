@@ -22,13 +22,11 @@ export function safeMatch(
 		const elapsed = Date.now() - start;
 
 		if (elapsed > timeout) {
-			console.warn(`[Security] Regex timeout exceeded (${elapsed}ms > ${timeout}ms)`);
 			return null;
 		}
 
 		return match;
 	} catch (error) {
-		console.error('[Security] Regex execution error:', error);
 		return null;
 	}
 }
@@ -48,13 +46,11 @@ export function safeTest(pattern: RegExp, text: string, timeout: number = 100): 
 		const elapsed = Date.now() - start;
 
 		if (elapsed > timeout) {
-			console.warn(`[Security] Regex timeout exceeded (${elapsed}ms > ${timeout}ms)`);
 			return false;
 		}
 
 		return result;
 	} catch (error) {
-		console.error('[Security] Regex execution error:', error);
 		return false;
 	}
 }
@@ -78,13 +74,11 @@ export function safeExec(
 		const elapsed = Date.now() - start;
 
 		if (elapsed > timeout) {
-			console.warn(`[Security] Regex timeout exceeded (${elapsed}ms > ${timeout}ms)`);
 			return null;
 		}
 
 		return result;
 	} catch (error) {
-		console.error('[Security] Regex execution error:', error);
 		return null;
 	}
 }

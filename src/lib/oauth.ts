@@ -60,7 +60,6 @@ export async function handleAuthComplete(data: {
 
 		// No explicit save needed - autoSave will persist both values with 100ms debounce
 	} catch (error) {
-		console.error('[OAuth] Error storing auth data:', error);
 		throw error;
 	}
 }
@@ -82,7 +81,6 @@ export async function loadAuthData(): Promise<{ user: DiscordUser; expiresAt: nu
 			try {
 				const [, payloadB64] = jwtToken.split('.');
 				if (!payloadB64) {
-					console.warn('[OAuth Security] Invalid JWT format');
 					return null;
 				}
 
@@ -90,7 +88,6 @@ export async function loadAuthData(): Promise<{ user: DiscordUser; expiresAt: nu
 
 				// Check expiration claim (exp is in seconds, Date.now() is in milliseconds)
 				if (payload.exp && payload.exp * 1000 < Date.now()) {
-					console.warn('[OAuth Security] JWT expired');
 					// Clear expired token
 					await store.clear();
 					return null;
@@ -100,14 +97,12 @@ export async function loadAuthData(): Promise<{ user: DiscordUser; expiresAt: nu
 				const expiresAt = payload.exp ? payload.exp * 1000 : Date.now() + 365 * 24 * 60 * 60 * 1000;
 				return { user, expiresAt };
 			} catch (parseError) {
-				console.error('[OAuth Security] Failed to parse JWT:', parseError);
 				return null;
 			}
 		}
 
 		return null;
 	} catch (error) {
-		console.error('Failed to load auth data:', error);
 		return null;
 	}
 }
@@ -138,7 +133,6 @@ export async function getJwtToken(): Promise<string | null> {
 			try {
 				const [, payloadB64] = jwtToken.split('.');
 				if (!payloadB64) {
-					console.warn('[OAuth Security] Invalid JWT format');
 					await store.clear();
 					return null;
 				}
@@ -147,14 +141,12 @@ export async function getJwtToken(): Promise<string | null> {
 
 				// Check expiration claim (exp is in seconds, Date.now() is in milliseconds)
 				if (payload.exp && payload.exp * 1000 < Date.now()) {
-					console.warn('[OAuth Security] JWT expired, clearing token');
 					await store.clear();
 					return null;
 				}
 
 				return jwtToken;
 			} catch (parseError) {
-				console.error('[OAuth Security] Failed to parse JWT:', parseError);
 				await store.clear();
 				return null;
 			}
@@ -162,7 +154,6 @@ export async function getJwtToken(): Promise<string | null> {
 
 		return null;
 	} catch (error) {
-		console.error('[OAuth] Failed to get JWT token:', error);
 		return null;
 	}
 }

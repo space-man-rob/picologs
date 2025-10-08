@@ -30,7 +30,6 @@
 				appCtx.addNotification('Failed to accept friend request', 'error');
 			}
 		} catch (error) {
-			console.error('[Friends] Error accepting friend request:', error);
 			appCtx.addNotification('Error accepting friend request', 'error');
 		} finally {
 			appCtx.processingFriendRequests.delete(friendshipId);
@@ -55,7 +54,6 @@
 				appCtx.addNotification('Failed to ignore friend request', 'error');
 			}
 		} catch (error) {
-			console.error('[Friends] Error ignoring friend request:', error);
 			appCtx.addNotification('Error ignoring friend request', 'error');
 		} finally {
 			appCtx.processingFriendRequests.delete(friendshipId);

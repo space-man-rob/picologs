@@ -52,7 +52,6 @@
 				}
 			})
 			.catch((error) => {
-				console.error('[VerticalResizer] Store load error:', error);
 			});
 
 		return {

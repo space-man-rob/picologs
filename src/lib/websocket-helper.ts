@@ -150,7 +150,6 @@ export function parseJsonMessage<T = Record<string, unknown>>(
 	try {
 		return JSON.parse(messageStr) as T;
 	} catch (error) {
-		console.error('[WebSocket] Failed to parse JSON message:', error);
 		return null;
 	}
 }
