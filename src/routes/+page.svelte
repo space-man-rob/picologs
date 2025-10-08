@@ -3,6 +3,7 @@
 	import { load } from '@tauri-apps/plugin-store';
 	import { open } from '@tauri-apps/plugin-dialog';
 	import { invoke } from '@tauri-apps/api/core';
+	import { Users, FolderOpen } from '@lucide/svelte';
 	import Item from '../components/Item.svelte';
 	import { onMount, tick } from 'svelte';
 	import { fade } from 'svelte/transition';
@@ -613,6 +614,10 @@
 				clearTimeout(debounceTimer);
 				debounceTimer = null;
 			}
+			if (scrollDebounceTimer !== null) {
+				clearTimeout(scrollDebounceTimer);
+				scrollDebounceTimer = null;
+			}
 
 			window.removeEventListener('group-log-received', handleGroupLog);
 			window.removeEventListener('friend-log-received', handleFriendLog);
@@ -1156,6 +1161,8 @@
 	let fileContentContainer = $state<HTMLDivElement | null>(null);
 	let atTheBottom = $state(true);
 	let hasScrollbar = $state(false);
+	let showScrollBanner = $state(false);
+	let scrollDebounceTimer: number | null = null;
 
 	function handleScroll(event: Event) {
 		if (!(event.target instanceof HTMLDivElement)) {
@@ -1167,6 +1174,21 @@
 
 		hasScrollbar = hasContent;
 		atTheBottom = isAtBottom;
+
+		// Hide banner immediately while scrolling
+		showScrollBanner = false;
+
+		// Clear existing timer
+		if (scrollDebounceTimer !== null) {
+			clearTimeout(scrollDebounceTimer);
+		}
+
+		// Only show banner after user has stopped scrolling for 1 second
+		if (!isAtBottom && hasContent) {
+			scrollDebounceTimer = setTimeout(() => {
+				showScrollBanner = true;
+			}, 1000) as unknown as number;
+		}
 	}
 
 	const shipTypes = [
@@ -1475,21 +1497,27 @@
 									{/if}
 								</div>
 
-								<!-- Scroll to bottom button -->
-								{#if hasScrollbar && !atTheBottom}
-									<button
-										in:fade={{ duration: 200, delay: 400 }}
+								<!-- Jump to present banner (Discord style, bottom positioned) -->
+								{#if showScrollBanner}
+									<div
+										in:fade={{ duration: 200 }}
 										out:fade={{ duration: 200 }}
-										class="absolute bottom-[10px] text-3xl cursor-pointer z-50"
-										style="left: 50%; transform: translateX(-50%);"
-										onclick={() =>
-											fileContentContainer?.scrollTo({
-												top: fileContentContainer.scrollHeight,
-												behavior: 'smooth'
-											})}
+										class="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-[#404249] text-white px-4 py-2.5 rounded-lg shadow-xl border border-white/10"
 									>
-										⬇️
-									</button>
+										<span class="text-sm font-medium">You're viewing old logs</span>
+										<button
+											onclick={() => {
+												showScrollBanner = false;
+												fileContentContainer?.scrollTo({
+													top: fileContentContainer.scrollHeight,
+													behavior: 'smooth'
+												});
+											}}
+											class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-1.5 rounded transition-colors"
+										>
+											Jump To Present
+										</button>
+									</div>
 								{/if}
 							</div>
 						{/snippet}
@@ -1504,23 +1532,23 @@
 						<div class="flex items-center gap-2">
 							<button
 								onclick={handleToggleGroups}
-								class="text-xl transition-opacity duration-200 cursor-pointer {showGroups
+								class="flex items-center justify-center text-white transition-opacity duration-200 cursor-pointer {showGroups
 									? 'opacity-100'
 									: 'opacity-40 hover:opacity-70'}"
 								title={showGroups ? 'Hide groups' : 'Show groups'}
 								aria-label={showGroups ? 'Hide groups' : 'Show groups'}
 							>
-								🗂️
+								<FolderOpen size={18} />
 							</button>
 							<button
 								onclick={handleToggleFriends}
-								class="text-xl transition-opacity duration-200 cursor-pointer {showFriends
+								class="flex items-center justify-center text-white transition-opacity duration-200 cursor-pointer {showFriends
 									? 'opacity-100'
 									: 'opacity-40 hover:opacity-70'}"
 								title={showFriends ? 'Hide friends' : 'Show friends'}
 								aria-label={showFriends ? 'Hide friends' : 'Show friends'}
 							>
-								👨‍🚀
+								<Users size={18} />
 							</button>
 						</div>
 						<div>
@@ -1609,21 +1637,27 @@
 					{/if}
 				</div>
 
-				<!-- Scroll to bottom button -->
-				{#if hasScrollbar && !atTheBottom}
-					<button
-						in:fade={{ duration: 200, delay: 400 }}
+				<!-- Jump to present banner (Discord style, bottom positioned) -->
+				{#if showScrollBanner}
+					<div
+						in:fade={{ duration: 200 }}
 						out:fade={{ duration: 200 }}
-						class="absolute bottom-[10px] text-3xl cursor-pointer z-50"
-						style="left: 50%; transform: translateX(-50%);"
-						onclick={() =>
-							fileContentContainer?.scrollTo({
-								top: fileContentContainer.scrollHeight,
-								behavior: 'smooth'
-							})}
+						class="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-[#404249] text-white px-4 py-2.5 rounded-lg shadow-xl border border-white/10"
 					>
-						⬇️
-					</button>
+						<span class="text-sm font-medium">You're viewing old logs</span>
+						<button
+							onclick={() => {
+								showScrollBanner = false;
+								fileContentContainer?.scrollTo({
+									top: fileContentContainer.scrollHeight,
+									behavior: 'smooth'
+								});
+							}}
+							class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-1.5 rounded transition-colors"
+						>
+							Jump To Present
+						</button>
+					</div>
 				{/if}
 			</div>
 

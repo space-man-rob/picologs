@@ -12,6 +12,7 @@
 		uploadAvatar,
 		type ApiGroupMember
 	} from '$lib/api';
+	import { Plus, Pencil, LogOut, X, Save, Trash2, Loader2 } from '@lucide/svelte';
 	import SubNav from '../../../components/SubNav.svelte';
 	import Avatar from '../../../components/Avatar.svelte';
 
@@ -455,7 +456,7 @@
 													onclick={clearAvatar}
 													class="absolute -top-2 -right-2 w-6 h-6 flex items-center justify-center bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors shadow-lg"
 												>
-													<span class="text-sm leading-none">✕</span>
+													<X size={14} />
 												</button>
 											</div>
 										</div>
@@ -517,7 +518,7 @@
 														onclick={() => removeTag(tag)}
 														class="hover:text-blue-300 transition-colors"
 													>
-														<span class="text-xs">✕</span>
+														<X size={12} />
 													</button>
 												</span>
 											{/each}
@@ -529,9 +530,13 @@
 									<button
 										onclick={saveChanges}
 										disabled={isUploading}
-										class="px-4 py-2 btn-success text-white rounded-lg border disabled:opacity-50 disabled:cursor-not-allowed"
+										class="flex items-center gap-2 px-4 py-2 btn-success text-white rounded-lg border disabled:opacity-50 disabled:cursor-not-allowed"
 									>
-										<span class="text-lg">💾</span>
+										{#if isUploading}
+											<Loader2 size={18} class="animate-spin" />
+										{:else}
+											<Save size={18} />
+										{/if}
 										<span>{isUploading ? 'Uploading...' : 'Save Changes'}</span>
 									</button>
 									<button
@@ -539,7 +544,7 @@
 										disabled={isUploading}
 										class="px-4 py-2 btn-white-overlay text-white rounded-lg border disabled:opacity-50 disabled:cursor-not-allowed"
 									>
-										<span class="text-lg">✕</span>
+										<X size={18} />
 										<span>Cancel</span>
 									</button>
 								</div>
@@ -554,7 +559,7 @@
 											onclick={() => (showDeleteConfirm = true)}
 											class="flex items-center gap-2 px-4 py-2 btn-danger text-white rounded-lg border"
 										>
-											<span class="text-lg">🗑️</span>
+											<Trash2 size={18} />
 											<span>Delete Group</span>
 										</button>
 									</div>
@@ -607,18 +612,18 @@
 									{#if canEdit}
 										<button
 											onclick={startEditing}
-											class="px-4 py-2 btn-white-overlay text-white rounded-lg border"
+											class="flex items-center gap-2 px-4 py-2 btn-white-overlay text-white rounded-lg border"
 										>
-											<span class="text-lg">✏️</span>
+											<Pencil size={16} />
 											<span>Edit</span>
 										</button>
 									{/if}
 									{#if !isOwner}
 										<button
 											onclick={() => (showLeaveConfirm = true)}
-											class="px-4 py-2 btn-white-overlay text-white rounded-lg border"
+											class="flex items-center gap-2 px-4 py-2 btn-white-overlay text-white rounded-lg border"
 										>
-											<span class="text-lg">🚪</span>
+											<LogOut size={16} />
 											<span>Leave</span>
 										</button>
 									{/if}
@@ -636,7 +641,7 @@
 									onclick={openInviteModal}
 									class="flex items-center gap-2 px-4 py-2 btn-white-overlay text-white rounded-lg border"
 								>
-									<span class="text-lg">➕</span>
+									<Plus size={18} />
 									<span>Invite Friends</span>
 								</button>
 							{/if}
@@ -679,7 +684,7 @@
 													class="p-2 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded transition-colors"
 													title="Remove member"
 												>
-													<span class="text-base">✕</span>
+													<X size={16} />
 												</button>
 											{/if}
 										</div>

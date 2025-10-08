@@ -1,18 +1,18 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
+	import { ScrollText, Settings, Users, FolderOpen } from '@lucide/svelte';
 
 	type NavItem = {
 		path: string;
 		label: string;
-		emoji: string;
 	};
 
 	const navItems: NavItem[] = [
-		{ path: '/', label: 'Logs', emoji: '📜' },
-		{ path: '/profile', label: 'Profile Settings', emoji: '⚙️' },
-		{ path: '/friends', label: 'Friends', emoji: '👨‍🚀' },
-		{ path: '/groups', label: 'Groups', emoji: '🗂️' }
+		{ path: '/', label: 'Logs' },
+		{ path: '/profile', label: 'Profile Settings' },
+		{ path: '/friends', label: 'Friends' },
+		{ path: '/groups', label: 'Groups' }
 	];
 
 	// Derive active path from page store
@@ -39,7 +39,15 @@
 				? 'mb-2 border-b border-white/10 pb-3'
 				: ''}"
 		>
-			<span class="text-lg">{item.emoji}</span>
+			{#if item.path === '/'}
+				<ScrollText size={18} />
+			{:else if item.path === '/profile'}
+				<Settings size={18} />
+			{:else if item.path === '/friends'}
+				<Users size={18} />
+			{:else if item.path === '/groups'}
+				<FolderOpen size={18} />
+			{/if}
 			<span>{item.label}</span>
 
 			{#if isActive(item.path)}

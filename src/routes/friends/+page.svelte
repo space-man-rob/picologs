@@ -8,6 +8,7 @@
 	} from '$lib/api';
 	import type { ApiFriendRequest, ApiFriend } from '$lib/api';
 	import { formatDistanceToNow } from 'date-fns';
+	import { Trash2, Copy, Check, X, Send } from '@lucide/svelte';
 	import SubNav from '../../components/SubNav.svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 
@@ -273,7 +274,7 @@
 												class="p-2.5 text-green-400 hover:text-green-300 hover:bg-green-900/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
 												title="Accept friend request"
 											>
-												<span class="text-xl">✓</span>
+												<Check size={20} />
 											</button>
 											<button
 												onclick={() => handleDenyRequest(request.id)}
@@ -281,7 +282,7 @@
 												class="p-2.5 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
 												title="Deny friend request"
 											>
-												<span class="text-xl">✕</span>
+												<X size={20} />
 											</button>
 										</div>
 									</div>
@@ -419,7 +420,7 @@
 											class="p-2 text-red-400/70 hover:text-red-400 hover:bg-red-900/20 rounded-lg transition-colors flex-shrink-0"
 											title="Remove friend"
 										>
-											<span class="text-lg">🗑️</span>
+											<Trash2 size={18} />
 										</button>
 									</div>
 								</div>
@@ -454,9 +455,9 @@
 									title="Copy friend code"
 								>
 									{#if copied}
-										<span class="text-xl">✓</span>
+										<Check size={20} />
 									{:else}
-										<span class="text-xl">📋</span>
+										<Copy size={20} />
 									{/if}
 								</button>
 							</div>

@@ -1,25 +1,12 @@
 <script lang="ts">
 	import { fly, fade } from 'svelte/transition';
+	import { CheckCircle2, XCircle, Info, X } from '@lucide/svelte';
 	import { getAppContext } from '$lib/appContext.svelte';
 
 	const appCtx = getAppContext();
 
 	function clearAll() {
 		appCtx.notifications = [];
-	}
-
-	// Get emoji based on notification type
-	function getEmoji(type: 'success' | 'error' | 'info') {
-		switch (type) {
-			case 'success':
-				return '✓';
-			case 'error':
-				return '✕';
-			case 'info':
-				return 'ℹ';
-			default:
-				return 'ℹ';
-		}
 	}
 
 	// Get background color based on notification type
@@ -78,8 +65,12 @@
 						{#if notification.customIcon}
 							<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 							{@html notification.customIcon}
+						{:else if notification.type === 'success'}
+							<CheckCircle2 size={20} />
+						{:else if notification.type === 'error'}
+							<XCircle size={20} />
 						{:else}
-							<span class="text-xl leading-none">{getEmoji(notification.type)}</span>
+							<Info size={20} />
 						{/if}
 					</div>
 					<div class="flex-1 min-w-0">
@@ -95,7 +86,7 @@
 						}}
 						class="flex-shrink-0 w-6 h-6 flex items-center justify-center text-white/60 hover:text-white transition-colors rounded hover:bg-white/10"
 					>
-						<span class="text-base leading-none">✕</span>
+						<X size={16} />
 					</button>
 				</div>
 			</div>

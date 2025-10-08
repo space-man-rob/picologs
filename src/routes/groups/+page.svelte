@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { getAppContext } from '$lib/appContext.svelte';
 	import { acceptGroupInvitation, denyGroupInvitation, type ApiGroupInvitation } from '$lib/api';
+	import { Plus, Check, X, Loader2 } from '@lucide/svelte';
 	import Skeleton from '../../components/Skeleton.svelte';
 	import SubNav from '../../components/SubNav.svelte';
 
@@ -134,7 +135,7 @@
 						onclick={openCreateGroupModal}
 						class="flex items-center gap-2 px-4 py-2 btn-white-overlay text-white rounded-lg border transition-colors duration-200 w-full sm:w-auto justify-center flex-shrink-0"
 					>
-						<span class="text-lg">➕</span>
+						<Plus size={18} />
 						<span>Create Group</span>
 					</button>
 				</div>
@@ -183,9 +184,9 @@
 											class="btn-success flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 text-white text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed border"
 										>
 											{#if appCtx.processingGroupInvitations.has(invitation.id)}
-												<span class="inline-block animate-spin text-lg">⏳</span>
+												<Loader2 size={18} class="animate-spin" />
 											{:else}
-												<span class="text-lg">✓</span>
+												<Check size={18} />
 											{/if}
 											<span>Accept</span>
 										</button>
@@ -195,9 +196,9 @@
 											class="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 btn-white-overlay text-white text-sm rounded-lg border transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
 										>
 											{#if appCtx.processingGroupInvitations.has(invitation.id)}
-												<span class="inline-block animate-spin text-lg">⏳</span>
+												<Loader2 size={18} class="animate-spin" />
 											{:else}
-												<span class="text-lg">✕</span>
+												<X size={18} />
 											{/if}
 											<span>Deny</span>
 										</button>
@@ -226,7 +227,7 @@
 							onclick={openCreateGroupModal}
 							class="flex items-center gap-2 px-4 py-2 btn-white-overlay text-white rounded-lg border transition-colors duration-200"
 						>
-							<span class="text-xl">➕</span>
+							<Plus size={20} />
 							<span>Create Group</span>
 						</button>
 					</div>

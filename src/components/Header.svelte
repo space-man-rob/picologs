@@ -2,6 +2,20 @@
 	import { untrack } from 'svelte';
 	import { ask } from '@tauri-apps/plugin-dialog';
 	import { goto } from '$app/navigation';
+	import {
+		Users,
+		FolderOpen,
+		LogOut,
+		Settings,
+		Download,
+		Copy,
+		Check,
+		ScrollText,
+		FileText,
+		Paintbrush,
+		Bell,
+		AlertTriangle
+	} from '@lucide/svelte';
 	import Avatar from './Avatar.svelte';
 
 	let {
@@ -180,7 +194,8 @@
 				onclick={handleReconnect}
 				title="Connection lost - click to reconnect"
 			>
-				⚠️ Reconnect
+				<AlertTriangle size={16} />
+				<span>Reconnect</span>
 			</button>
 		{/if}
 		{#if updateInfo}
@@ -188,7 +203,8 @@
 				class="bg-green-600 text-white px-2 md:px-3 py-1.5 font-medium rounded transition-colors duration-200 flex items-center gap-1 hover:bg-green-700 text-sm"
 				onclick={installUpdate}
 			>
-				⬇️ <span class="hidden md:inline">Update Available</span>
+				<Download size={16} />
+				<span class="hidden md:inline">Update Available</span>
 			</button>
 		{/if}
 		{#if isSignedIn && discordUser}
@@ -202,7 +218,11 @@
 					}, 1500);
 				}}
 			>
-				{copiedStatusVisible ? '✅' : '📋'}
+				{#if copiedStatusVisible}
+					<Check size={16} />
+				{:else}
+					<Copy size={16} />
+				{/if}
 				<p class="m-0"><span class="hidden lg:inline">Friend Code:</span> {friendCode || 'N/A'}</p>
 			</button>
 		{/if}
@@ -213,7 +233,7 @@
 					onclick={toggleLogVersionDropdown}
 					title="Select Game.log file"
 				>
-					📜
+					<ScrollText size={16} />
 					<span class="hidden md:inline">{logLocation}</span>
 					<div
 						class="flex items-center justify-center w-3 h-3 transition-transform duration-200 {logVersionDropdownOpen
@@ -253,7 +273,8 @@
 				onclick={() => selectFile()}
 				title="Select Game.log file"
 			>
-				📄 <span class="hidden sm:inline">Select Game.log file</span>
+				<FileText size={16} />
+				<span class="hidden sm:inline">Select Game.log file</span>
 			</button>
 		{/if}
 
@@ -262,7 +283,8 @@
 			onclick={handleClearLogs}
 			title="Clear all logs"
 		>
-			🧹 <span class="hidden md:inline">Clear Logs</span>
+			<Paintbrush size={16} />
+			<span class="hidden md:inline">Clear Logs</span>
 		</button>
 
 		{#if isSignedIn && discordUser}
@@ -270,10 +292,10 @@
 			<div class="relative notifications-dropdown">
 				<button
 					onclick={() => (showNotificationsDropdown = !showNotificationsDropdown)}
-					class="relative text-muted hover:text-white transition-colors text-lg"
+					class="relative text-muted hover:text-white transition-colors flex items-center justify-center p-2"
 					title="Notifications"
 				>
-					🔔
+					<Bell size={20} />
 					{#if notificationCount > 0}
 						<span
 							class="absolute top-0 right-0 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[10px] font-semibold text-white"
@@ -292,7 +314,9 @@
 					>
 						{#if incomingFriendRequests.length === 0 && groupInvitations.length === 0}
 							<div class="p-8 text-center text-muted">
-								<div class="text-5xl mx-auto mb-2 opacity-50">🔔</div>
+								<div class="mx-auto mb-2 opacity-50 flex justify-center">
+									<Bell size={48} />
+								</div>
 								<p>No pending notifications</p>
 							</div>
 						{:else}
@@ -473,7 +497,7 @@
 									<span class="text-muted">Friend Code</span>
 									<div class="flex items-center gap-2">
 										<span class="font-mono text-white">{friendCode}</span>
-										<span class="text-xs">📋</span>
+										<Copy size={12} class="text-muted" />
 									</div>
 								</button>
 							{/if}
@@ -488,7 +512,7 @@
 									handleOpenProfile();
 								}}
 							>
-								<span class="text-base">⚙️</span>
+								<Settings size={16} />
 								<span>Profile Settings</span>
 							</button>
 							<button
@@ -498,7 +522,7 @@
 									handleOpenFriends();
 								}}
 							>
-								<span class="text-base">👨‍🚀</span>
+								<Users size={16} />
 								<span>Friends</span>
 							</button>
 							<button
@@ -508,7 +532,7 @@
 									handleOpenGroups();
 								}}
 							>
-								<span class="text-base">🗂️</span>
+								<FolderOpen size={16} />
 								<span>Groups</span>
 							</button>
 							<button
@@ -524,7 +548,7 @@
 									}
 								}}
 							>
-								<span class="text-base">🚪</span>
+								<LogOut size={16} />
 								<span>Sign out</span>
 							</button>
 						</div>
@@ -586,7 +610,7 @@
 			onkeydown={(e) => e.stopPropagation()}
 		>
 			<div class="px-6 py-4 border-b border-white/10 flex items-center gap-3">
-				<span class="text-2xl">⚠️</span>
+				<AlertTriangle size={24} class="text-yellow-500" />
 				<h2 id="dialog-title" class="text-xl font-semibold text-white m-0">Connection Lost</h2>
 			</div>
 			<div class="px-6 py-5">

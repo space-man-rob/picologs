@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { UserPlus } from '@lucide/svelte';
+
 	let { addFriend } = $props();
 
 	let friendCodeInput = $state('');
@@ -23,8 +25,9 @@
 	/>
 	<button
 		onclick={handleAddFriend}
-		class="px-3 py-2 rounded border border-white/5 text-white text-sm transition-colors duration-200 hover:bg-white/20 flex-shrink-0"
+		class="flex items-center gap-1.5 px-3 py-2 rounded border border-white/5 text-white text-sm transition-colors duration-200 hover:bg-white/20 flex-shrink-0"
 	>
-		Add
+		<UserPlus size={16} />
+		<span>Add</span>
 	</button>
 </div>

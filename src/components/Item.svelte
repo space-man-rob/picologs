@@ -111,12 +111,14 @@
 	}
 
 	let shipData = $state(getShipData(metadata));
+	let shipName = $derived(shipData ? shipData.name : null);
+
+	// Get local asset path for ship image (served from static directory)
 	let shipImage = $derived(
 		shipData?.slug && shipData?.fleetData?.variants[0]?.iso_l?.hash
-			? `${import.meta.env.VITE_FLEET_VIEWER_URL}/fleetpics%2F${shipData.slug}__iso_l_${shipData.fleetData.variants[0]?.iso_l?.hash}.png?alt=media`
+			? `/ships/${shipData.slug}__iso_l_${shipData.fleetData.variants[0]?.iso_l?.hash}.webp`
 			: null
 	);
-	let shipName = $derived(shipData ? shipData.name : null);
 
 	function checkVictimName(victimName?: string | null) {
 		if (!victimName) {

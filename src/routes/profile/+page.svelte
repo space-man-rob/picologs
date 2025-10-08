@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { getAppContext } from '$lib/appContext.svelte';
 	import { updateUserProfile } from '$lib/api';
-	import { Copy, Check } from '@lucide/svelte';
+	import { Copy, Check, Save } from '@lucide/svelte';
 	import SubNav from '../../components/SubNav.svelte';
 
 	const appCtx = getAppContext();
@@ -334,7 +334,7 @@
 									<span class="inline-block animate-spin text-lg">⏳</span>
 									<span>Saving...</span>
 								{:else}
-									<span class="text-lg">💾</span>
+									<Save size={18} />
 									<span>Save Changes</span>
 								{/if}
 							</button>
