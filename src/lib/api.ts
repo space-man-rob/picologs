@@ -583,6 +583,18 @@ export async function leaveGroup(groupId: string): Promise<boolean> {
 }
 
 /**
+ * Delete a group (owners only)
+ */
+export async function deleteGroup(groupId: string): Promise<boolean> {
+	try {
+		await sendRequest('delete_group', { groupId });
+		return true;
+	} catch (error) {
+		return false;
+	}
+}
+
+/**
  * Invite a friend to the group
  */
 export async function inviteFriendToGroup(data: {

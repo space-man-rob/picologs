@@ -6,6 +6,7 @@
 		fetchGroupMembers,
 		updateGroup,
 		leaveGroup,
+		deleteGroup,
 		inviteFriendToGroup,
 		removeMemberFromGroup,
 		uploadAvatar,
@@ -30,6 +31,7 @@
 	let isLoading = $state(true);
 	let isEditing = $state(false);
 	let showLeaveConfirm = $state(false);
+	let showDeleteConfirm = $state(false);
 	let showInviteModal = $state(false);
 	let showRemoveMemberConfirm = $state(false);
 
@@ -269,6 +271,26 @@
 			}
 		} catch (error) {
 			appCtx.addNotification('Error leaving group', 'error');
+		}
+	}
+
+	// Delete group
+	async function confirmDelete() {
+		if (!groupId) {
+			appCtx.addNotification('Group ID is missing', 'error');
+			return;
+		}
+
+		try {
+			const success = await deleteGroup(groupId);
+			if (success) {
+				appCtx.addNotification('Group deleted', 'info');
+				goto('/groups');
+			} else {
+				appCtx.addNotification('Failed to delete group', 'error');
+			}
+		} catch (error) {
+			appCtx.addNotification('Error deleting group', 'error');
 		}
 	}
 
@@ -521,6 +543,22 @@
 										<span>Cancel</span>
 									</button>
 								</div>
+
+								{#if isOwner}
+									<div class="mt-8 pt-6 border-t border-panel">
+										<h3 class="text-lg font-semibold text-white mb-2">Danger Zone</h3>
+										<p class="text-sm text-muted mb-4">
+											Once you delete a group, there is no going back. Please be certain.
+										</p>
+										<button
+											onclick={() => (showDeleteConfirm = true)}
+											class="flex items-center gap-2 px-4 py-2 btn-danger text-white rounded-lg border"
+										>
+											<span class="text-lg">🗑️</span>
+											<span>Delete Group</span>
+										</button>
+									</div>
+								{/if}
 							</div>
 						{:else}
 							<!-- View mode -->
@@ -676,6 +714,33 @@
 					class="flex-1 px-4 py-2 btn-danger text-white rounded-lg border"
 				>
 					Leave Group
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Delete Confirmation Modal -->
+{#if showDeleteConfirm}
+	<div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+		<div class="bg-secondary rounded-lg border border-panel p-6 max-w-md w-full">
+			<h3 class="text-xl font-bold text-white mb-4">Delete Group</h3>
+			<p class="text-muted mb-6">
+				Are you sure you want to delete this group? This action cannot be undone and all group
+				data will be permanently removed.
+			</p>
+			<div class="flex gap-3">
+				<button
+					onclick={() => (showDeleteConfirm = false)}
+					class="flex-1 px-4 py-2 btn-white-overlay text-white rounded-lg border"
+				>
+					Cancel
+				</button>
+				<button
+					onclick={confirmDelete}
+					class="flex-1 px-4 py-2 btn-danger text-white rounded-lg border"
+				>
+					Delete Group
 				</button>
 			</div>
 		</div>
