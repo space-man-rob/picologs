@@ -3,9 +3,8 @@
  * All communication happens through WebSocket messages instead of HTTP
  */
 
-import WebSocket from '@tauri-apps/plugin-websocket';
 import { getJwtToken } from './oauth';
-import { createWebSocketConnection, sendJsonMessage, parseJsonMessage } from './websocket-helper';
+import { createWebSocketConnection, parseJsonMessage } from './websocket-helper';
 
 // SECURITY: Determine WebSocket URL with production safety checks
 const WS_URL = (() => {
@@ -72,11 +71,31 @@ export interface ApiUserProfile {
 	updatedAt: string;
 }
 
+// Types
+interface WebSocketMessage {
+	type: string;
+	requestId?: string;
+	data?: unknown;
+	error?: string;
+	message?: string;
+}
+
+interface WebSocketConnection {
+	socket: {
+		send: (data: string) => Promise<void>;
+		disconnect: () => Promise<void>;
+	};
+	send: (data: string) => Promise<void>;
+}
+
 // WebSocket singleton and state
-let ws: any = null;
+let ws: WebSocketConnection['socket'] | null = null;
 let isConnected = false;
-let messageHandlers = new Map<string, (data: any) => void>();
-let pendingRequests = new Map<string, { resolve: (value: any) => void; reject: (reason?: any) => void }>();
+const messageHandlers = new Map<string, (data: WebSocketMessage) => void>();
+const pendingRequests = new Map<
+	string,
+	{ resolve: (value: unknown) => void; reject: (reason?: unknown) => void }
+>();
 let requestIdCounter = 0;
 
 /**
@@ -96,7 +115,7 @@ export async function connectWebSocket(
 	discordUserId: string,
 	onConnected?: () => void,
 	skipAuth?: boolean
-): Promise<any> {
+): Promise<WebSocketConnection['socket']> {
 	if (ws && isConnected) {
 		return ws;
 	}
@@ -111,8 +130,8 @@ export async function connectWebSocket(
 	const connection = await createWebSocketConnection({
 		url: WS_URL,
 		timeout: 10000,
-		onMessage: async (msg: any) => {
-			const message = parseJsonMessage(msg);
+		onMessage: async (msg: string) => {
+			const message = parseJsonMessage(msg) as WebSocketMessage | null;
 			if (!message) return;
 
 			// Handle request-response pattern
@@ -120,7 +139,12 @@ export async function connectWebSocket(
 				const { resolve, reject } = pendingRequests.get(message.requestId)!;
 				pendingRequests.delete(message.requestId);
 
-				console.log('[WS API] Received response for requestId:', message.requestId, 'type:', message.type);
+				console.log(
+					'[WS API] Received response for requestId:',
+					message.requestId,
+					'type:',
+					message.type
+				);
 
 				if (message.type === 'error') {
 					console.error('[WS API] Error response:', message);
@@ -200,7 +224,10 @@ export async function disconnectWebSocket(): Promise<void> {
 /**
  * Subscribe to WebSocket message types
  */
-export function subscribe(messageType: string, handler: (data: any) => void): () => void {
+export function subscribe(
+	messageType: string,
+	handler: (data: WebSocketMessage) => void
+): () => void {
 	messageHandlers.set(messageType, handler);
 	return () => messageHandlers.delete(messageType);
 }
@@ -208,7 +235,7 @@ export function subscribe(messageType: string, handler: (data: any) => void): ()
 /**
  * Send request via WebSocket and wait for response
  */
-async function sendRequest<T>(type: string, data?: any): Promise<T> {
+async function sendRequest<T>(type: string, data?: Record<string, unknown>): Promise<T> {
 	if (!ws || !isConnected) {
 		throw new Error('WebSocket not connected');
 	}
@@ -233,11 +260,13 @@ async function sendRequest<T>(type: string, data?: any): Promise<T> {
 			}
 		});
 
-		ws.send(JSON.stringify({
-			type,
-			requestId,
-			data: data || {}
-		})).catch((error: any) => {
+		ws.send(
+			JSON.stringify({
+				type,
+				requestId,
+				data: data || {}
+			})
+		).catch((error: unknown) => {
 			clearTimeout(timeout);
 			pendingRequests.delete(requestId);
 			reject(error);
@@ -276,15 +305,24 @@ export async function fetchFriends(): Promise<ApiFriend[]> {
  */
 export async function fetchFriendRequests(): Promise<ApiFriendRequest[]> {
 	try {
-		const response = await sendRequest<{ incoming: ApiFriendRequest[], outgoing: ApiFriendRequest[] }>('get_friend_requests');
+		const response = await sendRequest<{
+			incoming: ApiFriendRequest[];
+			outgoing: ApiFriendRequest[];
+		}>('get_friend_requests');
 
 		if (!response) {
 			return [];
 		}
 
 		// Combine incoming and outgoing into a flat array
-		const incoming = (response.incoming || []).map(req => ({ ...req, direction: 'incoming' as const }));
-		const outgoing = (response.outgoing || []).map(req => ({ ...req, direction: 'outgoing' as const }));
+		const incoming = (response.incoming || []).map((req) => ({
+			...req,
+			direction: 'incoming' as const
+		}));
+		const outgoing = (response.outgoing || []).map((req) => ({
+			...req,
+			direction: 'outgoing' as const
+		}));
 
 		return [...incoming, ...outgoing];
 	} catch (error) {
@@ -348,7 +386,9 @@ export async function removeFriend(friendshipId: string): Promise<boolean> {
 /**
  * Accept group invitation via WebSocket
  */
-export async function acceptGroupInvitation(invitationId: string): Promise<{ groupId: string } | null> {
+export async function acceptGroupInvitation(
+	invitationId: string
+): Promise<{ groupId: string } | null> {
 	try {
 		const response = await sendRequest('accept_group_invitation', { invitationId });
 		return response as { groupId: string } | null;
@@ -374,7 +414,7 @@ export async function denyGroupInvitation(invitationId: string): Promise<boolean
 /**
  * Get WebSocket instance (for backward compatibility)
  */
-export function getWebSocket(): any {
+export function getWebSocket(): WebSocketConnection['socket'] | null {
 	return ws;
 }
 
@@ -402,12 +442,34 @@ export async function updateUserProfile(data: {
 	}
 }
 
+interface Group {
+	id: string;
+	name: string;
+	description?: string;
+	avatar?: string;
+	tags?: string[];
+	ownerId: string;
+	createdAt: string;
+	updatedAt: string;
+}
+
+interface GroupMember {
+	id: string;
+	groupId: string;
+	userId: string;
+	role: string;
+	canInvite: boolean;
+	canRemoveMembers: boolean;
+	canEditGroup: boolean;
+	joinedAt: string;
+}
+
 /**
  * Fetch groups list from API via WebSocket
  */
-export async function fetchGroups(): Promise<any[]> {
+export async function fetchGroups(): Promise<Group[]> {
 	try {
-		const groups = await sendRequest<any[]>('get_groups');
+		const groups = await sendRequest<Group[]>('get_groups');
 		return groups || [];
 	} catch (error) {
 		console.error('[WS API] Error fetching groups:', error);
@@ -418,9 +480,15 @@ export async function fetchGroups(): Promise<any[]> {
 /**
  * Fetch groups with their members in a single request (optimized)
  */
-export async function fetchGroupsWithMembers(): Promise<{ groups: any[]; members: Record<string, any[]> }> {
+export async function fetchGroupsWithMembers(): Promise<{
+	groups: Group[];
+	members: Record<string, GroupMember[]>;
+}> {
 	try {
-		const response = await sendRequest<{ groups: any[]; members: Record<string, any[]> }>('get_groups', { includeMembers: true });
+		const response = await sendRequest<{ groups: Group[]; members: Record<string, GroupMember[]> }>(
+			'get_groups',
+			{ includeMembers: true }
+		);
 		return response || { groups: [], members: {} };
 	} catch (error) {
 		console.error('[WS API] Error fetching groups with members:', error);
@@ -431,26 +499,39 @@ export async function fetchGroupsWithMembers(): Promise<{ groups: any[]; members
 /**
  * Fetch members of a specific group from API via WebSocket
  */
-export async function fetchGroupMembers(groupId: string): Promise<any[]> {
+export async function fetchGroupMembers(groupId: string): Promise<GroupMember[]> {
 	try {
 		console.log('[WS API] Requesting group members for groupId:', groupId);
-		const members = await sendRequest<any[]>('get_group_members', { groupId });
+		const members = await sendRequest<GroupMember[]>('get_group_members', { groupId });
 		console.log('[WS API] Received group members:', members);
 		return members || [];
 	} catch (error) {
 		console.error('[WS API] Error fetching group members:', error);
 		console.error('[WS API] Error type:', typeof error);
-		console.error('[WS API] Error keys:', Object.keys(error));
+		console.error(
+			'[WS API] Error keys:',
+			error && typeof error === 'object' ? Object.keys(error) : 'N/A'
+		);
 		return [];
 	}
+}
+
+interface GroupInvitation {
+	id: string;
+	groupId: string;
+	inviterId: string;
+	inviteeId: string;
+	status: string;
+	createdAt: string;
+	respondedAt?: string;
 }
 
 /**
  * Fetch pending group invitations from API via WebSocket
  */
-export async function fetchGroupInvitations(): Promise<any[]> {
+export async function fetchGroupInvitations(): Promise<GroupInvitation[]> {
 	try {
-		const invitations = await sendRequest<any[]>('get_group_invitations');
+		const invitations = await sendRequest<GroupInvitation[]>('get_group_invitations');
 		return invitations || [];
 	} catch (error) {
 		console.error('[WS API] Error fetching group invitations:', error);
@@ -485,9 +566,9 @@ export async function updateGroup(data: {
 	description?: string;
 	avatar?: string;
 	tags?: string[];
-}): Promise<any> {
+}): Promise<Group> {
 	try {
-		const response = await sendRequest('update_group', data);
+		const response = await sendRequest<Group>('update_group', data);
 		return response;
 	} catch (error) {
 		console.error('[WS API] Error updating group:', error);

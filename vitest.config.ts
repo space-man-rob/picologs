@@ -15,7 +15,7 @@ export default defineConfig({
 			'**/node_modules/**',
 			'**/dist/**',
 			'**/.svelte-kit/**',
-			'src/**/*.svelte.{test,spec}.{js,ts}',
+			'src/**/*.svelte.{test,spec}.{js,ts}'
 		],
 		// Coverage configuration
 		coverage: {
@@ -26,25 +26,25 @@ export default defineConfig({
 				'src/tests/**',
 				'src/**/*.{test,spec}.{js,ts}',
 				'src/**/*.svelte.{test,spec}.{js,ts}',
-				'**/*.config.{js,ts}',
+				'**/*.config.{js,ts}'
 			],
 			// Coverage thresholds
 			thresholds: {
 				lines: 70,
 				functions: 70,
 				branches: 65,
-				statements: 70,
-			},
+				statements: 70
+			}
 		},
 		// Global test timeout
 		testTimeout: 10000,
 		// Retry failed tests once
-		retry: 1,
+		retry: 1
 	},
 	resolve: {
 		alias: {
 			$lib: '/src/lib',
-			$app: '/.svelte-kit/runtime/app',
-		},
-	},
+			$app: '/.svelte-kit/runtime/app'
+		}
+	}
 });

@@ -1,28 +1,28 @@
 {
-  "permissions": {
-    "allow": [
-      "Bash(gh pull:*)",
-      "Bash(git pull:*)",
-      "Bash(git checkout:*)",
-      "Bash(npm run tauri:*)",
-      "Bash(npm i)",
-      "Bash(node:*)",
-      "Bash(nvm install:*)",
-      "Bash(nvm:*)",
-      "Bash(ping:*)",
-      "Bash(curl:*)",
-      "Bash(flyctl apps:*)",
-      "WebSearch",
-      "Bash(gh secret:*)",
-      "Bash(git add:*)",
-      "Bash(git commit:*)",
-      "Bash(git push:*)",
-      "Bash(gh run list:*)",
-      "Bash(gh run view:*)",
-      "Bash(gh release list:*)",
-      "Bash(gh release view:*)"
-    ],
-    "deny": [],
-    "ask": []
-  }
+	"permissions": {
+		"allow": [
+			"Bash(gh pull:*)",
+			"Bash(git pull:*)",
+			"Bash(git checkout:*)",
+			"Bash(npm run tauri:*)",
+			"Bash(npm i)",
+			"Bash(node:*)",
+			"Bash(nvm install:*)",
+			"Bash(nvm:*)",
+			"Bash(ping:*)",
+			"Bash(curl:*)",
+			"Bash(flyctl apps:*)",
+			"WebSearch",
+			"Bash(gh secret:*)",
+			"Bash(git add:*)",
+			"Bash(git commit:*)",
+			"Bash(git push:*)",
+			"Bash(gh run list:*)",
+			"Bash(gh run view:*)",
+			"Bash(gh release list:*)",
+			"Bash(gh release view:*)"
+		],
+		"deny": [],
+		"ask": []
+	}
 }

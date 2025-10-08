@@ -11,18 +11,19 @@
 	import User from '../components/User.svelte';
 	import AddFriend from '../components/AddFriend.svelte';
 	import type { Log, Friend as FriendType } from '../types';
-	import { appDataDir } from '@tauri-apps/api/path';
 	import Resizer from '../components/Resizer.svelte';
 	import VerticalResizer from '../components/VerticalResizer.svelte';
-	import {
-		sendFriendRequest as apiSendFriendRequest,
-		removeFriend as apiRemoveFriend,
-		type ApiFriend
-	} from '$lib/api';
+	import { sendFriendRequest as apiSendFriendRequest } from '$lib/api';
 	import { getAppContext } from '$lib/appContext.svelte';
 	import { compressLogs, shouldCompressLogs } from '$lib/compression';
 	import { safeMatch } from '$lib/regex-utils';
-	import { sendSyncLogsRequest, sendBatchLogs, sendBatchGroupLogs, sendUpdateMyDetails } from '$lib/websocket-messages';
+	import {
+		sendSyncLogsRequest,
+		sendBatchLogs,
+		sendBatchGroupLogs,
+		sendUpdateMyDetails
+	} from '$lib/websocket-messages';
+	import { SvelteMap } from 'svelte/reactivity';
 
 	// Get shared app context from layout
 	const appCtx = getAppContext();
@@ -33,7 +34,6 @@
 	let playerName = $state<string | null>(null);
 	let playerId = $state<string | null>(null); // Star Citizen player ID from Game.log
 	let isLoadingFile = $state(true); // Prevent flash of welcome screen
-	let tickCounter = $state(0);
 	let selectedEnvironment = $state<'LIVE' | 'PTU' | 'HOTFIX'>('LIVE');
 	let prevLineCount = $state<number>(0);
 	let lineCount = $state<number>(0);
@@ -41,21 +41,21 @@
 
 	// Track last sync timestamp per friend for delta sync
 	// Map<friendId, lastSyncTimestamp>
-	let friendSyncTimestamps = $state<Map<string, string>>(new Map());
+	let friendSyncTimestamps = new SvelteMap<string, string>();
 
 	// Derived state for filtered logs based on selected user or group
 	let displayedLogs = $derived.by(() => {
 		// If a specific user is selected, show only their logs
 		if (appCtx.selectedUserId) {
-			return fileContent.filter(log => log.userId === appCtx.selectedUserId);
+			return fileContent.filter((log) => log.userId === appCtx.selectedUserId);
 		}
 
 		// If a group is selected, show group members' logs
 		if (appCtx.selectedGroupId) {
 			const members = appCtx.groupMembers.get(appCtx.selectedGroupId) || [];
-			const memberUserIds = new Set(members.map(m => m.discordId));
+			const memberUserIds = new Set(members.map((m) => m.discordId));
 
-			return fileContent.filter(log => {
+			return fileContent.filter((log) => {
 				// Include own logs
 				if (log.userId === playerId) return true;
 
@@ -65,9 +65,9 @@
 		}
 
 		// Default: show only friends' logs (not all logs)
-		const friendUserIds = new Set(appCtx.apiFriends.map(f => f.friendDiscordId));
+		const friendUserIds = new Set(appCtx.apiFriends.map((f) => f.friendDiscordId));
 
-		return fileContent.filter(log => {
+		return fileContent.filter((log) => {
 			// Include own logs
 			if (log.userId === playerId) return true;
 
@@ -83,14 +83,14 @@
 		// If viewing a group, get name from group members
 		if (appCtx.selectedGroupId) {
 			const members = appCtx.groupMembers.get(appCtx.selectedGroupId) || [];
-			const member = members.find(m => m.discordId === userId);
+			const member = members.find((m) => m.discordId === userId);
 			if (member) {
 				return member.player || member.username;
 			}
 		}
 
 		// Otherwise, try to find in friends list
-		const friend = appCtx.friendsList.find(f => f.id === userId);
+		const friend = appCtx.friendsList.find((f) => f.id === userId);
 		if (friend) {
 			return friend.name || null;
 		}
@@ -104,6 +104,7 @@
 
 	// Utility to deduplicate and sort logs by id and timestamp
 	function dedupeAndSortLogs(logs: Log[]): Log[] {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- Local function variable, not reactive state
 		const seen = new Set<string>();
 		const deduped = [];
 		for (const log of logs) {
@@ -122,7 +123,7 @@
 			const filePath = getLogFilePath();
 			const text = await readTextFile(filePath, { baseDir: BaseDirectory.AppData });
 			return dedupeAndSortLogs(JSON.parse(text) as Log[]);
-		} catch (e) {
+		} catch {
 			return [];
 		}
 	}
@@ -140,9 +141,9 @@
 			const store = await load('store.json', { defaults: {}, autoSave: false });
 			const timestamps = await store.get<Record<string, string>>('friendSyncTimestamps');
 			if (timestamps) {
-				friendSyncTimestamps = new Map(Object.entries(timestamps));
+				friendSyncTimestamps = new SvelteMap(Object.entries(timestamps));
 			}
-		} catch (error) {
+		} catch {
 			// Silently fail - timestamps will be rebuilt
 		}
 	}
@@ -153,7 +154,7 @@
 			const store = await load('store.json', { defaults: {}, autoSave: 200 });
 			const timestampsObj = Object.fromEntries(friendSyncTimestamps);
 			await store.set('friendSyncTimestamps', timestampsObj);
-		} catch (error) {
+		} catch {
 			// Silently fail - will retry on next save
 		}
 	}
@@ -162,8 +163,7 @@
 	function updateFriendSyncTimestamp(friendId: string, timestamp?: string): void {
 		const now = timestamp || new Date().toISOString();
 		friendSyncTimestamps.set(friendId, now);
-		// Trigger reactivity
-		friendSyncTimestamps = new Map(friendSyncTimestamps);
+		// SvelteMap is already reactive, no need to reassign
 		saveFriendSyncTimestamps(); // Async save
 	}
 
@@ -181,7 +181,7 @@
 			let logsToSend = myLogs;
 			if (lastSyncTimestamp) {
 				const lastSyncTime = new Date(lastSyncTimestamp).getTime();
-				logsToSend = myLogs.filter(log => {
+				logsToSend = myLogs.filter((log) => {
 					if (!log.timestamp) return false;
 					return new Date(log.timestamp).getTime() > lastSyncTime;
 				});
@@ -198,7 +198,7 @@
 
 			// Update sync timestamp after successful sync
 			updateFriendSyncTimestamp(friendId);
-		} catch (error) {
+		} catch {
 			// Silently fail - will retry on next connection
 		}
 	}
@@ -221,7 +221,7 @@
 				const linesText = await readTextFile(file);
 				const currentLineCount = linesText.split('\n').length;
 				prevLineCount = currentLineCount;
-			} catch (error) {
+			} catch {
 				prevLineCount = 0;
 			}
 		}
@@ -238,7 +238,7 @@
 		let hash = 0;
 		for (let i = 0; i < content.length; i++) {
 			const char = content.charCodeAt(i);
-			hash = ((hash << 5) - hash) + char;
+			hash = (hash << 5) - hash + char;
 			hash = hash & hash; // Convert to 32-bit integer
 		}
 		// Use a longer hash to reduce collisions
@@ -251,6 +251,7 @@
 	function groupKillingSprees(logs: Log[]): Log[] {
 		const spreeTimeWindow = 2 * 60 * 1000; // 2 minutes
 		const minKillsForSpree = 2;
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- Local function variable, not reactive state
 		const childLogIds = new Set<string>();
 
 		const standaloneActorDeaths = logs.filter(
@@ -263,6 +264,7 @@
 				log.metadata.damageType !== 'VehicleDestruction'
 		);
 
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- Local function variable, not reactive state
 		const killsByPlayer = new Map<string, Log[]>();
 		for (const death of standaloneActorDeaths) {
 			const killerId = death.metadata!.killerId!;
@@ -272,6 +274,7 @@
 			killsByPlayer.get(killerId)!.push(death);
 		}
 
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- Local function variable, not reactive state
 		const spreeParents = new Map<string, Log>();
 
 		for (const kills of killsByPlayer.values()) {
@@ -300,9 +303,7 @@
 				if (currentSpree.length === 0) {
 					currentSpree.push(kills[i]);
 				} else {
-					const lastKillTime = new Date(
-						currentSpree[currentSpree.length - 1].timestamp
-					).getTime();
+					const lastKillTime = new Date(currentSpree[currentSpree.length - 1].timestamp).getTime();
 					const currentKillTime = new Date(kills[i].timestamp).getTime();
 
 					if (currentKillTime - lastKillTime < spreeTimeWindow) {
@@ -317,14 +318,11 @@
 		}
 
 		const finalLogs: Log[] = [];
-		let childrenFiltered = 0;
 		for (const log of logs) {
 			if (spreeParents.has(log.id)) {
 				finalLogs.push(spreeParents.get(log.id)!);
 			} else if (!childLogIds.has(log.id)) {
 				finalLogs.push(log);
-			} else {
-				childrenFiltered++;
 			}
 		}
 
@@ -337,7 +335,7 @@
 
 	// Separate buffers for friends and groups
 	let friendLogsBuffer = $state<Log[]>([]);
-	let groupLogsBuffers = $state<Map<string, Log[]>>(new Map());
+	let groupLogsBuffers = new SvelteMap<string, Log[]>();
 	let batchFlushTimer = $state<number | null>(null);
 
 	// Flush all batched logs
@@ -357,8 +355,8 @@
 				}
 
 				friendLogsBuffer = [];
-			} catch (error) {
-				console.error('[WebSocket] Error sending batched friend logs:', error);
+			} catch (err) {
+				console.error('[WebSocket] Error sending batched friend logs:', err);
 			}
 		}
 
@@ -374,8 +372,8 @@
 					} else {
 						await sendBatchGroupLogs(appCtx.ws, groupId, logs, false);
 					}
-				} catch (error) {
-					console.error(`[WebSocket] Error sending batched group logs to ${groupId}:`, error);
+				} catch (err) {
+					console.error(`[WebSocket] Error sending batched group logs to ${groupId}:`, err);
 				}
 			}
 		}
@@ -414,7 +412,7 @@
 				// Check if any buffer is full
 				const friendBufferFull = friendLogsBuffer.length >= BATCH_SIZE_LIMIT;
 				const anyGroupBufferFull = Array.from(groupLogsBuffers.values()).some(
-					buffer => buffer.length >= BATCH_SIZE_LIMIT
+					(buffer) => buffer.length >= BATCH_SIZE_LIMIT
 				);
 
 				// Flush immediately if any buffer is full
@@ -424,8 +422,8 @@
 					// Schedule a flush
 					scheduleBatchFlush();
 				}
-			} catch (error) {
-				console.error('[WebSocket] Error buffering log:', error);
+			} catch (err) {
+				console.error('[WebSocket] Error buffering log:', err);
 			}
 		}
 	}
@@ -455,7 +453,7 @@
 				setTimeout(() => {
 					updatePanelVisibility();
 				}, 100);
-			} catch (error) {
+			} catch {
 				// Use defaults if loading fails
 				initialToggleLoadDone = true;
 			}
@@ -463,7 +461,7 @@
 
 		// Listen for group logs from WebSocket
 		const handleGroupLog = async (event: CustomEvent) => {
-			const { log, groupId, senderId, senderDisplayName } = event.detail;
+			const { log, senderId } = event.detail;
 
 			// Add log to fileContent and disk
 			const newLog = { ...log, userId: senderId };
@@ -513,10 +511,10 @@
 			}
 		};
 
-		window.addEventListener('group-log-received', handleGroupLog as unknown as EventListener);
-		window.addEventListener('friend-log-received', handleFriendLog as unknown as EventListener);
-		window.addEventListener('friend-came-online', handleFriendCameOnline as unknown as EventListener);
-		window.addEventListener('sync-logs-received', handleSyncLogsReceived as unknown as EventListener);
+		window.addEventListener('group-log-received', handleGroupLog as (event: Event) => void);
+		window.addEventListener('friend-log-received', handleFriendLog as (event: Event) => void);
+		window.addEventListener('friend-came-online', handleFriendCameOnline as (event: Event) => void);
+		window.addEventListener('sync-logs-received', handleSyncLogsReceived as (event: Event) => void);
 
 		// Async initialization
 		(async () => {
@@ -528,9 +526,7 @@
 			});
 			const savedFile = await store.get<string>('lastFile');
 			const savedPlayerName = await store.get<string>('playerName');
-			const savedEnvironment = await store.get<'LIVE' | 'PTU' | 'HOTFIX'>(
-				'selectedEnvironment'
-			);
+			const savedEnvironment = await store.get<'LIVE' | 'PTU' | 'HOTFIX'>('selectedEnvironment');
 
 			// Set file path immediately to prevent welcome screen flash
 			if (savedFile) {
@@ -539,8 +535,7 @@
 				// Extract and set log location for header display (platform-agnostic)
 				const pathSep = savedFile.includes('/') ? '/' : '\\';
 				const pathParts = savedFile.split(pathSep);
-				appCtx.cachedLogLocation =
-					pathParts.length > 1 ? pathParts[pathParts.length - 2] : null;
+				appCtx.cachedLogLocation = pathParts.length > 1 ? pathParts[pathParts.length - 2] : null;
 			}
 
 			if (savedEnvironment) {
@@ -579,16 +574,22 @@
 						prevLineCount = currentLineCount;
 						lineCount = currentLineCount;
 					} catch (readError) {
-						console.warn('[Initialization] Could not read file for line count, starting from 0:', readError);
+						console.warn(
+							'[Initialization] Could not read file for line count, starting from 0:',
+							readError
+						);
 						prevLineCount = 0;
 						lineCount = 0;
 					}
 
 					handleInitialiseWatch(file);
 					// playerId will be extracted from Game.log when parsing
-				} catch (error) {
-					console.error('[Initialization] Failed to load saved log file on startup:', error);
-					console.error('[Initialization] Error details:', error instanceof Error ? error.message : error);
+				} catch (err) {
+					console.error('[Initialization] Failed to load saved log file on startup:', err);
+					console.error(
+						'[Initialization] Error details:',
+						err instanceof Error ? err.message : err
+					);
 					// Clear file on error so welcome screen shows
 					file = null;
 				}
@@ -605,7 +606,14 @@
 
 			// Stop file watcher and polling
 			if (endWatch) {
-				endWatch();
+				try {
+					Promise.resolve(endWatch()).catch((error) => {
+						console.warn('[FileWatch] Error stopping watcher during cleanup:', error);
+					});
+				} catch (error) {
+					console.warn('[FileWatch] Error calling endWatch:', error);
+				}
+				endWatch = null;
 			}
 			if (pollInterval !== null) {
 				clearInterval(pollInterval);
@@ -616,10 +624,16 @@
 				debounceTimer = null;
 			}
 
-			window.removeEventListener('group-log-received', handleGroupLog as unknown as EventListener);
-			window.removeEventListener('friend-log-received', handleFriendLog as unknown as EventListener);
-			window.removeEventListener('friend-came-online', handleFriendCameOnline as unknown as EventListener);
-			window.removeEventListener('sync-logs-received', handleSyncLogsReceived as unknown as EventListener);
+			window.removeEventListener('group-log-received', handleGroupLog as (event: Event) => void);
+			window.removeEventListener('friend-log-received', handleFriendLog as (event: Event) => void);
+			window.removeEventListener(
+				'friend-came-online',
+				handleFriendCameOnline as (event: Event) => void
+			);
+			window.removeEventListener(
+				'sync-logs-received',
+				handleSyncLogsReceived as (event: Event) => void
+			);
 		};
 	});
 
@@ -667,13 +681,18 @@
 		}
 	});
 
-	let endWatch: () => void;
+	let endWatch: (() => void | Promise<void>) | null = null;
 	let pollInterval: number | null = null;
 	let debounceTimer: number | null = null;
 
 	async function handleInitialiseWatch(filePath: string) {
 		if (endWatch) {
-			endWatch();
+			try {
+				await Promise.resolve(endWatch());
+			} catch (error) {
+				console.warn('[FileWatch] Error stopping previous watcher:', error);
+			}
+			endWatch = null;
 		}
 		if (pollInterval !== null) {
 			clearInterval(pollInterval);
@@ -705,11 +724,10 @@
 					});
 
 					// Filter events for our specific file
-					const isOurFile = event.paths.some(p => {
+					const isOurFile = event.paths.some((p) => {
 						// Normalize path to use same separator as the original filePath
-						const normalizedPath = pathSeparator === '/'
-							? p.replace(/\\/g, '/')
-							: p.replace(/\//g, '\\');
+						const normalizedPath =
+							pathSeparator === '/' ? p.replace(/\\/g, '/') : p.replace(/\//g, '\\');
 						return normalizedPath.endsWith(fileName) || normalizedPath.includes(fileName);
 					});
 
@@ -730,8 +748,8 @@
 				{ recursive: false }
 			);
 			console.log('[FileWatch] Watcher initialized successfully');
-		} catch (error) {
-			console.error('[FileWatch] Error initializing watcher:', error);
+		} catch (err) {
+			console.error('[FileWatch] Error initializing watcher:', err);
 		}
 
 		// Polling fallback (reduced to 5s since watcher should work now)
@@ -745,7 +763,7 @@
 		// Example: 2024.06.07-12:34:56:789
 		const match = raw.match(/(\d{4})\.(\d{2})\.(\d{2})-(\d{2}):(\d{2}):(\d{2}):?(\d{0,3})?/);
 		if (!match) return new Date().toISOString();
-		const [_, year, month, day, hour, min, sec, ms] = match;
+		const [, year, month, day, hour, min, sec, ms] = match;
 		const msStr = ms ? ms.padEnd(3, '0') : '000';
 		return `${year}-${month}-${day}T${hour}:${min}:${sec}.${msStr}Z`;
 	}
@@ -754,12 +772,10 @@
 		if (!filePath) return;
 
 		try {
-			tickCounter = 0;
 			// Extract log location from path (platform-agnostic)
 			const pathSep = filePath.includes('/') ? '/' : '\\';
 			const pathParts = filePath.split(pathSep);
-			appCtx.cachedLogLocation =
-				pathParts.length > 1 ? pathParts[pathParts.length - 2] : null;
+			appCtx.cachedLogLocation = pathParts.length > 1 ? pathParts[pathParts.length - 2] : null;
 
 			const linesText = await readTextFile(filePath);
 			const lineBreak = linesText.split('\n');
@@ -862,7 +878,7 @@
 						line.match(`CActor::Kill: '${playerName}'`)
 					) {
 						const regex =
-							/'([^']+)' \[(\d+)\] in zone '([^']+)' killed by '([^']+)' \[(\d+)\] using '([^']+)' \[Class ([^\]]+)\] with damage type '([^']+)' from direction x: ([\d\.\-]+), y: ([\d\.\-]+), z: ([\d\.\-]+)/;
+							/'([^']+)' \[(\d+)\] in zone '([^']+)' killed by '([^']+)' \[(\d+)\] using '([^']+)' \[Class ([^\]]+)\] with damage type '([^']+)' from direction x: ([\d.-]+), y: ([\d.-]+), z: ([\d.-]+)/;
 						// SECURITY: Use safe regex match with timeout protection
 						const match = safeMatch(regex, line, 200);
 
@@ -910,7 +926,7 @@
 						!line.match(`CActor::Kill: '${playerName}'`)
 					) {
 						const regex =
-							/'([^']+)' \[(\d+)\] in zone '([^']+)' killed by '([^']+)' \[(\d+)\] using '([^']+)' \[Class ([^\]]+)\] with damage type '([^']+)' from direction x: ([\d\.\-]+), y: ([\d\.\-]+), z: ([\d\.\-]+)/;
+							/'([^']+)' \[(\d+)\] in zone '([^']+)' killed by '([^']+)' \[(\d+)\] using '([^']+)' \[Class ([^\]]+)\] with damage type '([^']+)' from direction x: ([\d.-]+), y: ([\d.-]+), z: ([\d.-]+)/;
 						// SECURITY: Use safe regex match with timeout protection
 						const match = safeMatch(regex, line, 200);
 
@@ -1062,14 +1078,17 @@
 					});
 				}, 0);
 			}
-		} catch (error) {
-			console.error('[FileHandler] Failed to process log file:', error);
+		} catch (err) {
+			console.error('[FileHandler] Failed to process log file:', err);
 		}
 	}
 
 	async function selectFile(environment?: 'LIVE' | 'PTU' | 'HOTFIX') {
 		// Type guard: Ensure environment is actually a valid environment string, not an event object
-		const validEnvironment = (environment === 'LIVE' || environment === 'PTU' || environment === 'HOTFIX') ? environment : undefined;
+		const validEnvironment =
+			environment === 'LIVE' || environment === 'PTU' || environment === 'HOTFIX'
+				? environment
+				: undefined;
 
 		// Store strategy: Disable autoSave and explicitly save after all changes
 		// This ensures critical file path data is persisted immediately
@@ -1080,7 +1099,9 @@
 		const env = validEnvironment || selectedEnvironment;
 
 		// Try to find Star Citizen logs automatically first
-		let defaultPath: string | undefined = validEnvironment ? `C:\\Program Files\\Roberts Space Industries\\StarCitizen\\${env}\\` : undefined;
+		let defaultPath: string | undefined = validEnvironment
+			? `C:\\Program Files\\Roberts Space Industries\\StarCitizen\\${env}\\`
+			: undefined;
 
 		try {
 			const foundPaths = await invoke<string[]>('find_star_citizen_logs');
@@ -1088,8 +1109,8 @@
 				// If we have a specific environment, try to find a matching log
 				if (validEnvironment) {
 					// Check for environment in path using both separators
-					const matchingLog = foundPaths.find(p =>
-						p.includes(`/${validEnvironment}/`) || p.includes(`\\${validEnvironment}\\`)
+					const matchingLog = foundPaths.find(
+						(p) => p.includes(`/${validEnvironment}/`) || p.includes(`\\${validEnvironment}\\`)
 					);
 					if (matchingLog) {
 						// Extract directory from the log file path (platform-agnostic)
@@ -1105,8 +1126,8 @@
 					defaultPath = firstLog.substring(0, lastSlashIndex + 1);
 				}
 			}
-		} catch (error) {
-			console.log('Could not auto-detect Star Citizen logs:', error);
+		} catch (err) {
+			console.log('Could not auto-detect Star Citizen logs:', err);
 		}
 
 		const selectedPath = await open({
@@ -1119,16 +1140,18 @@
 		if (typeof selectedPath === 'string' && selectedPath) {
 			// SECURITY: Validate file path to ensure it's a Star Citizen log file
 			const validPathPatterns = [
-				/Roberts Space Industries[\\\/]StarCitizen[\\\/](LIVE|PTU|HOTFIX)[\\\/]Game\.log$/i,
-				/StarCitizen[\\\/](LIVE|PTU|HOTFIX)[\\\/]Game\.log$/i,
+				/Roberts Space Industries[\\/]StarCitizen[\\/](LIVE|PTU|HOTFIX)[\\/]Game\.log$/i,
+				/StarCitizen[\\/](LIVE|PTU|HOTFIX)[\\/]Game\.log$/i,
 				// Allow any path ending with /Game.log for development/testing
 				/Game\.log$/i
 			];
 
-			const isValidPath = validPathPatterns.some(regex => regex.test(selectedPath));
+			const isValidPath = validPathPatterns.some((regex) => regex.test(selectedPath));
 			if (!isValidPath) {
 				console.warn('[Security] Invalid log file path selected:', selectedPath);
-				alert('Please select a valid Star Citizen Game.log file.\n\nExpected location:\nRoberts Space Industries\\StarCitizen\\[LIVE|PTU|HOTFIX]\\Game.log');
+				alert(
+					'Please select a valid Star Citizen Game.log file.\n\nExpected location:\nRoberts Space Industries\\StarCitizen\\[LIVE|PTU|HOTFIX]\\Game.log'
+				);
 				return;
 			}
 
@@ -1147,7 +1170,8 @@
 			let storedPlayerId = await store.get<string>('id');
 			if (!storedPlayerId) {
 				const pathPartsForId = selectedPath.split('/');
-				playerId = pathPartsForId.length > 1 ? pathPartsForId.slice(-2, -1)[0] : crypto.randomUUID();
+				playerId =
+					pathPartsForId.length > 1 ? pathPartsForId.slice(-2, -1)[0] : crypto.randomUUID();
 				await store.set('id', playerId);
 			}
 
@@ -1157,39 +1181,6 @@
 			await handleFile(selectedPath);
 			await handleInitialiseWatch(selectedPath);
 		}
-	}
-
-	async function clearSettings() {
-		// Store strategy: Use autoSave with 100ms debounce for settings reset
-		// Multiple delete operations followed by a restore - autoSave batches these writes
-		const store = await load('store.json', {
-			defaults: {},
-			autoSave: 100
-		});
-
-		// Save Discord auth before clearing
-		const savedDiscordUserId = await store.get<string>('discordUserId');
-
-		await store.clear();
-		await store.delete('friendsList');
-		await store.delete('lastFile');
-		await store.delete('playerName');
-
-		// Restore Discord auth
-		if (savedDiscordUserId) {
-			await store.set('discordUserId', savedDiscordUserId);
-		}
-
-		// No explicit save needed - autoSave will persist all changes with 100ms debounce
-
-		file = null;
-		fileContent = [];
-		playerName = null;
-		appCtx.cachedLogLocation = null;
-		prevLineCount = 0;
-		lineCount = 0;
-		playerId = null; // Will be re-extracted from Game.log
-		currentUserDisplayData = null;
 	}
 
 	let fileContentContainer = $state<HTMLDivElement | null>(null);
@@ -1300,26 +1291,6 @@
 		}
 	}
 
-	async function handleRemoveFriend(id: string) {
-		if (!appCtx.isSignedIn) {
-			alert('Please sign in with Discord to remove friends');
-			return;
-		}
-
-		// Find the friendship ID from apiFriends
-		const apiFriend = appCtx.apiFriends.find((f) => f.friendUserId === id);
-		if (!apiFriend) {
-			return;
-		}
-
-		const success = await apiRemoveFriend(apiFriend.id);
-
-		if (!success) {
-			alert('Failed to remove friend. Please try again.');
-		}
-	}
-
-
 	// Expose page-specific actions to the layout/header via context
 	$effect(() => {
 		appCtx.pageActions = {
@@ -1329,7 +1300,10 @@
 		};
 	});
 
-	let resizerComponent = $state<any>(null);
+	let resizerComponent = $state<{
+		isLeftPanelCollapsed: () => boolean;
+		toggleLeftPanel: () => void;
+	} | null>(null);
 	let isPanelCollapsed = $state(false);
 	let showFriends = $state(true);
 	let showGroups = $state(true);
@@ -1339,7 +1313,7 @@
 			const store = await load('store.json', { defaults: {}, autoSave: 200 });
 			await store.set('showFriends', showFriends);
 			await store.set('showGroups', showGroups);
-		} catch (error) {
+		} catch {
 			// Silently fail - will retry on next toggle
 		}
 	}
@@ -1410,247 +1384,290 @@
 
 		return () => clearInterval(interval);
 	});
-
 </script>
 
 <main class="p-0 text-white flex flex-col h-full overflow-hidden">
 	{#if appCtx.isSignedIn && appCtx.discordUser}
 		{#key 'main-page'}
-		<div class="flex flex-col h-full overflow-hidden">
-			<div class="flex-1 min-h-0">
-				<Resizer bind:this={resizerComponent}>
-					{#snippet leftPanel()}
-						<div class="flex flex-col h-full min-h-0">
-							{#if currentUserDisplayData}
-								<div class="px-2 pt-0 pb-2">
-									<User user={currentUserDisplayData} />
-								</div>
-							{/if}
-							{#if showGroups && showFriends}
-								<div class="flex-1 min-h-0 h-full">
-									<VerticalResizer storeKey="friendsGroupsResizerHeight">
-										{#snippet topPanel()}
-											<Groups
-												groups={appCtx.groups}
-												groupMembers={appCtx.groupMembers}
-											/>
-										{/snippet}
-										{#snippet bottomPanel()}
-											<Friends friendsList={appCtx.friendsList} removeFriend={handleRemoveFriend} />
-										{/snippet}
-									</VerticalResizer>
-								</div>
-							{:else if showGroups}
-								<div class="flex-1 min-h-0 overflow-hidden">
-									<Groups
-										groups={appCtx.groups}
-										groupMembers={appCtx.groupMembers}
-									/>
-								</div>
-							{:else if showFriends}
-								<div class="flex-1 min-h-0 overflow-hidden">
-									<Friends friendsList={appCtx.friendsList} removeFriend={handleRemoveFriend} />
-								</div>
-							{/if}
-							<div class="mt-auto min-w-[200px] px-2 pb-2">
-								<AddFriend addFriend={handleAddFriend} />
-							</div>
-						</div>
-					{/snippet}
-
-					{#snippet rightPanel()}
-						<div class="relative grid grid-rows-[1fr] h-full overflow-hidden">
-							<div
-								class="row-start-1 row-end-2 overflow-y-auto flex flex-col bg-overlay-dark scrollbar-custom"
-								bind:this={fileContentContainer}>
-								{#if file}
-									{#each displayedLogs as item, index (item.id)}
-										{@const username = getUserDisplayName(item.userId)}
-										<Item {...item} bind:open={item.open} reportedBy={username ? [username] : undefined} />
-										{#if item.open && item.children && item.children.length > 0}
-											<div class="relative ml-16 before:content-[''] before:absolute before:left-0 before:top-0 before:bottom-0 before:w-[2px] before:bg-gradient-to-b before:from-red-500/50 before:via-red-500/30 before:to-transparent">
-												{#each item.children as child (child.id)}
-													{@const childUsername = getUserDisplayName(child.userId)}
-													<Item {...child} bind:open={child.open} child={true} reportedBy={childUsername ? [childUsername] : undefined} />
-												{/each}
-											</div>
-										{/if}
-									{:else}
-										<div class="flex flex-col items-center justify-center gap-4 h-full">
-											<div class="text-6xl">📡</div>
-											<div class="text-base text-white/60">
-												No new logs yet. Waiting for game activity...
-											</div>
-										</div>
-									{/each}
-								{:else if !isLoadingFile}
-									<div
-										class="flex flex-col items-start gap-4 my-8 mx-auto p-8 rounded-lg bg-overlay-card border border-white/10 max-w-[600px]">
-										<h2 class="m-0 mb-2 text-[1.6rem] font-medium">🚀 Getting started</h2>
-										<ol class="list-none pl-0 [counter-reset:welcome-counter] flex flex-col gap-2 mt-4">
-											<li
-												class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 numbered-list-item before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
-												Select your <code
-													class="bg-overlay-light px-[0.3rem] py-[0.1rem] rounded-[3px] font-mono inline text-base">
-													Game.log
-												</code>
-												file. Usually found at the default path:
-												<code
-													class="bg-overlay-light px-[0.3rem] py-[0.1rem] rounded-[3px] font-mono inline text-base">
-													C:\Program Files\Roberts Space Industries\StarCitizen\LIVE\Game.log
-												</code>
-												<br />
-												(Or the equivalent path on your system if installed elsewhere.)
-											</li>
-											<li
-												class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 numbered-list-item before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
-												Once a log file is selected and you go <strong>Online</strong>
-												(using the top-right button), Picologs automatically connects you with other friends for
-												real-time log sharing.
-											</li>
-											<li
-												class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 numbered-list-item before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
-												To add friends use your <strong>Friend Code</strong>
-												displayed at the top. Share this with friends to connect with them.
-											</li>
-										</ol>
-									</div>
-								{/if}
-							</div>
-
-							<!-- Scroll to bottom button -->
-							{#if hasScrollbar && !atTheBottom}
-								<button
-									in:fade={{ duration: 200, delay: 400 }}
-									out:fade={{ duration: 200 }}
-									class="absolute bottom-[10px] text-3xl cursor-pointer z-50"
-									style="left: 50%; transform: translateX(-50%);"
-									onclick={() =>
-										fileContentContainer?.scrollTo({
-											top: fileContentContainer.scrollHeight,
-											behavior: 'smooth'
-										})}>
-									⬇️
-								</button>
-							{/if}
-						</div>
-					{/snippet}
-				</Resizer>
-			</div>
-
-			<!-- Footer spanning full width -->
-			{#if file}
-				<div class="flex items-center justify-between gap-2 px-4 py-2 bg-primary text-[0.8rem] text-white/70 shadow-[0_-2px_8px_rgba(0,0,0,0.15)] border-t border-white/5">
-					<div class="flex items-center gap-2">
-						<button
-							onclick={handleToggleGroups}
-							class="text-xl transition-opacity duration-200 cursor-pointer {showGroups ? 'opacity-100' : 'opacity-40 hover:opacity-70'}"
-							title={showGroups ? "Hide groups" : "Show groups"}
-							aria-label={showGroups ? "Hide groups" : "Show groups"}>
-							🗂️
-						</button>
-						<button
-							onclick={handleToggleFriends}
-							class="text-xl transition-opacity duration-200 cursor-pointer {showFriends ? 'opacity-100' : 'opacity-40 hover:opacity-70'}"
-							title={showFriends ? "Hide friends" : "Show friends"}
-							aria-label={showFriends ? "Hide friends" : "Show friends"}>
-							👨‍🚀
-						</button>
-					</div>
-					<div>
-						Log lines processed: {Number(lineCount).toLocaleString()}
-					</div>
-				</div>
-			{/if}
-		</div>
-	{/key}
-	{:else}
 			<div class="flex flex-col h-full overflow-hidden">
-				<div class="flex-1 min-h-0 relative">
-					<div
-						class="overflow-y-auto flex flex-col bg-overlay-dark scrollbar-custom h-full"
-						bind:this={fileContentContainer}>
-						{#if file}
-							{#each displayedLogs as item, index (item.id)}
-								{@const username = getUserDisplayName(item.userId)}
-								<Item {...item} bind:open={item.open} reportedBy={username ? [username] : undefined} />
-								{#if item.open && item.children && item.children.length > 0}
-									<div class="relative ml-16 before:content-[''] before:absolute before:left-0 before:top-0 before:bottom-0 before:w-[2px] before:bg-gradient-to-b before:from-red-500/50 before:via-red-500/30 before:to-transparent">
-										{#each item.children as child (child.id)}
-											{@const childUsername = getUserDisplayName(child.userId)}
-											<Item {...child} bind:open={child.open} child={true} reportedBy={childUsername ? [childUsername] : undefined} />
-										{/each}
+				<div class="flex-1 min-h-0">
+					<Resizer bind:this={resizerComponent}>
+						{#snippet leftPanel()}
+							<div class="flex flex-col h-full min-h-0">
+								{#if currentUserDisplayData}
+									<div class="px-2 pt-0 pb-2">
+										<User user={currentUserDisplayData} />
 									</div>
 								{/if}
-							{:else}
-								<div class="flex flex-col items-center justify-center gap-4 h-full">
-									<div class="text-6xl">📡</div>
-									<div class="text-base text-white/60">
-										No new logs yet. Waiting for game activity...
+								{#if showGroups && showFriends}
+									<div class="flex-1 min-h-0 h-full">
+										<VerticalResizer storeKey="friendsGroupsResizerHeight">
+											{#snippet topPanel()}
+												<Groups groups={appCtx.groups} groupMembers={appCtx.groupMembers} />
+											{/snippet}
+											{#snippet bottomPanel()}
+												<Friends friendsList={appCtx.friendsList} />
+											{/snippet}
+										</VerticalResizer>
 									</div>
+								{:else if showGroups}
+									<div class="flex-1 min-h-0 overflow-hidden">
+										<Groups groups={appCtx.groups} groupMembers={appCtx.groupMembers} />
+									</div>
+								{:else if showFriends}
+									<div class="flex-1 min-h-0 overflow-hidden">
+										<Friends friendsList={appCtx.friendsList} />
+									</div>
+								{/if}
+								<div class="mt-auto min-w-[200px] px-2 pb-2">
+									<AddFriend addFriend={handleAddFriend} />
 								</div>
-							{/each}
-						{:else if !isLoadingFile}
-							<div
-								class="flex flex-col items-start gap-4 my-8 mx-auto p-8 rounded-lg bg-overlay-card border border-white/10 max-w-[600px]">
-								<h2 class="m-0 mb-2 text-[1.6rem] font-medium">🚀 Getting started</h2>
-								<ol class="list-none pl-0 [counter-reset:welcome-counter] flex flex-col gap-2 mt-4">
-									<li
-										class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 numbered-list-item before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
-										Select your <code
-											class="bg-overlay-light px-[0.3rem] py-[0.1rem] rounded-[3px] font-mono inline text-base">
-											Game.log
-										</code>
-										file. Usually found at the default path:
-										<code
-											class="bg-overlay-light px-[0.3rem] py-[0.1rem] rounded-[3px] font-mono inline text-base">
-											C:\Program Files\Roberts Space Industries\StarCitizen\LIVE\Game.log
-										</code>
-										<br />
-										(Or the equivalent path on your system if installed elsewhere.)
-									</li>
-									<li
-										class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 numbered-list-item before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
-										Once a log file is selected and you go <strong>Online</strong>
-										(using the top-right button), Picologs automatically connects you with other friends for
-										real-time log sharing.
-									</li>
-									<li
-										class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 numbered-list-item before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6">
-										To add friends use your <strong>Friend Code</strong>
-										displayed at the top. Share this with friends to connect with them.
-									</li>
-								</ol>
 							</div>
-						{/if}
-					</div>
+						{/snippet}
 
-					<!-- Scroll to bottom button -->
-					{#if hasScrollbar && !atTheBottom}
-						<button
-							in:fade={{ duration: 200, delay: 400 }}
-							out:fade={{ duration: 200 }}
-							class="absolute bottom-[10px] text-3xl cursor-pointer z-50"
-							style="left: 50%; transform: translateX(-50%);"
-							onclick={() =>
-								fileContentContainer?.scrollTo({
-									top: fileContentContainer.scrollHeight,
-									behavior: 'smooth'
-								})}>
-							⬇️
-						</button>
-					{/if}
+						{#snippet rightPanel()}
+							<div class="relative grid grid-rows-[1fr] h-full overflow-hidden">
+								<div
+									class="row-start-1 row-end-2 overflow-y-auto flex flex-col bg-overlay-dark scrollbar-custom"
+									bind:this={fileContentContainer}
+								>
+									{#if file}
+										{#each displayedLogs as item (item.id)}
+											{@const username = getUserDisplayName(item.userId)}
+											<Item
+												{...item}
+												bind:open={item.open}
+												reportedBy={username ? [username] : undefined}
+											/>
+											{#if item.open && item.children && item.children.length > 0}
+												<div
+													class="relative ml-16 before:content-[''] before:absolute before:left-0 before:top-0 before:bottom-0 before:w-[2px] before:bg-gradient-to-b before:from-red-500/50 before:via-red-500/30 before:to-transparent"
+												>
+													{#each item.children as child (child.id)}
+														{@const childUsername = getUserDisplayName(child.userId)}
+														<Item
+															{...child}
+															bind:open={child.open}
+															child={true}
+															reportedBy={childUsername ? [childUsername] : undefined}
+														/>
+													{/each}
+												</div>
+											{/if}
+										{:else}
+											<div class="flex flex-col items-center justify-center gap-4 h-full">
+												<div class="text-6xl">📡</div>
+												<div class="text-base text-white/60">
+													No new logs yet. Waiting for game activity...
+												</div>
+											</div>
+										{/each}
+									{:else if !isLoadingFile}
+										<div
+											class="flex flex-col items-start gap-4 my-8 mx-auto p-8 rounded-lg bg-overlay-card border border-white/10 max-w-[600px]"
+										>
+											<h2 class="m-0 mb-2 text-[1.6rem] font-medium">🚀 Getting started</h2>
+											<ol
+												class="list-none pl-0 [counter-reset:welcome-counter] flex flex-col gap-2 mt-4"
+											>
+												<li
+													class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 numbered-list-item before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6"
+												>
+													Select your <code
+														class="bg-overlay-light px-[0.3rem] py-[0.1rem] rounded-[3px] font-mono inline text-base"
+													>
+														Game.log
+													</code>
+													file. Usually found at the default path:
+													<code
+														class="bg-overlay-light px-[0.3rem] py-[0.1rem] rounded-[3px] font-mono inline text-base"
+													>
+														C:\Program Files\Roberts Space Industries\StarCitizen\LIVE\Game.log
+													</code>
+													<br />
+													(Or the equivalent path on your system if installed elsewhere.)
+												</li>
+												<li
+													class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 numbered-list-item before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6"
+												>
+													Once a log file is selected and you go <strong>Online</strong>
+													(using the top-right button), Picologs automatically connects you with other
+													friends for real-time log sharing.
+												</li>
+												<li
+													class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 numbered-list-item before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6"
+												>
+													To add friends use your <strong>Friend Code</strong>
+													displayed at the top. Share this with friends to connect with them.
+												</li>
+											</ol>
+										</div>
+									{/if}
+								</div>
+
+								<!-- Scroll to bottom button -->
+								{#if hasScrollbar && !atTheBottom}
+									<button
+										in:fade={{ duration: 200, delay: 400 }}
+										out:fade={{ duration: 200 }}
+										class="absolute bottom-[10px] text-3xl cursor-pointer z-50"
+										style="left: 50%; transform: translateX(-50%);"
+										onclick={() =>
+											fileContentContainer?.scrollTo({
+												top: fileContentContainer.scrollHeight,
+												behavior: 'smooth'
+											})}
+									>
+										⬇️
+									</button>
+								{/if}
+							</div>
+						{/snippet}
+					</Resizer>
 				</div>
 
 				<!-- Footer spanning full width -->
 				{#if file}
-					<div class="flex items-center justify-end gap-2 px-4 py-2 bg-primary text-[0.8rem] text-white/70 shadow-[0_-2px_8px_rgba(0,0,0,0.15)] border-t border-white/5">
+					<div
+						class="flex items-center justify-between gap-2 px-4 py-2 bg-primary text-[0.8rem] text-white/70 shadow-[0_-2px_8px_rgba(0,0,0,0.15)] border-t border-white/5"
+					>
+						<div class="flex items-center gap-2">
+							<button
+								onclick={handleToggleGroups}
+								class="text-xl transition-opacity duration-200 cursor-pointer {showGroups
+									? 'opacity-100'
+									: 'opacity-40 hover:opacity-70'}"
+								title={showGroups ? 'Hide groups' : 'Show groups'}
+								aria-label={showGroups ? 'Hide groups' : 'Show groups'}
+							>
+								🗂️
+							</button>
+							<button
+								onclick={handleToggleFriends}
+								class="text-xl transition-opacity duration-200 cursor-pointer {showFriends
+									? 'opacity-100'
+									: 'opacity-40 hover:opacity-70'}"
+								title={showFriends ? 'Hide friends' : 'Show friends'}
+								aria-label={showFriends ? 'Hide friends' : 'Show friends'}
+							>
+								👨‍🚀
+							</button>
+						</div>
 						<div>
 							Log lines processed: {Number(lineCount).toLocaleString()}
 						</div>
 					</div>
 				{/if}
 			</div>
+		{/key}
+	{:else}
+		<div class="flex flex-col h-full overflow-hidden">
+			<div class="flex-1 min-h-0 relative">
+				<div
+					class="overflow-y-auto flex flex-col bg-overlay-dark scrollbar-custom h-full"
+					bind:this={fileContentContainer}
+				>
+					{#if file}
+						{#each displayedLogs as item (item.id)}
+							{@const username = getUserDisplayName(item.userId)}
+							<Item
+								{...item}
+								bind:open={item.open}
+								reportedBy={username ? [username] : undefined}
+							/>
+							{#if item.open && item.children && item.children.length > 0}
+								<div
+									class="relative ml-16 before:content-[''] before:absolute before:left-0 before:top-0 before:bottom-0 before:w-[2px] before:bg-gradient-to-b before:from-red-500/50 before:via-red-500/30 before:to-transparent"
+								>
+									{#each item.children as child (child.id)}
+										{@const childUsername = getUserDisplayName(child.userId)}
+										<Item
+											{...child}
+											bind:open={child.open}
+											child={true}
+											reportedBy={childUsername ? [childUsername] : undefined}
+										/>
+									{/each}
+								</div>
+							{/if}
+						{:else}
+							<div class="flex flex-col items-center justify-center gap-4 h-full">
+								<div class="text-6xl">📡</div>
+								<div class="text-base text-white/60">
+									No new logs yet. Waiting for game activity...
+								</div>
+							</div>
+						{/each}
+					{:else if !isLoadingFile}
+						<div
+							class="flex flex-col items-start gap-4 my-8 mx-auto p-8 rounded-lg bg-overlay-card border border-white/10 max-w-[600px]"
+						>
+							<h2 class="m-0 mb-2 text-[1.6rem] font-medium">🚀 Getting started</h2>
+							<ol class="list-none pl-0 [counter-reset:welcome-counter] flex flex-col gap-2 mt-4">
+								<li
+									class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 numbered-list-item before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6"
+								>
+									Select your <code
+										class="bg-overlay-light px-[0.3rem] py-[0.1rem] rounded-[3px] font-mono inline text-base"
+									>
+										Game.log
+									</code>
+									file. Usually found at the default path:
+									<code
+										class="bg-overlay-light px-[0.3rem] py-[0.1rem] rounded-[3px] font-mono inline text-base"
+									>
+										C:\Program Files\Roberts Space Industries\StarCitizen\LIVE\Game.log
+									</code>
+									<br />
+									(Or the equivalent path on your system if installed elsewhere.)
+								</li>
+								<li
+									class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 numbered-list-item before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6"
+								>
+									Once a log file is selected and you go <strong>Online</strong>
+									(using the top-right button), Picologs automatically connects you with other friends
+									for real-time log sharing.
+								</li>
+								<li
+									class="inline-block relative pl-[34px] m-0 text-base font-light leading-[1.6] before:content-[counter(welcome-counter)] before:[counter-increment:welcome-counter] before:absolute before:left-0 before:top-0 before:w-6 before:h-6 numbered-list-item before:text-white before:rounded-full before:inline-flex before:items-center before:justify-center before:text-[0.85em] before:font-bold before:leading-6"
+								>
+									To add friends use your <strong>Friend Code</strong>
+									displayed at the top. Share this with friends to connect with them.
+								</li>
+							</ol>
+						</div>
+					{/if}
+				</div>
+
+				<!-- Scroll to bottom button -->
+				{#if hasScrollbar && !atTheBottom}
+					<button
+						in:fade={{ duration: 200, delay: 400 }}
+						out:fade={{ duration: 200 }}
+						class="absolute bottom-[10px] text-3xl cursor-pointer z-50"
+						style="left: 50%; transform: translateX(-50%);"
+						onclick={() =>
+							fileContentContainer?.scrollTo({
+								top: fileContentContainer.scrollHeight,
+								behavior: 'smooth'
+							})}
+					>
+						⬇️
+					</button>
+				{/if}
+			</div>
+
+			<!-- Footer spanning full width -->
+			{#if file}
+				<div
+					class="flex items-center justify-end gap-2 px-4 py-2 bg-primary text-[0.8rem] text-white/70 shadow-[0_-2px_8px_rgba(0,0,0,0.15)] border-t border-white/5"
+				>
+					<div>
+						Log lines processed: {Number(lineCount).toLocaleString()}
+					</div>
+				</div>
+			{/if}
+		</div>
 	{/if}
 </main>
 

@@ -3,6 +3,7 @@
 </script>
 
 <div class="flex flex-col px-2 pb-2 gap-1">
+	<!-- eslint-disable-next-line @typescript-eslint/no-unused-vars -->
 	{#each Array(count) as _, i (i)}
 		<div class="flex items-center gap-3 p-2 rounded-lg animate-pulse">
 			<!-- Avatar skeleton -->

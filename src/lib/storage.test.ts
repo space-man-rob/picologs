@@ -5,7 +5,6 @@
 import { describe, it, expect } from 'vitest';
 
 describe('Storage Abstraction Layer', () => {
-
 	describe('Module Structure', () => {
 		it('should export createStorage function', async () => {
 			const { createStorage } = await import('./storage');

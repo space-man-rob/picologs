@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { getJwtToken } from '$lib/oauth';
-	import { onMount } from 'svelte';
 	import { getAppContext } from '$lib/appContext.svelte';
 	import { goto } from '$app/navigation';
 
@@ -20,14 +19,6 @@
 	let loadingState = $state<'loading' | 'error' | 'loaded'>('loading');
 	let errorMessage = $state('');
 	const appCtx = getAppContext();
-
-	// Security: Allowed origins for postMessage communication
-	// Only Tauri's localhost origins are permitted to prevent XSS attacks
-	const ALLOWED_ORIGINS = [
-		'http://localhost:1420',  // Tauri dev server
-		'tauri://localhost',      // Tauri production
-		'https://tauri.localhost' // Tauri production (alternative)
-	] as const;
 
 	// Map page names to URL paths
 	const pagePathMap = {
@@ -56,7 +47,7 @@
 			try {
 				const url = new URL(iframeElement.src);
 				iframeOrigin = url.origin;
-			} catch (e) {
+			} catch {
 				return;
 			}
 
@@ -91,7 +82,7 @@
 
 			iframeUrl = url.toString();
 			loadingState = 'loaded';
-		} catch (error) {
+		} catch {
 			loadingState = 'error';
 			errorMessage = 'Failed to load content. Please try again.';
 		}
@@ -106,7 +97,8 @@
 <button
 	class="absolute top-[86px] left-4 text-sm cursor-pointer z-10 flex items-center gap-2 text-white"
 	onclick={goBack}
-	title="Back to Logs">
+	title="Back to Logs"
+>
 	⬅️ Back to Logs
 </button>
 
@@ -223,7 +215,9 @@
 	{:else}
 		<div class="flex items-center justify-center h-full text-white/70">
 			<div class="text-center">
-				<div class="w-10 h-10 mx-auto mb-4 border-[3px] border-white/10 border-t-white rounded-full animate-spin"></div>
+				<div
+					class="w-10 h-10 mx-auto mb-4 border-[3px] border-white/10 border-t-white rounded-full animate-spin"
+				></div>
 				<p>Loading...</p>
 			</div>
 		</div>

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Group, GroupMember, Friend } from '../types';
+	import type { GroupMember, Friend } from '../types';
 	import { getAppContext } from '$lib/appContext.svelte';
 	import User from './User.svelte';
 	import Skeleton from './Skeleton.svelte';
@@ -30,9 +30,7 @@
 		}
 	}
 
-	let sortedGroups = $derived(
-		[...groups].sort((a, b) => a.name.localeCompare(b.name))
-	);
+	let sortedGroups = $derived([...groups].sort((a, b) => a.name.localeCompare(b.name)));
 
 	function getSortedMembers(groupId: string): GroupMember[] {
 		const members = groupMembers.get(groupId) || [];
@@ -60,9 +58,15 @@
 		<div class="flex flex-col px-1 pb-2 gap-2">
 			{#each sortedGroups as group (group.id)}
 				{@const isSelected = appCtx.selectedGroupId === group.id}
-				<div class="flex flex-col rounded-lg {isSelected ? 'ring-2 ring-blue-500' : ''} transition-colors">
+				<div
+					class="flex flex-col rounded-lg {isSelected
+						? 'ring-2 ring-blue-500'
+						: ''} transition-colors"
+				>
 					<button
-						class="group-card sticky top-0 z-10 flex items-center gap-3 p-2 {isSelected ? 'rounded-t-lg selected' : 'rounded-lg'} transition-colors"
+						class="group-card sticky top-0 z-10 flex items-center gap-3 p-2 {isSelected
+							? 'rounded-t-lg selected'
+							: 'rounded-lg'} transition-colors"
 						onclick={() => {
 							selectGroup(group.id);
 						}}
@@ -84,7 +88,9 @@
 									{group.name}
 								</span>
 								{#if group.memberRole === 'owner'}
-									<span class="text-[10px] uppercase tracking-wider text-yellow-500/80 flex-shrink-0">
+									<span
+										class="text-[10px] uppercase tracking-wider text-yellow-500/80 flex-shrink-0"
+									>
 										Owner
 									</span>
 								{:else if group.memberRole === 'admin'}
@@ -96,15 +102,18 @@
 							<div class="flex items-center gap-1 w-full overflow-hidden">
 								{#if group.tags && group.tags.length > 0}
 									<div class="flex items-center gap-1 min-w-0 flex-shrink overflow-hidden">
-										{#each group.tags as tag}
-											<span class="text-[10px] px-1.5 py-0.5 rounded bg-overlay-light text-white/60 whitespace-nowrap">
+										{#each group.tags as tag (tag)}
+											<span
+												class="text-[10px] px-1.5 py-0.5 rounded bg-overlay-light text-white/60 whitespace-nowrap"
+											>
 												{tag}
 											</span>
 										{/each}
 									</div>
 								{/if}
 								<span class="text-xs text-white/40 whitespace-nowrap flex-shrink-0">
-									{group.memberCount} {group.memberCount === 1 ? 'member' : 'members'}
+									{group.memberCount}
+									{group.memberCount === 1 ? 'member' : 'members'}
 								</span>
 							</div>
 						</div>

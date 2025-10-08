@@ -5,10 +5,32 @@
 
 import WebSocket from '@tauri-apps/plugin-websocket';
 
+// Tauri WebSocket message types
+export interface TauriWebSocketTextMessage {
+	type: 'Text';
+	data: string;
+}
+
+export interface TauriWebSocketCloseMessage {
+	type: 'Close' | 'close';
+	code?: number;
+	data?: {
+		code?: number;
+	};
+}
+
+export type TauriWebSocketMessage =
+	| TauriWebSocketTextMessage
+	| TauriWebSocketCloseMessage
+	| {
+			type: string;
+			data?: unknown;
+	  };
+
 export interface WebSocketConnectionOptions {
 	url: string;
 	timeout?: number;
-	onMessage?: (msg: any) => void | Promise<void>;
+	onMessage?: (msg: TauriWebSocketMessage) => void | Promise<void>;
 	onClose?: (code?: number) => void;
 }
 
@@ -35,25 +57,23 @@ export async function createWebSocketConnection(
 		const socket = await Promise.race([
 			WebSocket.connect(url),
 			new Promise<never>((_, reject) =>
-				setTimeout(
-					() => reject(new Error('Connection timeout - server is unreachable')),
-					timeout
-				)
+				setTimeout(() => reject(new Error('Connection timeout - server is unreachable')), timeout)
 			)
 		]);
 
 		// Set up message listener if provided
 		if (onMessage) {
-			socket.addListener(async (msg: any) => {
+			socket.addListener(async (msg: TauriWebSocketMessage) => {
 				await onMessage(msg);
 			});
 		}
 
 		// Set up close listener if provided
 		if (onClose) {
-			socket.addListener((msg: any) => {
+			socket.addListener((msg: TauriWebSocketMessage) => {
 				if (msg.type === 'Close' || msg.type === 'close') {
-					onClose(msg.code || msg.data?.code);
+					const closeMsg = msg as TauriWebSocketCloseMessage;
+					onClose(closeMsg.code || closeMsg.data?.code);
 				}
 			});
 		}
@@ -92,7 +112,7 @@ export async function createWebSocketConnection(
  */
 export async function sendJsonMessage(
 	socket: WebSocket,
-	data: any,
+	data: Record<string, unknown>,
 	timeout: number = DEFAULT_SEND_TIMEOUT
 ): Promise<void> {
 	await Promise.race([
@@ -106,12 +126,12 @@ export async function sendJsonMessage(
 /**
  * Extract message string from Tauri WebSocket format
  */
-export function extractMessageString(msg: any): string | null {
+export function extractMessageString(msg: TauriWebSocketMessage): string | null {
 	if (typeof msg === 'string') {
 		return msg;
-	} else if (msg.type === 'Text' && msg.data) {
+	} else if (msg.type === 'Text' && 'data' in msg && msg.data) {
 		return msg.data;
-	} else if (msg.data && typeof msg.data === 'string') {
+	} else if ('data' in msg && msg.data && typeof msg.data === 'string') {
 		return msg.data;
 	}
 	return null; // Skip non-text messages (ping/pong/etc)
@@ -120,7 +140,9 @@ export function extractMessageString(msg: any): string | null {
 /**
  * Parse JSON message from WebSocket
  */
-export function parseJsonMessage<T = any>(msg: any): T | null {
+export function parseJsonMessage<T = Record<string, unknown>>(
+	msg: TauriWebSocketMessage
+): T | null {
 	const messageStr = extractMessageString(msg);
 	if (!messageStr) return null;
 

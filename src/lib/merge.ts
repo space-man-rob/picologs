@@ -9,13 +9,13 @@ export function mergeFriends(existing: Friend[], fresh: Friend[]): Friend[] {
 
 	// Only process fresh data - server is source of truth
 	fresh.forEach((freshFriend) => {
-		const existingFriend = existing.find(f => f.id === freshFriend.id);
+		const existingFriend = existing.find((f) => f.id === freshFriend.id);
 
 		merged.set(freshFriend.id, {
 			...freshFriend,
 			// Preserve UI-specific state if it exists (e.g., isOnline, isConnected)
 			isOnline: existingFriend?.isOnline ?? freshFriend.isOnline,
-			isConnected: existingFriend?.isConnected ?? freshFriend.isConnected,
+			isConnected: existingFriend?.isConnected ?? freshFriend.isConnected
 		});
 	});
 
@@ -33,7 +33,7 @@ export function mergeGroups(existing: Group[], fresh: Group[]): Group[] {
 	// Only process fresh data - server is source of truth
 	fresh.forEach((freshGroup) => {
 		merged.set(freshGroup.id, {
-			...freshGroup,
+			...freshGroup
 			// Preserve any UI-only state if needed in the future
 		});
 	});
@@ -57,12 +57,12 @@ export function mergeGroupMembers(
 		const existingMembers = existing.get(groupId) || [];
 
 		// Preserve online/connected status for members if they exist
-		const mergedMembers = members.map(freshMember => {
-			const existingMember = existingMembers.find(m => m.discordId === freshMember.discordId);
+		const mergedMembers = members.map((freshMember) => {
+			const existingMember = existingMembers.find((m) => m.discordId === freshMember.discordId);
 			return {
 				...freshMember,
 				isOnline: existingMember?.isOnline ?? freshMember.isOnline,
-				isConnected: existingMember?.isConnected ?? freshMember.isConnected,
+				isConnected: existingMember?.isConnected ?? freshMember.isConnected
 			};
 		});
 

@@ -17,7 +17,7 @@ describe('WebSocket Integration', () => {
 				send: vi.fn(),
 				close: vi.fn(),
 				addEventListener: vi.fn(),
-				removeEventListener: vi.fn(),
+				removeEventListener: vi.fn()
 			};
 
 			global.WebSocket = vi.fn(() => mockWebSocket) as any;
@@ -32,7 +32,7 @@ describe('WebSocket Integration', () => {
 			const mockSend = vi.fn();
 			const mockWebSocket = {
 				send: mockSend,
-				addEventListener: vi.fn(),
+				addEventListener: vi.fn()
 			};
 
 			global.WebSocket = vi.fn(() => mockWebSocket) as any;
@@ -41,14 +41,14 @@ describe('WebSocket Integration', () => {
 			ws.send(
 				JSON.stringify({
 					type: 'register',
-					userId: 'user-123',
+					userId: 'user-123'
 				})
 			);
 
 			expect(mockSend).toHaveBeenCalledWith(
 				JSON.stringify({
 					type: 'register',
-					userId: 'user-123',
+					userId: 'user-123'
 				})
 			);
 		});
@@ -60,7 +60,7 @@ describe('WebSocket Integration', () => {
 					if (event === 'error') {
 						handler(new Event('error'));
 					}
-				}),
+				})
 			};
 
 			global.WebSocket = vi.fn(() => mockWebSocket) as any;
@@ -81,7 +81,7 @@ describe('WebSocket Integration', () => {
 			const mockSend = vi.fn();
 			const mockWebSocket = {
 				send: mockSend,
-				addEventListener: vi.fn(),
+				addEventListener: vi.fn()
 			};
 
 			global.WebSocket = vi.fn(() => mockWebSocket) as any;
@@ -95,8 +95,8 @@ describe('WebSocket Integration', () => {
 					emoji: '🛜',
 					line: 'Player connected',
 					timestamp: new Date().toISOString(),
-					original: '<2024.01.01-12:00:00.000> Connection',
-				},
+					original: '<2024.01.01-12:00:00.000> Connection'
+				}
 			};
 
 			ws.send(JSON.stringify(logMessage));
@@ -108,7 +108,7 @@ describe('WebSocket Integration', () => {
 			const mockSend = vi.fn();
 			const mockWebSocket = {
 				send: mockSend,
-				addEventListener: vi.fn(),
+				addEventListener: vi.fn()
 			};
 
 			global.WebSocket = vi.fn(() => mockWebSocket) as any;
@@ -122,16 +122,16 @@ describe('WebSocket Integration', () => {
 						userId: 'user-123',
 						emoji: '🛜',
 						line: 'Log 1',
-						timestamp: new Date().toISOString(),
+						timestamp: new Date().toISOString()
 					},
 					{
 						id: 'log-2',
 						userId: 'user-123',
 						emoji: '🛜',
 						line: 'Log 2',
-						timestamp: new Date().toISOString(),
-					},
-				],
+						timestamp: new Date().toISOString()
+					}
+				]
 			};
 
 			ws.send(JSON.stringify(batchMessage));
@@ -143,7 +143,7 @@ describe('WebSocket Integration', () => {
 			const mockSend = vi.fn();
 			const mockWebSocket = {
 				send: mockSend,
-				addEventListener: vi.fn(),
+				addEventListener: vi.fn()
 			};
 
 			global.WebSocket = vi.fn(() => mockWebSocket) as any;
@@ -151,7 +151,7 @@ describe('WebSocket Integration', () => {
 			const ws = new WebSocket('wss://test.com/ws');
 			const friendRequestMessage = {
 				type: 'friend_request_by_code',
-				friendCode: 'ABC123',
+				friendCode: 'ABC123'
 			};
 
 			ws.send(JSON.stringify(friendRequestMessage));
@@ -163,7 +163,7 @@ describe('WebSocket Integration', () => {
 			const mockSend = vi.fn();
 			const mockWebSocket = {
 				send: mockSend,
-				addEventListener: vi.fn(),
+				addEventListener: vi.fn()
 			};
 
 			global.WebSocket = vi.fn(() => mockWebSocket) as any;
@@ -174,7 +174,7 @@ describe('WebSocket Integration', () => {
 				userId: 'user-123',
 				playerName: 'TestPlayer',
 				playerId: 'sc-player-123',
-				timezone: 'America/New_York',
+				timezone: 'America/New_York'
 			};
 
 			ws.send(JSON.stringify(updateMessage));
@@ -186,7 +186,7 @@ describe('WebSocket Integration', () => {
 			const mockSend = vi.fn();
 			const mockWebSocket = {
 				send: mockSend,
-				addEventListener: vi.fn(),
+				addEventListener: vi.fn()
 			};
 
 			global.WebSocket = vi.fn(() => mockWebSocket) as any;
@@ -198,7 +198,7 @@ describe('WebSocket Integration', () => {
 				logs: [],
 				since: '2024-01-01T12:00:00.000Z',
 				limit: 100,
-				offset: 0,
+				offset: 0
 			};
 
 			ws.send(JSON.stringify(syncMessage));
@@ -209,15 +209,15 @@ describe('WebSocket Integration', () => {
 
 	describe('Message Receiving', () => {
 		it('should handle incoming log message', async () => {
-			let messageHandler: ((event: MessageEvent) => void) | null = null;
+			let messageHandler: ((event: MessageEvent) => void) | undefined;
 
 			const mockWebSocket = {
 				send: vi.fn(),
-				addEventListener: vi.fn((event, handler) => {
+				addEventListener: vi.fn((event: string, handler: any) => {
 					if (event === 'message') {
-						messageHandler = handler;
+						messageHandler = handler as (event: MessageEvent) => void;
 					}
-				}),
+				})
 			};
 
 			global.WebSocket = vi.fn(() => mockWebSocket) as any;
@@ -240,13 +240,13 @@ describe('WebSocket Integration', () => {
 					userId: 'friend-123',
 					emoji: '🛜',
 					line: 'Friend connected',
-					timestamp: new Date().toISOString(),
-				},
+					timestamp: new Date().toISOString()
+				}
 			};
 
 			messageHandler?.(
 				new MessageEvent('message', {
-					data: JSON.stringify(incomingLog),
+					data: JSON.stringify(incomingLog)
 				})
 			);
 
@@ -254,15 +254,15 @@ describe('WebSocket Integration', () => {
 		});
 
 		it('should handle friend_came_online message', async () => {
-			let messageHandler: ((event: MessageEvent) => void) | null = null;
+			let messageHandler: ((event: MessageEvent) => void) | undefined;
 
 			const mockWebSocket = {
 				send: vi.fn(),
-				addEventListener: vi.fn((event, handler) => {
+				addEventListener: vi.fn((event: string, handler: any) => {
 					if (event === 'message') {
-						messageHandler = handler;
+						messageHandler = handler as (event: MessageEvent) => void;
 					}
-				}),
+				})
 			};
 
 			global.WebSocket = vi.fn(() => mockWebSocket) as any;
@@ -281,8 +281,8 @@ describe('WebSocket Integration', () => {
 				new MessageEvent('message', {
 					data: JSON.stringify({
 						type: 'user_came_online',
-						userId: 'friend-123',
-					}),
+						userId: 'friend-123'
+					})
 				})
 			);
 
@@ -290,15 +290,15 @@ describe('WebSocket Integration', () => {
 		});
 
 		it('should handle friend_request_received message', async () => {
-			let messageHandler: ((event: MessageEvent) => void) | null = null;
+			let messageHandler: ((event: MessageEvent) => void) | undefined;
 
 			const mockWebSocket = {
 				send: vi.fn(),
-				addEventListener: vi.fn((event, handler) => {
+				addEventListener: vi.fn((event: string, handler: any) => {
 					if (event === 'message') {
-						messageHandler = handler;
+						messageHandler = handler as (event: MessageEvent) => void;
 					}
-				}),
+				})
 			};
 
 			global.WebSocket = vi.fn(() => mockWebSocket) as any;
@@ -318,8 +318,8 @@ describe('WebSocket Integration', () => {
 					data: JSON.stringify({
 						type: 'friend_request_received',
 						from: 'user-123',
-						friendCode: 'ABC123',
-					}),
+						friendCode: 'ABC123'
+					})
 				})
 			);
 
@@ -329,16 +329,16 @@ describe('WebSocket Integration', () => {
 
 	describe('Ping/Pong Keepalive', () => {
 		it('should respond to ping with pong', async () => {
-			let messageHandler: ((event: MessageEvent) => void) | null = null;
+			let messageHandler: ((event: MessageEvent) => void) | undefined;
 			const mockSend = vi.fn();
 
 			const mockWebSocket = {
 				send: mockSend,
-				addEventListener: vi.fn((event, handler) => {
+				addEventListener: vi.fn((event: string, handler: any) => {
 					if (event === 'message') {
-						messageHandler = handler;
+						messageHandler = handler as (event: MessageEvent) => void;
 					}
-				}),
+				})
 			};
 
 			global.WebSocket = vi.fn(() => mockWebSocket) as any;
@@ -355,7 +355,7 @@ describe('WebSocket Integration', () => {
 			// Simulate receiving a ping
 			messageHandler?.(
 				new MessageEvent('message', {
-					data: JSON.stringify({ type: 'ping' }),
+					data: JSON.stringify({ type: 'ping' })
 				})
 			);
 
@@ -365,15 +365,15 @@ describe('WebSocket Integration', () => {
 
 	describe('Error Handling', () => {
 		it('should handle malformed JSON messages', async () => {
-			let messageHandler: ((event: MessageEvent) => void) | null = null;
+			let messageHandler: ((event: MessageEvent) => void) | undefined;
 
 			const mockWebSocket = {
 				send: vi.fn(),
-				addEventListener: vi.fn((event, handler) => {
+				addEventListener: vi.fn((event: string, handler: any) => {
 					if (event === 'message') {
-						messageHandler = handler;
+						messageHandler = handler as (event: MessageEvent) => void;
 					}
-				}),
+				})
 			};
 
 			global.WebSocket = vi.fn(() => mockWebSocket) as any;
@@ -391,7 +391,7 @@ describe('WebSocket Integration', () => {
 
 			messageHandler?.(
 				new MessageEvent('message', {
-					data: 'invalid json{',
+					data: 'invalid json{'
 				})
 			);
 
@@ -399,15 +399,15 @@ describe('WebSocket Integration', () => {
 		});
 
 		it('should handle connection close gracefully', async () => {
-			let closeHandler: ((event: CloseEvent) => void) | null = null;
+			let closeHandler: ((event: CloseEvent) => void) | undefined;
 
 			const mockWebSocket = {
 				send: vi.fn(),
-				addEventListener: vi.fn((event, handler) => {
+				addEventListener: vi.fn((event: string, handler: any) => {
 					if (event === 'close') {
-						closeHandler = handler;
+						closeHandler = handler as (event: CloseEvent) => void;
 					}
-				}),
+				})
 			};
 
 			global.WebSocket = vi.fn(() => mockWebSocket) as any;
@@ -430,7 +430,7 @@ describe('WebSocket Integration', () => {
 			const mockSend = vi.fn();
 			const mockWebSocket = {
 				send: mockSend,
-				addEventListener: vi.fn(),
+				addEventListener: vi.fn()
 			};
 
 			global.WebSocket = vi.fn(() => mockWebSocket) as any;
@@ -441,7 +441,7 @@ describe('WebSocket Integration', () => {
 			const largeMessage = {
 				type: 'batch_logs',
 				compressed: true,
-				compressedData: 'base64-encoded-compressed-data',
+				compressedData: 'base64-encoded-compressed-data'
 			};
 
 			ws.send(JSON.stringify(largeMessage));
@@ -455,7 +455,7 @@ describe('WebSocket Integration', () => {
 			const mockSend = vi.fn();
 			const mockWebSocket = {
 				send: mockSend,
-				addEventListener: vi.fn(),
+				addEventListener: vi.fn()
 			};
 
 			global.WebSocket = vi.fn(() => mockWebSocket) as any;
@@ -470,9 +470,9 @@ describe('WebSocket Integration', () => {
 						userId: 'user-123',
 						emoji: '🛜',
 						line: 'Group log',
-						timestamp: new Date().toISOString(),
-					},
-				],
+						timestamp: new Date().toISOString()
+					}
+				]
 			};
 
 			ws.send(JSON.stringify(groupMessage));

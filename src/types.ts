@@ -57,7 +57,7 @@ export type RecentEvent = {
 	timestamp: string;
 	player: string;
 	emoji: string;
-	metadata: {};
+	metadata: Record<string, unknown>;
 };
 
 export type LogLine = {
@@ -132,6 +132,7 @@ export type GroupMember = {
 	avatar?: string;
 	player?: string;
 	role: string;
+	usePlayerAsDisplayName?: boolean;
 	isOnline?: boolean;
 	isConnected?: boolean;
 };

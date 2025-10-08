@@ -5,7 +5,17 @@
 	import { Store, load as loadStore } from '@tauri-apps/plugin-store'; // Renamed load to avoid conflict with any Svelte load
 
 	// --- Props ---
-	let { leftPanel, rightPanel, initialLeftWidth = 230, initialRightWidth = 500 }: { leftPanel: Snippet, rightPanel: Snippet, initialLeftWidth?: number, initialRightWidth?: number } = $props();
+	let {
+		leftPanel,
+		rightPanel,
+		initialLeftWidth = 230,
+		initialRightWidth = 500
+	}: {
+		leftPanel: Snippet;
+		rightPanel: Snippet;
+		initialLeftWidth?: number;
+		initialRightWidth?: number;
+	} = $props();
 
 	// --- TypeScript Interfaces ---
 	interface Column {
@@ -15,7 +25,6 @@
 		collapsed: boolean;
 	}
 
-	
 	// --- Svelte 5 Runes for State ---
 	let columns = $state<Column[]>([
 		{ id: 'col1', width: initialLeftWidth, content: leftPanel, collapsed: false },
@@ -65,12 +74,16 @@
 		let newLeftWidth = initialLeftColWidth + deltaX;
 		let newRightWidth = 0; // This will be calculated based on total width and newLeftWidth
 
-		const totalWidth = gridContainerRef ? gridContainerRef.offsetWidth : (initialLeftColWidth + initialRightColWidth + resizerWidth);
+		const totalWidth = gridContainerRef
+			? gridContainerRef.offsetWidth
+			: initialLeftColWidth + initialRightColWidth + resizerWidth;
 
 		// Snap logic
-		if (newLeftWidth < snapThreshold && deltaX < 0) { // Attempting to collapse left panel
+		if (newLeftWidth < snapThreshold && deltaX < 0) {
+			// Attempting to collapse left panel
 			newLeftWidth = 0;
-		} else if (totalWidth - newLeftWidth - resizerWidth < snapThreshold && deltaX > 0) { // Attempting to collapse right panel by dragging resizer to the right
+		} else if (totalWidth - newLeftWidth - resizerWidth < snapThreshold && deltaX > 0) {
+			// Attempting to collapse right panel by dragging resizer to the right
 			newLeftWidth = totalWidth - resizerWidth; // Left panel takes all available space minus resizer
 		} else {
 			// Apply minimum width constraints if not snapping to zero
@@ -149,8 +162,14 @@
 			const loadedRightWidth = await store.get<number>(RIGHT_WIDTH_KEY);
 
 			// Use loaded values if they exist and are valid numbers, otherwise use initial props
-			const newLeftWidth = (loadedLeftWidth !== null && typeof loadedLeftWidth === 'number') ? loadedLeftWidth : initialLeftWidth;
-			const newRightWidth = (loadedRightWidth !== null && typeof loadedRightWidth === 'number') ? loadedRightWidth : initialRightWidth;
+			const newLeftWidth =
+				loadedLeftWidth !== null && typeof loadedLeftWidth === 'number'
+					? loadedLeftWidth
+					: initialLeftWidth;
+			const newRightWidth =
+				loadedRightWidth !== null && typeof loadedRightWidth === 'number'
+					? loadedRightWidth
+					: initialRightWidth;
 
 			columns[0].width = newLeftWidth;
 			columns[1].width = newRightWidth;
@@ -158,8 +177,7 @@
 			// Recalculate collapsed state based on loaded/defaulted widths
 			columns[0].collapsed = newLeftWidth === 0;
 			columns[1].collapsed = newRightWidth < minColumnWidth;
-
-		} catch (error) {
+		} catch {
 			// Fallback to initial props if store interaction fails or store is new
 			columns[0].width = initialLeftWidth;
 			columns[1].width = initialRightWidth;
@@ -170,7 +188,7 @@
 			if (!store) {
 				try {
 					store = await loadStore(STORE_FILE_NAME, { defaults: {}, autoSave: 200 });
-				} catch (e) {
+				} catch {
 					// Silent failure - will use defaults
 				}
 			}
@@ -183,9 +201,14 @@
 	<div
 		class="grid gap-0 grid-rows-[1fr] overflow-hidden h-full {isDragging ? 'dragging' : ''}"
 		bind:this={gridContainerRef}
-		style:grid-template-columns={gridTemplateColumnsStyle}>
+		style:grid-template-columns={gridTemplateColumnsStyle}
+	>
 		{#each columns as col, i (col.id)}
-			<div class="flex overflow-hidden transition-[padding,font-size] duration-100 ease-out h-full {col.collapsed ? '!p-0 !text-[0px]' : ''}">
+			<div
+				class="flex overflow-hidden transition-[padding,font-size] duration-100 ease-out h-full {col.collapsed
+					? '!p-0 !text-[0px]'
+					: ''}"
+			>
 				{#if !col.collapsed}
 					<div class="overflow-auto w-full h-full box-border">
 						{@render col.content()}
@@ -199,7 +222,8 @@
 				<button
 					class="bg-transparent cursor-ew-resize select-none transition-colors duration-200 z-10 hover:bg-white/40"
 					onmousedown={(event) => handleResizerMouseDown(event, i)}
-					aria-label={`Resize columns ${col.id} and ${columns[i + 1].id}`}>
+					aria-label={`Resize columns ${col.id} and ${columns[i + 1].id}`}
+				>
 				</button>
 			{/if}
 		{/each}

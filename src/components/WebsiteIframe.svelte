@@ -14,7 +14,9 @@
 	let isDev = $state(false);
 
 	// Determine website URL based on environment
-	const websiteUrl = $derived(isDev ? import.meta.env.VITE_WEBSITE_URL_DEV : import.meta.env.VITE_WEBSITE_URL_PROD);
+	const websiteUrl = $derived(
+		isDev ? import.meta.env.VITE_WEBSITE_URL_DEV : import.meta.env.VITE_WEBSITE_URL_PROD
+	);
 
 	onMount(() => {
 		// Check if we're in development mode
@@ -30,13 +32,16 @@
 
 	function handleMessage(event: MessageEvent) {
 		// Security: Verify origin
-		const allowedOrigins = [import.meta.env.VITE_WEBSITE_URL_PROD, import.meta.env.VITE_WEBSITE_URL_DEV];
+		const allowedOrigins = [
+			import.meta.env.VITE_WEBSITE_URL_PROD,
+			import.meta.env.VITE_WEBSITE_URL_DEV
+		];
 		if (!allowedOrigins.includes(event.origin)) {
 			return;
 		}
 
 		// Handle messages from website iframe
-		const { type, data } = event.data;
+		const { type } = event.data;
 
 		switch (type) {
 			case 'iframe_ready':
@@ -90,8 +95,12 @@
 
 <div class="relative w-full h-full min-h-[400px]" style="background: var(--color-bg-dark);">
 	{#if isLoading}
-		<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center text-white z-10">
-			<div class="w-10 h-10 mx-auto mb-4 border-[3px] border-white/10 border-t-white rounded-full animate-spin"></div>
+		<div
+			class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center text-white z-10"
+		>
+			<div
+				class="w-10 h-10 mx-auto mb-4 border-[3px] border-white/10 border-t-white rounded-full animate-spin"
+			></div>
 			<p class="m-0 text-sm opacity-70">Loading Friends & Groups...</p>
 		</div>
 	{/if}

@@ -55,7 +55,7 @@ export async function loadCachedFriends(): Promise<Friend[]> {
 		const store = await load(CACHE_STORE, { defaults: {}, autoSave: false });
 		const cached = await store.get<CacheData<Friend[]>>('friends_cache');
 		return cached?.data || [];
-	} catch (error) {
+	} catch {
 		return [];
 	}
 }
@@ -79,7 +79,7 @@ export async function saveFriendsCache(friends: Friend[]): Promise<void> {
 			data: friends,
 			timestamp: new Date().toISOString()
 		});
-	} catch (error) {
+	} catch {
 		// Silently fail
 	}
 }
@@ -101,7 +101,7 @@ export async function loadCachedGroups(): Promise<Group[]> {
 		const store = await load(CACHE_STORE, { defaults: {}, autoSave: false });
 		const cached = await store.get<CacheData<Group[]>>('groups_cache');
 		return cached?.data || [];
-	} catch (error) {
+	} catch {
 		return [];
 	}
 }
@@ -125,7 +125,7 @@ export async function saveGroupsCache(groups: Group[]): Promise<void> {
 			data: groups,
 			timestamp: new Date().toISOString()
 		});
-	} catch (error) {
+	} catch {
 		// Silently fail
 	}
 }
@@ -153,7 +153,7 @@ export async function loadCachedGroupMembers(): Promise<Map<string, GroupMember[
 			return new Map(Object.entries(cached.data));
 		}
 		return new Map();
-	} catch (error) {
+	} catch {
 		return new Map();
 	}
 }
@@ -172,7 +172,9 @@ export async function loadCachedGroupMembers(): Promise<Map<string, GroupMember[
  * await saveGroupMembersCache(groupMembers);
  * ```
  */
-export async function saveGroupMembersCache(groupMembers: Map<string, GroupMember[]>): Promise<void> {
+export async function saveGroupMembersCache(
+	groupMembers: Map<string, GroupMember[]>
+): Promise<void> {
 	try {
 		const store = await load(CACHE_STORE, { defaults: {}, autoSave: 100 });
 		// Convert Map to plain object for storage
@@ -180,7 +182,7 @@ export async function saveGroupMembersCache(groupMembers: Map<string, GroupMembe
 			data: Object.fromEntries(groupMembers),
 			timestamp: new Date().toISOString()
 		});
-	} catch (error) {
+	} catch {
 		// Silently fail
 	}
 }
@@ -202,7 +204,7 @@ export async function clearAllCache(): Promise<void> {
 	try {
 		const store = await load(CACHE_STORE, { defaults: {}, autoSave: 100 });
 		await store.clear();
-	} catch (error) {
+	} catch {
 		// Silently fail
 	}
 }

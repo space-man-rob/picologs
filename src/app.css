@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @layer base {
 	:root {
@@ -13,8 +13,8 @@
 		--color-danger: #f44336;
 		--color-danger-dark: #d32f2f;
 		--color-warning: #ff9800;
-		--color-discord: #5865F2;
-		--color-discord-hover: #4752C4;
+		--color-discord: #5865f2;
+		--color-discord-hover: #4752c4;
 
 		/* White overlays */
 		--color-white-5: rgba(255, 255, 255, 0.05);
@@ -49,7 +49,8 @@
 		box-sizing: border-box;
 	}
 
-	html, body {
+	html,
+	body {
 		overflow-x: hidden;
 		width: 100%;
 		margin: 0;

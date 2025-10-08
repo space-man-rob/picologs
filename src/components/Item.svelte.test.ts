@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from 'vitest-browser-svelte';
+import { render } from 'vitest-browser-svelte';
 import Item from './Item.svelte';
 import type { Log } from '../types';
 
@@ -8,7 +8,7 @@ describe('Item Component', () => {
 	vi.mock('date-fns', () => ({
 		formatDistance: vi.fn((date: Date, baseDate: Date, options?: any) => {
 			return '5 minutes ago';
-		}),
+		})
 	}));
 
 	beforeEach(() => {
@@ -17,63 +17,61 @@ describe('Item Component', () => {
 
 	describe('Basic Rendering', () => {
 		it('should render log item with emoji and line', async () => {
-			const log: Partial<Log> = {
+			const screen = render(Item, {
 				emoji: '🛜',
 				line: 'TestPlayer connected to the game',
 				timestamp: new Date().toISOString(),
 				original: '<2024.01.01-12:00:00.000> Connection log',
 				player: 'TestPlayer',
-				open: false,
-			};
-
-			render(Item, { ...log });
+				open: false
+			});
 
 			expect(screen.getByText('🛜')).toBeTruthy();
 			expect(screen.getByText('TestPlayer connected to the game')).toBeTruthy();
 		});
 
 		it('should display formatted timestamp', async () => {
-			const log: Partial<Log> = {
+			const props = {
 				emoji: '🛜',
 				line: 'Test log entry',
 				timestamp: new Date().toISOString(),
 				original: '<2024.01.01-12:00:00.000> Test log',
 				player: 'TestPlayer',
-				open: false,
+				open: false
 			};
 
-			render(Item, { ...log });
+			const screen = render(Item, props);
 
 			expect(screen.getByText(/5 minutes ago/)).toBeTruthy();
 		});
 
 		it('should display player name in metadata', async () => {
-			const log: Partial<Log> = {
+			const props = {
 				emoji: '🛜',
 				line: 'Test log entry',
 				timestamp: new Date().toISOString(),
 				original: '<2024.01.01-12:00:00.000> Test log',
 				player: 'TestPlayer',
-				open: false,
+				open: false
 			};
 
-			render(Item, { ...log });
+			const screen = render(Item, props);
 
 			expect(screen.getByText(/TestPlayer/)).toBeTruthy();
 		});
 
 		it('should display reportedBy when provided', async () => {
-			const log: Partial<Log> = {
+			const props = {
 				emoji: '🛜',
 				line: 'Test log entry',
 				timestamp: new Date().toISOString(),
 				original: '<2024.01.01-12:00:00.000> Test log',
 				player: 'TestPlayer',
 				reportedBy: ['FriendPlayer'],
-				open: false,
+				open: false
 			};
 
-			render(Item, { ...log });
+			const screen = render(Item, props);
 
 			expect(screen.getByText(/FriendPlayer/)).toBeTruthy();
 		});
@@ -81,7 +79,7 @@ describe('Item Component', () => {
 
 	describe('Actor Death Event Type', () => {
 		it('should render actor death event correctly', async () => {
-			const log: Partial<Log> = {
+			const props = {
 				emoji: '😵',
 				line: 'TestPlayer killed by EnemyPlayer',
 				timestamp: new Date().toISOString(),
@@ -96,18 +94,18 @@ describe('Item Component', () => {
 					killerName: 'EnemyPlayer',
 					killerId: '67890',
 					weaponClass: 'Ballistic_Rifle',
-					damageType: 'Ballistic',
-				},
+					damageType: 'Ballistic'
+				}
 			};
 
-			render(Item, { ...log });
+			const screen = render(Item, props);
 
 			expect(screen.getByText(/TestPlayer was killed/)).toBeTruthy();
 			expect(screen.getByText(/EnemyPlayer/)).toBeTruthy();
 		});
 
 		it('should render suicide event', async () => {
-			const log: Partial<Log> = {
+			const props = {
 				emoji: '😵',
 				line: 'TestPlayer committed suicide',
 				timestamp: new Date().toISOString(),
@@ -121,17 +119,17 @@ describe('Item Component', () => {
 					zone: 'Stanton_Unknown',
 					killerName: 'TestPlayer',
 					killerId: '12345',
-					damageType: 'Suicide',
-				},
+					damageType: 'Suicide'
+				}
 			};
 
-			render(Item, { ...log });
+			const screen = render(Item, props);
 
 			expect(screen.getByText(/committed suicide/)).toBeTruthy();
 		});
 
 		it('should render self-destruct event', async () => {
-			const log: Partial<Log> = {
+			const props = {
 				emoji: '💥',
 				line: 'TestPlayer killed by self-destruct',
 				timestamp: new Date().toISOString(),
@@ -145,17 +143,17 @@ describe('Item Component', () => {
 					zone: 'Gladius_Unknown',
 					killerName: 'EnemyPlayer',
 					killerId: '67890',
-					damageType: 'SelfDestruct',
-				},
+					damageType: 'SelfDestruct'
+				}
 			};
 
-			render(Item, { ...log });
+			const screen = render(Item, props);
 
 			expect(screen.getByText(/self destructed/)).toBeTruthy();
 		});
 
 		it('should check and display NPC victim name', async () => {
-			const log: Partial<Log> = {
+			const props = {
 				emoji: '🗡️',
 				line: 'NPC killed',
 				timestamp: new Date().toISOString(),
@@ -169,11 +167,11 @@ describe('Item Component', () => {
 					zone: 'Stanton_Unknown',
 					killerName: 'TestPlayer',
 					killerId: '67890',
-					damageType: 'Ballistic',
-				},
+					damageType: 'Ballistic'
+				}
 			};
 
-			render(Item, { ...log });
+			const screen = render(Item, props);
 
 			expect(screen.getByText(/NPC was killed/)).toBeTruthy();
 		});
@@ -181,7 +179,7 @@ describe('Item Component', () => {
 
 	describe('Vehicle Control Flow Event Type', () => {
 		it('should render vehicle control event', async () => {
-			const log: Partial<Log> = {
+			const props = {
 				emoji: '🚀',
 				line: 'TestPlayer boarded AEGS_Gladius',
 				timestamp: new Date().toISOString(),
@@ -190,11 +188,11 @@ describe('Item Component', () => {
 				open: false,
 				eventType: 'vehicle_control_flow',
 				metadata: {
-					vehicleName: 'AEGS_Gladius_12345',
-				},
+					vehicleName: 'AEGS_Gladius_12345'
+				}
 			};
 
-			render(Item, { ...log });
+			const screen = render(Item, props);
 
 			expect(screen.getByText(/TestPlayer controls a/)).toBeTruthy();
 		});
@@ -202,34 +200,34 @@ describe('Item Component', () => {
 
 	describe('Killing Spree Event Type', () => {
 		it('should render killing spree with special styling', async () => {
-			const log: Partial<Log> = {
+			const props = {
 				emoji: '🎯',
 				line: 'TestPlayer is on a killing spree (5 kills)',
 				timestamp: new Date().toISOString(),
 				original: '<2024.01.01-12:00:00.000> Killing spree',
 				player: 'TestPlayer',
 				open: false,
-				eventType: 'killing_spree',
+				eventType: 'killing_spree'
 			};
 
-			const { container } = render(Item, { ...log });
+			const screen = render(Item, props);
 
 			expect(screen.getByText(/killing spree/)).toBeTruthy();
-			expect(container.querySelector('.bg-red-500\\/10')).toBeTruthy();
+			expect(screen.container.querySelector('.bg-red-500\\/10')).toBeTruthy();
 		});
 
 		it('should show expand/collapse indicator for killing spree', async () => {
-			const log: Partial<Log> = {
+			const props = {
 				emoji: '🎯',
 				line: 'TestPlayer is on a killing spree (5 kills)',
 				timestamp: new Date().toISOString(),
 				original: '<2024.01.01-12:00:00.000> Killing spree',
 				player: 'TestPlayer',
 				open: false,
-				eventType: 'killing_spree',
+				eventType: 'killing_spree'
 			};
 
-			render(Item, { ...log });
+			const screen = render(Item, props);
 
 			expect(screen.getByText('▶')).toBeTruthy();
 		});
@@ -237,7 +235,7 @@ describe('Item Component', () => {
 
 	describe('Location Change Event Type', () => {
 		it('should render location change event', async () => {
-			const log: Partial<Log> = {
+			const props = {
 				emoji: '🔍',
 				line: 'TestPlayer requested inventory',
 				timestamp: new Date().toISOString(),
@@ -246,11 +244,11 @@ describe('Item Component', () => {
 				open: false,
 				eventType: 'location_change',
 				metadata: {
-					location: 'Port_Olisar',
-				},
+					location: 'Port_Olisar'
+				}
 			};
 
-			render(Item, { ...log });
+			const screen = render(Item, props);
 
 			expect(screen.getByText(/requested inventory in Port Olisar/)).toBeTruthy();
 		});
@@ -258,17 +256,17 @@ describe('Item Component', () => {
 
 	describe('System Quit Event Type', () => {
 		it('should render system quit event', async () => {
-			const log: Partial<Log> = {
+			const props = {
 				emoji: '👋',
 				line: 'TestPlayer quit the game',
 				timestamp: new Date().toISOString(),
 				original: '<2024.01.01-12:00:00.000> System quit',
 				player: 'TestPlayer',
 				open: false,
-				eventType: 'system_quit',
+				eventType: 'system_quit'
 			};
 
-			render(Item, { ...log });
+			const screen = render(Item, props);
 
 			expect(screen.getByText(/left the game/)).toBeTruthy();
 		});
@@ -276,7 +274,7 @@ describe('Item Component', () => {
 
 	describe('Destruction Event Type', () => {
 		it('should render destruction event', async () => {
-			const log: Partial<Log> = {
+			const props = {
 				emoji: '💥',
 				line: 'Gladius destroyed',
 				timestamp: new Date().toISOString(),
@@ -287,11 +285,11 @@ describe('Item Component', () => {
 				metadata: {
 					vehicleName: 'AEGS_Gladius_12345',
 					causeName: 'EnemyPlayer',
-					destroyLevelTo: '2',
-				},
+					destroyLevelTo: '2'
+				}
 			};
 
-			render(Item, { ...log });
+			const screen = render(Item, props);
 
 			expect(screen.getByText('💥')).toBeTruthy();
 		});
@@ -299,18 +297,18 @@ describe('Item Component', () => {
 
 	describe('Interactive Features', () => {
 		it('should toggle open state when clicked', async () => {
-			const log: Partial<Log> = {
+			const props = {
 				emoji: '🛜',
 				line: 'Test log entry',
 				timestamp: new Date().toISOString(),
 				original: '<2024.01.01-12:00:00.000> Original log text for testing',
 				player: 'TestPlayer',
-				open: false,
+				open: false
 			};
 
-			const { component, container } = render(Item, { ...log });
+			const screen = render(Item, props);
 
-			const button = container.querySelector('button');
+			const button = screen.container.querySelector('button');
 			expect(button).toBeTruthy();
 
 			// Click to open
@@ -321,38 +319,41 @@ describe('Item Component', () => {
 		});
 
 		it('should not show original text when closed', async () => {
-			const log: Partial<Log> = {
+			const props = {
 				emoji: '🛜',
 				line: 'Test log entry',
 				timestamp: new Date().toISOString(),
 				original: '<2024.01.01-12:00:00.000> Original log text that should be hidden',
 				player: 'TestPlayer',
-				open: false,
+				open: false
 			};
 
-			render(Item, { ...log });
+			const screen = render(Item, props);
 
 			// Original text should not be visible when closed
-			expect(screen.queryByText(/Original log text that should be hidden/)).toBeNull();
+			const hiddenText = screen.container.textContent?.includes(
+				'Original log text that should be hidden'
+			);
+			expect(hiddenText).toBe(false);
 		});
 	});
 
 	describe('Child Item Rendering', () => {
 		it('should render as child item with smaller text', async () => {
-			const log: Partial<Log> = {
+			const props = {
 				emoji: '🗡️',
 				line: 'Kill #1',
 				timestamp: new Date().toISOString(),
 				original: '<2024.01.01-12:00:00.000> Kill log',
 				player: 'TestPlayer',
 				open: false,
-				child: true,
+				child: true
 			};
 
-			const { container } = render(Item, { ...log, child: true });
+			const screen = render(Item, props);
 
 			// Child items should have smaller emoji (text-xs class)
-			const emojiContainer = container.querySelector('.text-xs');
+			const emojiContainer = screen.container.querySelector('.text-xs');
 			expect(emojiContainer).toBeTruthy();
 		});
 	});
@@ -360,7 +361,7 @@ describe('Item Component', () => {
 	describe('Helper Functions', () => {
 		it('should convert camel case to words', () => {
 			// This tests the convertCamelCaseToWords function indirectly
-			const log: Partial<Log> = {
+			const props = {
 				emoji: '😵',
 				line: 'Death by vehicle destruction',
 				timestamp: new Date().toISOString(),
@@ -374,11 +375,11 @@ describe('Item Component', () => {
 					zone: 'Stanton_Unknown',
 					killerName: 'EnemyPlayer',
 					killerId: '67890',
-					damageType: 'VehicleDestruction',
-				},
+					damageType: 'VehicleDestruction'
+				}
 			};
 
-			render(Item, { ...log });
+			const screen = render(Item, props);
 
 			// Should convert 'VehicleDestruction' to 'vehicle destruction'
 			expect(screen.getByText(/vehicle destruction/)).toBeTruthy();
@@ -387,33 +388,34 @@ describe('Item Component', () => {
 
 	describe('Clipboard Copy', () => {
 		it('should show copy button when item is open', async () => {
-			const log: Partial<Log> = {
+			const props = {
 				emoji: '🛜',
 				line: 'Test log entry',
 				timestamp: new Date().toISOString(),
 				original: '<2024.01.01-12:00:00.000> Test original log',
 				player: 'TestPlayer',
-				open: true,
+				open: true
 			};
 
-			render(Item, { ...log });
+			const screen = render(Item, props);
 
 			expect(screen.getByText('📋')).toBeTruthy();
 		});
 
 		it('should not show copy button when item is closed', async () => {
-			const log: Partial<Log> = {
+			const props = {
 				emoji: '🛜',
 				line: 'Test log entry',
 				timestamp: new Date().toISOString(),
 				original: '<2024.01.01-12:00:00.000> Test original log',
 				player: 'TestPlayer',
-				open: false,
+				open: false
 			};
 
-			render(Item, { ...log });
+			const screen = render(Item, props);
 
-			expect(screen.queryByText('📋')).toBeNull();
+			const hasCopyButton = screen.container.textContent?.includes('📋');
+			expect(hasCopyButton).toBe(false);
 		});
 	});
 });

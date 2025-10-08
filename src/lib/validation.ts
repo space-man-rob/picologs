@@ -111,7 +111,12 @@ export const AuthCompleteSchema = z.object({
  * Refetch message schemas
  */
 export const RefetchSchema = z.object({
-	type: z.enum(['refetch_friends', 'refetch_friend_requests', 'refetch_groups', 'refetch_group_invitations']),
+	type: z.enum([
+		'refetch_friends',
+		'refetch_friend_requests',
+		'refetch_groups',
+		'refetch_group_invitations'
+	])
 });
 
 /**
@@ -141,7 +146,7 @@ export const RegisteredSchema = z.object({
  * Validate a WebSocket message against its schema
  * Returns validated data on success, null on failure
  */
-export function validateMessage<T>(schema: z.ZodSchema<T>, message: any): T | null {
+export function validateMessage<T>(schema: z.ZodSchema<T>, message: unknown): T | null {
 	try {
 		return schema.parse(message);
 	} catch (error) {

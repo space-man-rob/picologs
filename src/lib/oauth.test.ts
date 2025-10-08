@@ -11,11 +11,11 @@ const mockStore = {
 	get: vi.fn(),
 	set: vi.fn(),
 	clear: vi.fn(),
-	save: vi.fn(),
+	save: vi.fn()
 };
 
 vi.mock('@tauri-apps/plugin-store', () => ({
-	load: vi.fn(async () => mockStore),
+	load: vi.fn(async () => mockStore)
 }));
 
 describe('OAuth Utilities', () => {
@@ -34,8 +34,8 @@ describe('OAuth Utilities', () => {
 				user: {
 					discordId: 'discord-123',
 					username: 'TestUser',
-					avatar: 'avatar-hash',
-				},
+					avatar: 'avatar-hash'
+				}
 			};
 
 			await handleAuthComplete(authData);
@@ -46,7 +46,7 @@ describe('OAuth Utilities', () => {
 				username: 'TestUser',
 				discriminator: '0',
 				avatar: 'avatar-hash',
-				global_name: 'TestUser',
+				global_name: 'TestUser'
 			});
 		});
 
@@ -56,8 +56,8 @@ describe('OAuth Utilities', () => {
 				user: {
 					discordId: 'discord-123',
 					username: 'TestUser',
-					avatar: null,
-				},
+					avatar: null
+				}
 			};
 
 			await handleAuthComplete(authData);
@@ -67,7 +67,7 @@ describe('OAuth Utilities', () => {
 				username: 'TestUser',
 				discriminator: '0',
 				avatar: null,
-				global_name: 'TestUser',
+				global_name: 'TestUser'
 			});
 		});
 
@@ -79,8 +79,8 @@ describe('OAuth Utilities', () => {
 				user: {
 					discordId: 'discord-123',
 					username: 'TestUser',
-					avatar: null,
-				},
+					avatar: null
+				}
 			};
 
 			await expect(handleAuthComplete(authData)).rejects.toThrow('Storage error');
@@ -92,8 +92,8 @@ describe('OAuth Utilities', () => {
 				user: {
 					discordId: 'discord-123',
 					username: 'TestUser',
-					avatar: null,
-				},
+					avatar: null
+				}
 			};
 
 			await handleAuthComplete(authData);
@@ -130,7 +130,7 @@ describe('OAuth Utilities', () => {
 						username: 'TestUser',
 						discriminator: '0',
 						avatar: null,
-						global_name: 'TestUser',
+						global_name: 'TestUser'
 					};
 				return null;
 			});
@@ -151,7 +151,7 @@ describe('OAuth Utilities', () => {
 				username: 'TestUser',
 				discriminator: '0',
 				avatar: null,
-				global_name: 'TestUser',
+				global_name: 'TestUser'
 			};
 
 			mockStore.get.mockImplementation(async (key: string) => {
@@ -178,7 +178,7 @@ describe('OAuth Utilities', () => {
 				username: 'TestUser',
 				discriminator: '0',
 				avatar: null,
-				global_name: 'TestUser',
+				global_name: 'TestUser'
 			};
 
 			mockStore.get.mockImplementation(async (key: string) => {
@@ -202,7 +202,7 @@ describe('OAuth Utilities', () => {
 						username: 'TestUser',
 						discriminator: '0',
 						avatar: null,
-						global_name: 'TestUser',
+						global_name: 'TestUser'
 					};
 				return null;
 			});
@@ -223,7 +223,7 @@ describe('OAuth Utilities', () => {
 						username: 'TestUser',
 						discriminator: '0',
 						avatar: null,
-						global_name: 'TestUser',
+						global_name: 'TestUser'
 					};
 				return null;
 			});
@@ -243,7 +243,7 @@ describe('OAuth Utilities', () => {
 				username: 'TestUser',
 				discriminator: '0',
 				avatar: null,
-				global_name: 'TestUser',
+				global_name: 'TestUser'
 			};
 
 			mockStore.get.mockImplementation(async (key: string) => {
@@ -440,15 +440,15 @@ describe('OAuth Utilities', () => {
 				user: {
 					discordId: 'discord-123',
 					username: 'TestUser',
-					avatar: null,
-				},
+					avatar: null
+				}
 			};
 
 			// Simulate concurrent auth complete calls
 			await Promise.all([
 				handleAuthComplete(authData),
 				handleAuthComplete(authData),
-				handleAuthComplete(authData),
+				handleAuthComplete(authData)
 			]);
 
 			// Should complete without errors
@@ -459,7 +459,7 @@ describe('OAuth Utilities', () => {
 			const longPayload = JSON.stringify({
 				sub: '123',
 				exp: Math.floor(Date.now() / 1000) + 3600,
-				data: 'x'.repeat(10000),
+				data: 'x'.repeat(10000)
 			});
 			const longJWT = `header.${btoa(longPayload)}.signature`;
 
@@ -478,7 +478,7 @@ describe('OAuth Utilities', () => {
 				iat: Math.floor(Date.now() / 1000),
 				aud: 'picologs',
 				iss: 'auth-server',
-				customClaim: 'custom-value',
+				customClaim: 'custom-value'
 			});
 			const jwtWithClaims = `header.${btoa(payload)}.signature`;
 
@@ -495,8 +495,8 @@ describe('OAuth Utilities', () => {
 				user: {
 					discordId: 'discord-123',
 					username: 'User™©®_Special-Name.123',
-					avatar: null,
-				},
+					avatar: null
+				}
 			};
 
 			await handleAuthComplete(authData);
@@ -506,7 +506,7 @@ describe('OAuth Utilities', () => {
 				username: 'User™©®_Special-Name.123',
 				discriminator: '0',
 				avatar: null,
-				global_name: 'User™©®_Special-Name.123',
+				global_name: 'User™©®_Special-Name.123'
 			});
 		});
 	});

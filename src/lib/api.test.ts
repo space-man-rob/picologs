@@ -14,11 +14,12 @@ describe('WebSocket API Types', () => {
 				createdAt: '2024-01-01T00:00:00Z',
 				friendUserId: 'user-123',
 				friendDiscordId: 'discord-123',
+				friendUsername: 'TestUsername',
 				friendDisplayName: 'TestFriend',
 				friendAvatar: 'avatar-hash',
 				friendPlayer: 'PlayerName',
 				friendTimeZone: 'UTC',
-				friendUsePlayerAsDisplayName: false,
+				friendUsePlayerAsDisplayName: false
 			};
 
 			expect(friend.id).toBe('friend-123');
@@ -32,10 +33,12 @@ describe('WebSocket API Types', () => {
 				createdAt: '2024-01-01T00:00:00Z',
 				friendUserId: 'user-123',
 				friendDiscordId: 'discord-123',
+				friendUsername: 'TestUsername',
 				friendDisplayName: 'TestFriend',
 				friendAvatar: null,
 				friendPlayer: null,
 				friendTimeZone: null,
+				friendUsePlayerAsDisplayName: false
 			};
 
 			expect(friend.friendAvatar).toBeNull();
@@ -52,11 +55,12 @@ describe('WebSocket API Types', () => {
 				fromUserId: 'user-123',
 				fromDiscordId: 'discord-123',
 				fromUsername: 'TestUser',
+				fromDisplayName: 'TestDisplayName',
 				fromAvatar: 'avatar-hash',
 				fromPlayer: 'PlayerName',
 				fromTimeZone: 'UTC',
 				fromUsePlayerAsDisplayName: false,
-				direction: 'incoming',
+				direction: 'incoming'
 			};
 
 			expect(request.direction).toBe('incoming');
@@ -71,11 +75,12 @@ describe('WebSocket API Types', () => {
 				fromUserId: 'user-123',
 				fromDiscordId: 'discord-123',
 				fromUsername: 'TestUser',
+				fromDisplayName: 'TestDisplayName',
 				fromAvatar: null,
 				fromPlayer: null,
 				fromTimeZone: null,
-				fromUsePlayerAsDisplayName: null,
-				direction: 'outgoing',
+				fromUsePlayerAsDisplayName: false,
+				direction: 'outgoing'
 			};
 
 			expect(request.direction).toBe('outgoing');
@@ -88,13 +93,14 @@ describe('WebSocket API Types', () => {
 				id: 'user-123',
 				discordId: 'discord-123',
 				username: 'TestUser',
+				displayName: 'TestDisplayName',
 				avatar: 'avatar-hash',
 				player: 'PlayerName',
 				timeZone: 'UTC',
 				usePlayerAsDisplayName: false,
 				friendCode: 'ABC123',
 				createdAt: '2024-01-01T00:00:00Z',
-				updatedAt: '2024-01-01T00:00:00Z',
+				updatedAt: '2024-01-01T00:00:00Z'
 			};
 
 			expect(profile.username).toBe('TestUser');
@@ -106,13 +112,14 @@ describe('WebSocket API Types', () => {
 				id: 'user-123',
 				discordId: 'discord-123',
 				username: 'TestUser',
+				displayName: 'TestDisplayName',
 				avatar: null,
 				player: null,
 				timeZone: null,
 				usePlayerAsDisplayName: false,
 				friendCode: null,
 				createdAt: '2024-01-01T00:00:00Z',
-				updatedAt: '2024-01-01T00:00:00Z',
+				updatedAt: '2024-01-01T00:00:00Z'
 			};
 
 			expect(profile.avatar).toBeNull();

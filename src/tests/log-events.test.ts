@@ -141,7 +141,7 @@ describe('Log Event Parsing', () => {
 				'ANVL_Carrack_67890',
 				'DRAK_Cutlass_Red_11111',
 				'MISC_Freelancer_22222',
-				'RSI_Aurora_MR_33333',
+				'RSI_Aurora_MR_33333'
 			];
 
 			for (const shipName of shipNames) {
@@ -202,7 +202,7 @@ describe('Log Event Parsing', () => {
 				'Area18',
 				'New_Babbage',
 				'Grim_HEX',
-				'Everus_Harbor',
+				'Everus_Harbor'
 			];
 
 			for (const location of locations) {
@@ -243,7 +243,7 @@ describe('Log Event Parsing', () => {
 				'2024.01.01-00:00:00:000',
 				'2024.12.31-23:59:59:999',
 				'2024.06.15-12:30:45:123',
-				'2024.06.15-12:30:45',
+				'2024.06.15-12:30:45'
 			];
 
 			for (const timestamp of timestamps) {

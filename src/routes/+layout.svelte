@@ -7,22 +7,19 @@
 	import WebSocket from '@tauri-apps/plugin-websocket';
 	import { openUrl } from '@tauri-apps/plugin-opener';
 	import { listen } from '@tauri-apps/api/event';
+	import { SvelteMap } from 'svelte/reactivity';
 	import Header from '../components/Header.svelte';
 	import NotificationToasts from '../components/NotificationToasts.svelte';
 	import { setAppContext } from '$lib/appContext.svelte';
-	import { page } from '$app/stores';
 	import {
 		connectWebSocket as apiConnectWebSocket,
-		disconnectWebSocket as apiDisconnectWebSocket,
 		fetchFriends,
 		fetchFriendRequests,
 		fetchUserProfile,
-		fetchGroups,
 		fetchGroupsWithMembers,
 		fetchGroupMembers,
 		fetchGroupInvitations,
 		subscribe as apiSubscribe,
-		getWebSocket,
 		acceptFriendRequest as apiAcceptFriendRequest,
 		denyFriendRequest as apiDenyFriendRequest,
 		acceptGroupInvitation as apiAcceptGroupInvitation,
@@ -30,8 +27,7 @@
 	} from '$lib/api';
 	import { decompressLogs } from '$lib/compression';
 	import { loadAuthData, signOut, handleAuthComplete, getJwtToken } from '$lib/oauth';
-	import { createWebSocketConnection, sendJsonMessage, parseJsonMessage } from '$lib/websocket-helper';
-	import type { Friend as FriendType } from '../types';
+	import { createWebSocketConnection, sendJsonMessage } from '$lib/websocket-helper';
 	import {
 		loadCachedFriends,
 		loadCachedGroups,
@@ -59,6 +55,8 @@
 		RefetchGroupDetailsSchema,
 		AuthCompleteSchema
 	} from '$lib/validation';
+	import type { Update } from '@tauri-apps/plugin-updater';
+	import type { GroupMember } from '../types';
 
 	let { children } = $props();
 
@@ -69,7 +67,7 @@
 	let initialLoadComplete = $state(false);
 
 	// Update info state (not in context - layout-specific)
-	let updateInfo = $state<any>(null);
+	let updateInfo = $state<Update | null>(null);
 
 	// Sync user profile from API
 	async function syncUserProfileFromAPI() {
@@ -164,10 +162,10 @@
 				await saveGroupsCache(appCtx.groups);
 			}
 
-			// Convert members object to Map
-			const freshGroupMembers = new Map<string, any[]>();
+			// Convert members object to SvelteMap
+			const freshGroupMembers = new SvelteMap<string, GroupMember[]>();
 			for (const [groupId, membersList] of Object.entries(members)) {
-				freshGroupMembers.set(groupId, membersList);
+				freshGroupMembers.set(groupId, membersList as GroupMember[]);
 			}
 
 			// Merge group members
@@ -213,7 +211,7 @@
 
 		try {
 			// Set up subscriptions BEFORE connecting
-			apiSubscribe('registered', async (message: any) => {
+			apiSubscribe('registered', async () => {
 				await syncUserProfileFromAPI();
 				await syncFriendsFromAPI();
 				await syncFriendRequestsFromAPI();
@@ -236,7 +234,7 @@
 
 				// Show notification for new friend requests (only if count increased)
 				if (appCtx.apiFriendRequests.length > previousRequestCount) {
-					const latestRequest = appCtx.apiFriendRequests.find(r => r.direction === 'incoming');
+					const latestRequest = appCtx.apiFriendRequests.find((r) => r.direction === 'incoming');
 					if (latestRequest) {
 						const requesterName = latestRequest.fromUsername || 'Someone';
 						appCtx.addNotification(`New friend request from ${requesterName}`, 'info');
@@ -260,7 +258,7 @@
 				}
 			});
 
-			apiSubscribe('refetch_group_details', async (message: any) => {
+			apiSubscribe('refetch_group_details', async (message: unknown) => {
 				// SECURITY: Validate incoming refetch group details message
 				const validated = validateMessage(RefetchGroupDetailsSchema, message);
 				if (validated && validated.groupId) {
@@ -271,7 +269,7 @@
 				}
 			});
 
-			apiSubscribe('user_online', async (message: any) => {
+			apiSubscribe('user_online', async (message: unknown) => {
 				// SECURITY: Validate incoming user online message
 				const validated = validateMessage(UserPresenceSchema, message);
 				if (validated && validated.userId) {
@@ -287,7 +285,7 @@
 
 					// Update group members online status
 					appCtx.groupMembers.forEach((members, groupId) => {
-						const member = members.find(m => m.discordId === validated.userId);
+						const member = members.find((m) => m.discordId === validated.userId);
 						if (member) {
 							member.isOnline = true;
 							member.isConnected = true;
@@ -297,15 +295,17 @@
 					});
 
 					// Trigger sync event for delta sync
-					window.dispatchEvent(new CustomEvent('friend-came-online', {
-						detail: { friendId: validated.userId }
-					}));
+					window.dispatchEvent(
+						new CustomEvent('friend-came-online', {
+							detail: { friendId: validated.userId }
+						})
+					);
 				} else {
 					console.warn('[Security] Invalid user_online message received:', message);
 				}
 			});
 
-			apiSubscribe('user_offline', (message: any) => {
+			apiSubscribe('user_offline', (message: unknown) => {
 				// SECURITY: Validate incoming user offline message
 				const validated = validateMessage(UserPresenceSchema, message);
 				if (validated && validated.userId) {
@@ -321,7 +321,7 @@
 
 					// Update group members offline status
 					appCtx.groupMembers.forEach((members, groupId) => {
-						const member = members.find(m => m.discordId === validated.userId);
+						const member = members.find((m) => m.discordId === validated.userId);
 						if (member) {
 							member.isOnline = false;
 							member.isConnected = false;
@@ -334,61 +334,67 @@
 				}
 			});
 
-			apiSubscribe('group_log', (message: any) => {
+			apiSubscribe('group_log', (message: unknown) => {
 				// SECURITY: Validate incoming group log message
 				const validated = validateMessage(GroupLogSchema, message);
 				if (validated) {
 					// Emit custom event that the page can listen to
-					window.dispatchEvent(new CustomEvent('group-log-received', {
-						detail: {
-							log: validated.log,
-							groupId: validated.groupId,
-							senderId: validated.senderId,
-							senderDisplayName: validated.senderDisplayName
-						}
-					}));
+					window.dispatchEvent(
+						new CustomEvent('group-log-received', {
+							detail: {
+								log: validated.log,
+								groupId: validated.groupId,
+								senderId: validated.senderId,
+								senderDisplayName: validated.senderDisplayName
+							}
+						})
+					);
 				} else {
 					console.warn('[Security] Invalid group_log message received:', message);
 				}
 			});
 
-			apiSubscribe('log', (message: any) => {
+			apiSubscribe('log', (message: unknown) => {
 				// SECURITY: Validate incoming log message
 				const validated = validateMessage(SingleLogSchema, message);
 				if (validated) {
 					// Emit custom event that the page can listen to
-					window.dispatchEvent(new CustomEvent('friend-log-received', {
-						detail: {
-							log: validated.log
-						}
-					}));
+					window.dispatchEvent(
+						new CustomEvent('friend-log-received', {
+							detail: {
+								log: validated.log
+							}
+						})
+					);
 				} else {
 					console.warn('[Security] Invalid log message received:', message);
 				}
 			});
 
-			apiSubscribe('sync_logs', (message: any) => {
+			apiSubscribe('sync_logs', (message: unknown) => {
 				// SECURITY: Validate incoming sync logs message
 				const validated = validateMessage(SyncLogsSchema, message);
 				if (validated) {
 					// Emit custom event that the page can listen to
-					window.dispatchEvent(new CustomEvent('sync-logs-received', {
-						detail: {
-							logs: validated.logs,
-							senderId: validated.senderId,
-							hasMore: validated.hasMore,
-							total: validated.total,
-							offset: validated.offset,
-							limit: validated.limit
-						}
-					}));
+					window.dispatchEvent(
+						new CustomEvent('sync-logs-received', {
+							detail: {
+								logs: validated.logs,
+								senderId: validated.senderId,
+								hasMore: validated.hasMore,
+								total: validated.total,
+								offset: validated.offset,
+								limit: validated.limit
+							}
+						})
+					);
 				} else {
 					console.warn('[Security] Invalid sync_logs message received:', message);
 				}
 			});
 
 			// Handle batched friend logs (with optional compression)
-			apiSubscribe('batch_logs', async (message: any) => {
+			apiSubscribe('batch_logs', async (message: unknown) => {
 				try {
 					// SECURITY: Validate incoming batch logs message
 					const validated = validateMessage(BatchLogsSchema, message);
@@ -397,7 +403,7 @@
 						return;
 					}
 
-					let logs: any[];
+					let logs: unknown[];
 
 					// Check if message is compressed
 					if (validated.compressed && validated.compressedData) {
@@ -408,10 +414,12 @@
 
 					if (logs && Array.isArray(logs)) {
 						// Dispatch individual events for each log in the batch
-						logs.forEach((log: any) => {
-							window.dispatchEvent(new CustomEvent('friend-log-received', {
-								detail: { log }
-							}));
+						logs.forEach((log: unknown) => {
+							window.dispatchEvent(
+								new CustomEvent('friend-log-received', {
+									detail: { log }
+								})
+							);
 						});
 					}
 				} catch (error) {
@@ -420,7 +428,7 @@
 			});
 
 			// Handle batched group logs (with optional compression)
-			apiSubscribe('batch_group_logs', async (message: any) => {
+			apiSubscribe('batch_group_logs', async (message: unknown) => {
 				try {
 					// SECURITY: Validate incoming batch group logs message
 					const validated = validateMessage(BatchGroupLogsSchema, message);
@@ -429,7 +437,7 @@
 						return;
 					}
 
-					let logs: any[];
+					let logs: unknown[];
 
 					// Check if message is compressed
 					if (validated.compressed && validated.compressedData) {
@@ -440,15 +448,17 @@
 
 					if (logs && Array.isArray(logs)) {
 						// Dispatch individual events for each log in the batch
-						logs.forEach((log: any) => {
-							window.dispatchEvent(new CustomEvent('group-log-received', {
-								detail: {
-									log,
-									groupId: validated.groupId,
-									senderId: validated.senderId,
-									senderDisplayName: validated.senderDisplayName
-								}
-							}));
+						logs.forEach((log: unknown) => {
+							window.dispatchEvent(
+								new CustomEvent('group-log-received', {
+									detail: {
+										log,
+										groupId: validated.groupId,
+										senderId: validated.senderId,
+										senderDisplayName: validated.senderDisplayName
+									}
+								})
+							);
 						});
 					}
 				} catch (error) {
@@ -472,9 +482,10 @@
 			console.error('[WebSocket] Failed to connect:', error);
 
 			// Show user-friendly error toast
-			const errorMessage = error instanceof Error && error.message.includes('timeout')
-				? "Can't connect to server - connection timed out"
-				: 'Failed to connect to server';
+			const errorMessage =
+				error instanceof Error && error.message.includes('timeout')
+					? "Can't connect to server - connection timed out"
+					: 'Failed to connect to server';
 
 			appCtx.addNotification(errorMessage, 'error');
 
@@ -488,33 +499,30 @@
 		}
 	}
 
-	// Disconnect WebSocket
-	async function disconnectWebSocket() {
-		await apiDisconnectWebSocket();
-		appCtx.connectionStatus = 'disconnected';
-		appCtx.ws = null;
-	}
-
 	// Extract message string from Tauri WebSocket format
-	function extractMessageString(msg: any): string | null {
+	function extractMessageString(msg: unknown): string | null {
 		if (typeof msg === 'string') {
 			return msg;
-		} else if (msg.type === 'Text' && msg.data) {
+		} else if (
+			typeof msg === 'object' &&
+			msg !== null &&
+			'type' in msg &&
+			msg.type === 'Text' &&
+			'data' in msg &&
+			typeof msg.data === 'string'
+		) {
 			return msg.data;
 		}
 		return null; // Skip non-text messages (ping/pong/etc)
 	}
 
 	// Handle WebSocket message during authentication
-	async function handleAuthWebSocketMessage(
-		msg: any,
-		socket: WebSocket
-	): Promise<void> {
+	async function handleAuthWebSocketMessage(msg: unknown, socket: WebSocket): Promise<void> {
 		try {
 			const messageStr = extractMessageString(msg);
 			if (!messageStr) return;
 
-			const message = JSON.parse(messageStr);
+			const message = JSON.parse(messageStr) as { type?: string; message?: string };
 
 			// Handle auth_complete message with JWT
 			if (message.type === 'auth_complete' || message.type === 'desktop_auth_complete') {
@@ -541,10 +549,7 @@
 	}
 
 	// Process authentication completion
-	async function processAuthComplete(
-		message: any,
-		socket: WebSocket
-	): Promise<void> {
+	async function processAuthComplete(message: unknown, socket: WebSocket): Promise<void> {
 		// SECURITY: Validate auth_complete message
 		const validated = validateMessage(AuthCompleteSchema, message);
 		if (!validated) {
@@ -611,7 +616,7 @@
 			// Use production WebSocket URL in production builds, dev URL in dev mode
 			const wsUrl = import.meta.env.PROD
 				? import.meta.env.VITE_WS_URL_PROD
-				: (import.meta.env.VITE_WS_URL_DEV || import.meta.env.VITE_WS_URL_PROD);
+				: import.meta.env.VITE_WS_URL_DEV || import.meta.env.VITE_WS_URL_PROD;
 
 			console.log('[Auth] WebSocket URL:', wsUrl);
 			console.log('[Auth] Environment variables:', {
@@ -630,7 +635,7 @@
 			const connection = await createWebSocketConnection({
 				url: wsUrl,
 				timeout: 10000,
-				onMessage: async (msg: any) => {
+				onMessage: async (msg: unknown) => {
 					await handleAuthWebSocketMessage(msg, connection.socket);
 				}
 			});
@@ -657,7 +662,7 @@
 			const discordClientId = import.meta.env.VITE_DISCORD_CLIENT_ID;
 			const websiteUrl = import.meta.env.PROD
 				? import.meta.env.VITE_WEBSITE_URL_PROD
-				: (import.meta.env.VITE_WEBSITE_URL_DEV || import.meta.env.VITE_WEBSITE_URL_PROD);
+				: import.meta.env.VITE_WEBSITE_URL_DEV || import.meta.env.VITE_WEBSITE_URL_PROD;
 			const redirectUri = `${websiteUrl}/auth/desktop/callback`;
 			const scope = 'identify';
 
@@ -668,17 +673,23 @@
 			await openUrl(discordAuthUrl);
 
 			// Show notification to check Discord app (no auto-dismiss)
-			const discordLogo = '<svg width="20" height="20" viewBox="0 0 127.14 96.36" fill="currentColor"><path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/></svg>';
-			const notificationId = appCtx.addNotification('Check your Discord app to authorize Picologs', 'info', discordLogo, false);
+			const discordLogo =
+				'<svg width="20" height="20" viewBox="0 0 127.14 96.36" fill="currentColor"><path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/></svg>';
+			const notificationId = appCtx.addNotification(
+				'Check your Discord app to authorize Picologs',
+				'info',
+				discordLogo,
+				false
+			);
 			appCtx.authNotificationId = notificationId;
-
 		} catch (error) {
 			console.error('[Auth] ❌ Failed to initiate auth:', error);
 
 			// Show user-friendly error toast
-			const errorMessage = error instanceof Error && error.message.includes('timeout')
-				? "Can't connect to server - connection timed out"
-				: 'Failed to connect to server. Please try again.';
+			const errorMessage =
+				error instanceof Error && error.message.includes('timeout')
+					? "Can't connect to server - connection timed out"
+					: 'Failed to connect to server. Please try again.';
 
 			appCtx.addNotification(errorMessage, 'error');
 
@@ -686,7 +697,6 @@
 			appCtx.authError = errorMessage;
 		}
 	}
-
 
 	// Handle sign out
 	async function handleSignOut() {
@@ -828,8 +838,13 @@
 			});
 
 			// Clean up corrupted store data (fix for event object being stored)
-			const selectedEnv = await store.get<any>('selectedEnvironment');
-			if (selectedEnv && typeof selectedEnv === 'object' && selectedEnv.isTrusted !== undefined) {
+			const selectedEnv = await store.get<unknown>('selectedEnvironment');
+			if (
+				selectedEnv &&
+				typeof selectedEnv === 'object' &&
+				'isTrusted' in selectedEnv &&
+				selectedEnv.isTrusted !== undefined
+			) {
 				// This is an event object, not a valid environment - delete it
 				await store.delete('selectedEnvironment');
 			}
@@ -840,7 +855,11 @@
 			// Load persisted auth state FIRST to prevent layout shift
 			const storedDiscordUserId = await store.get<string>('discordUserId');
 			const cachedFriendCode = await store.get<string>('friendCode');
-			const cachedDiscordUser = await store.get<{ id: string; username: string; avatar: string | null }>('discordUser');
+			const cachedDiscordUser = await store.get<{
+				id: string;
+				username: string;
+				avatar: string | null;
+			}>('discordUser');
 			const savedFile = await store.get<string>('lastFile');
 
 			// SECURITY: Validate Discord user ID format (17-19 digit numeric string)
@@ -862,7 +881,10 @@
 			} else {
 				// Invalid or missing Discord ID - clear corrupted auth data
 				if (storedDiscordUserId && !isValidDiscordId) {
-					console.warn('[Auth Security] Invalid Discord ID detected in store, clearing:', storedDiscordUserId);
+					console.warn(
+						'[Auth Security] Invalid Discord ID detected in store, clearing:',
+						storedDiscordUserId
+					);
 					await store.delete('discordUserId');
 					await store.delete('discordUser');
 				}
@@ -948,7 +970,7 @@
 				}
 			}
 
-			check().then((update: any) => {
+			check().then((update: Update | null) => {
 				if (update?.available) {
 					updateInfo = update;
 				}
@@ -1006,7 +1028,9 @@
 						}
 
 						if (state !== appCtx.authSessionId) {
-							console.error('[Deep Link] ⚠️ SECURITY: State parameter mismatch - possible CSRF attack');
+							console.error(
+								'[Deep Link] ⚠️ SECURITY: State parameter mismatch - possible CSRF attack'
+							);
 							console.error('[Deep Link] Expected:', appCtx.authSessionId, 'Received:', state);
 							appCtx.authError = 'Authentication failed - session mismatch. Please try again.';
 							appCtx.isAuthenticating = false;
@@ -1154,7 +1178,8 @@
 		onAcceptInvitation={handleAcceptInvitation}
 		onDenyInvitation={handleDenyInvitation}
 		processingFriendRequests={appCtx.processingFriendRequests}
-		processingGroupInvitations={appCtx.processingGroupInvitations} />
+		processingGroupInvitations={appCtx.processingGroupInvitations}
+	/>
 
 	<div class="overflow-hidden flex flex-col">
 		{@render children()}
@@ -1163,4 +1188,3 @@
 
 <!-- Notification toasts -->
 <NotificationToasts />
-

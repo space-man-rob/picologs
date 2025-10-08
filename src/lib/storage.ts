@@ -109,7 +109,11 @@ export async function getStorageValue<T>(storePath: string, key: string): Promis
 	return await storage.get<T>(key);
 }
 
-export async function setStorageValue(storePath: string, key: string, value: unknown): Promise<void> {
+export async function setStorageValue(
+	storePath: string,
+	key: string,
+	value: unknown
+): Promise<void> {
 	const storage = createStorage(storePath);
 	await storage.set(key, value);
 }

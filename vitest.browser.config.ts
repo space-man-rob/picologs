@@ -14,8 +14,8 @@ export default defineConfig({
 			'@tauri-apps/plugin-websocket',
 			'@tauri-apps/plugin-opener',
 			'@tauri-apps/plugin-updater',
-			'date-fns',
-		],
+			'date-fns'
+		]
 	},
 	test: {
 		// Enable browser mode for component tests
@@ -25,7 +25,7 @@ export default defineConfig({
 			name: 'chromium',
 			headless: true,
 			// Prevent unexpected reloads
-			screenshotFailures: false,
+			screenshotFailures: false
 		},
 		// Setup file for browser environment
 		setupFiles: ['./src/tests/setup-browser.ts'],
@@ -40,18 +40,18 @@ export default defineConfig({
 				'src/tests/**',
 				'src/**/*.{test,spec}.{js,ts}',
 				'src/**/*.svelte.{test,spec}.{js,ts}',
-				'**/*.config.{js,ts}',
-			],
+				'**/*.config.{js,ts}'
+			]
 		},
 		// Global test timeout
 		testTimeout: 30000,
 		// Retry failed tests once
-		retry: 1,
+		retry: 1
 	},
 	resolve: {
 		alias: {
 			$lib: '/src/lib',
-			$app: '/.svelte-kit/runtime/app',
-		},
-	},
+			$app: '/.svelte-kit/runtime/app'
+		}
+	}
 });

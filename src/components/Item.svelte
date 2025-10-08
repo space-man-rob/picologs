@@ -49,11 +49,14 @@
 
 	type Fleet = typeof fleet;
 
-	function getShipData(metadata: any) {
+	function getShipData(metadata: Record<string, unknown>) {
 		if (metadata?.vehicleName) {
 			const vehicleNameParts = metadata.vehicleName.split('_');
 			// Only pop if the last part is numeric, to avoid removing parts of the name
-			if (vehicleNameParts.length > 1 && !isNaN(parseInt(vehicleNameParts[vehicleNameParts.length - 1], 10))) {
+			if (
+				vehicleNameParts.length > 1 &&
+				!isNaN(parseInt(vehicleNameParts[vehicleNameParts.length - 1], 10))
+			) {
 				vehicleNameParts.pop();
 			}
 
@@ -126,11 +129,16 @@
 </script>
 
 <button
-	class="grid items-start gap-4 p-4 text-left min-w-0 {child ? 'grid-cols-[1rem_1fr] gap-2 pl-6' : 'grid-cols-[4rem_1fr]'} {eventType === 'killing_spree' ? 'bg-red-500/10 border-l-4 border-red-500' : child ? '' : 'item'}"
+	class="grid items-start gap-4 p-4 text-left min-w-0 {child
+		? 'grid-cols-[1rem_1fr] gap-2 pl-6'
+		: 'grid-cols-[4rem_1fr]'} {eventType === 'killing_spree'
+		? 'bg-red-500/10 border-l-4 border-red-500'
+		: child
+			? ''
+			: 'item'}"
 	onclick={() => (open = !open)}
 >
 	{#if (eventType === 'vehicle_control_flow' || eventType === 'destruction') && shipImage}
-		{@const isSoftDeath = eventType === 'destruction' && metadata?.destroyLevelTo === '1'}
 		{@const isHardDeath = eventType === 'destruction' && metadata?.destroyLevelTo === '2'}
 		<div class="relative flex justify-center overflow-hidden pt-1 self-start h-10 min-h-10">
 			{#if isHardDeath}
@@ -170,8 +178,10 @@
 		{#if eventType === 'actor_death' && metadata.damageType === 'SelfDestruct'}
 			{@const zone = metadata.zone.split('_').slice(0, -1).join(' ')}
 			<div class="{open ? '' : 'truncate'} {child ? 'text-xs' : 'text-base'}">
-				{checkVictimName(metadata.victimName)} was killed when the {#if zone != 'Unknown'}{zone}{:else}ship{/if} was self
-				destructed {#if metadata.killerName != 'unknown'}by {checkVictimName(metadata.killerName)}{/if}
+				{checkVictimName(metadata.victimName)} was killed when the {#if zone != 'Unknown'}{zone}{:else}ship{/if}
+				was self destructed {#if metadata.killerName != 'unknown'}by {checkVictimName(
+						metadata.killerName
+					)}{/if}
 			</div>
 		{:else if eventType === 'actor_death' && metadata.damageType === 'Suicide'}
 			<div class="{open ? '' : 'truncate'} {child ? 'text-xs' : 'text-base'}">
@@ -182,7 +192,8 @@
 			{@const zone = metadata?.zone?.split('_')?.slice(0, -1)?.join(' ')}
 			<div class="{open ? '' : 'truncate'} {child ? 'text-xs' : 'text-base'}">
 				{checkVictimName(metadata.victimName)} was killed {#if zone && zone != 'Unknown'}
-					while in {zone}{/if} by {checkVictimName(metadata.killerName) || 'unknown'} {#if weapon != 'unknown'}using
+					while in {zone}{/if} by {checkVictimName(metadata.killerName) || 'unknown'}
+				{#if weapon != 'unknown'}using
 					{weapon}{/if}
 				{#if metadata.damageType != 'unknown'}
 					caused by {convertCamelCaseToWords(metadata.damageType)}{/if}
@@ -192,9 +203,13 @@
 				{player} controls a {shipName || metadata.vehicleName.split('_').slice(0, -1).join(' ')}
 			</div>
 		{:else if eventType === 'killing_spree'}
-			<div class="flex items-center min-w-0 {child ? 'gap-1 text-xs' : 'gap-2 text-base font-bold text-red-400'}">
+			<div
+				class="flex items-center min-w-0 {child
+					? 'gap-1 text-xs'
+					: 'gap-2 text-base font-bold text-red-400'}"
+			>
 				<span class="text-xs opacity-50 flex-shrink-0">{open ? '▼' : '▶'}</span>
-				<span class="{open ? '' : 'truncate'}">{line}</span>
+				<span class={open ? '' : 'truncate'}>{line}</span>
 			</div>
 		{:else if eventType === 'location_change'}
 			<div class="{open ? '' : 'truncate'} {child ? 'text-xs' : 'text-base'}">
@@ -209,11 +224,15 @@
 		{:else}
 			<div class="{open ? '' : 'truncate'} {child ? 'text-xs' : 'text-base'}">{line}</div>
 		{/if}
-		<div class="text-white/50 text-left {open ? '' : 'truncate'} {child ? 'text-[0.5rem]' : 'text-xs'}">
+		<div
+			class="text-white/50 text-left {open ? '' : 'truncate'} {child ? 'text-[0.5rem]' : 'text-xs'}"
+		>
 			{formattedTimestamp}, {reportedBy ? reportedBy.join(', ') : player}
 		</div>
 		{#if open}
-			<div class="mt-2 rounded-lg bg-overlay-light p-2 pr-10 text-left text-xs text-white/70 break-all relative">
+			<div
+				class="mt-2 rounded-lg bg-overlay-light p-2 pr-10 text-left text-xs text-white/70 break-all relative"
+			>
 				<div
 					role="button"
 					tabindex="0"
@@ -225,7 +244,8 @@
 							copyToClipboard(e);
 						}
 					}}
-					title="Copy to clipboard">
+					title="Copy to clipboard"
+				>
 					{copied ? '✅' : '📋'}
 				</div>
 				{original}

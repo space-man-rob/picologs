@@ -10,7 +10,7 @@ import {
 	saveGroupsCache,
 	loadCachedGroupMembers,
 	saveGroupMembersCache,
-	clearAllCache,
+	clearAllCache
 } from './cache';
 import type { Friend, Group, GroupMember } from '../types';
 
@@ -23,8 +23,8 @@ vi.mock('@tauri-apps/plugin-store', () => ({
 	load: vi.fn(async (filename: string, options?: any) => ({
 		get: mockGet,
 		set: mockSet,
-		clear: mockClear,
-	})),
+		clear: mockClear
+	}))
 }));
 
 describe('Cache Module', () => {
@@ -44,14 +44,14 @@ describe('Cache Module', () => {
 					status: 'confirmed',
 					timezone: 'UTC',
 					isOnline: true,
-					isConnected: true,
-				},
+					isConnected: true
+				}
 			];
 
 			mockGet.mockResolvedValueOnce({
 				data: mockFriends,
-				timestamp: new Date().toISOString(),
-			});
+				timestamp: new Date().toISOString()
+			} as any);
 
 			const friends = await loadCachedFriends();
 
@@ -86,8 +86,8 @@ describe('Cache Module', () => {
 					status: 'confirmed',
 					timezone: 'UTC',
 					isOnline: true,
-					isConnected: true,
-				},
+					isConnected: true
+				}
 			];
 
 			await saveFriendsCache(friends);
@@ -113,18 +113,19 @@ describe('Cache Module', () => {
 					id: 'group-1',
 					name: 'Test Group',
 					description: 'Test description',
-					avatar: null,
+					avatar: undefined,
 					tags: [],
 					ownerId: 'user-1',
-					createdAt: new Date().toISOString(),
-					updatedAt: new Date().toISOString(),
-				},
+					memberRole: 'owner',
+					memberCount: 1,
+					createdAt: new Date().toISOString()
+				}
 			];
 
 			mockGet.mockResolvedValueOnce({
 				data: mockGroups,
-				timestamp: new Date().toISOString(),
-			});
+				timestamp: new Date().toISOString()
+			} as any);
 
 			const groups = await loadCachedGroups();
 
@@ -146,12 +147,13 @@ describe('Cache Module', () => {
 					id: 'group-1',
 					name: 'Test Group',
 					description: 'Test description',
-					avatar: null,
+					avatar: undefined,
 					tags: [],
 					ownerId: 'user-1',
-					createdAt: new Date().toISOString(),
-					updatedAt: new Date().toISOString(),
-				},
+					memberRole: 'owner',
+					memberCount: 1,
+					createdAt: new Date().toISOString()
+				}
 			];
 
 			await saveGroupsCache(groups);
@@ -174,26 +176,20 @@ describe('Cache Module', () => {
 			const mockMembers: Record<string, GroupMember[]> = {
 				'group-1': [
 					{
-						id: 'member-1',
-						groupId: 'group-1',
 						userId: 'user-1',
 						discordId: 'discord-1',
 						username: 'User1',
-						avatar: null,
+						avatar: undefined,
 						player: 'Player1',
-						role: 'owner',
-						canInvite: true,
-						canRemoveMembers: true,
-						canEditGroup: true,
-						joinedAt: new Date().toISOString(),
-					},
-				],
+						role: 'owner'
+					}
+				]
 			};
 
 			mockGet.mockResolvedValueOnce({
 				data: mockMembers,
-				timestamp: new Date().toISOString(),
-			});
+				timestamp: new Date().toISOString()
+			} as any);
 
 			const members = await loadCachedGroupMembers();
 
@@ -224,19 +220,13 @@ describe('Cache Module', () => {
 			const members = new Map<string, GroupMember[]>();
 			members.set('group-1', [
 				{
-					id: 'member-1',
-					groupId: 'group-1',
 					userId: 'user-1',
 					discordId: 'discord-1',
 					username: 'User1',
-					avatar: null,
+					avatar: undefined,
 					player: 'Player1',
-					role: 'owner',
-					canInvite: true,
-					canRemoveMembers: true,
-					canEditGroup: true,
-					joinedAt: new Date().toISOString(),
-				},
+					role: 'owner'
+				}
 			]);
 
 			await saveGroupMembersCache(members);
@@ -251,35 +241,23 @@ describe('Cache Module', () => {
 			const members = new Map<string, GroupMember[]>();
 			members.set('group-1', [
 				{
-					id: 'member-1',
-					groupId: 'group-1',
 					userId: 'user-1',
 					discordId: 'discord-1',
 					username: 'User1',
-					avatar: null,
-					player: null,
-					role: 'owner',
-					canInvite: true,
-					canRemoveMembers: true,
-					canEditGroup: true,
-					joinedAt: new Date().toISOString(),
-				},
+					avatar: undefined,
+					player: undefined,
+					role: 'owner'
+				}
 			]);
 			members.set('group-2', [
 				{
-					id: 'member-2',
-					groupId: 'group-2',
 					userId: 'user-2',
 					discordId: 'discord-2',
 					username: 'User2',
-					avatar: null,
-					player: null,
-					role: 'member',
-					canInvite: false,
-					canRemoveMembers: false,
-					canEditGroup: false,
-					joinedAt: new Date().toISOString(),
-				},
+					avatar: undefined,
+					player: undefined,
+					role: 'member'
+				}
 			]);
 
 			await saveGroupMembersCache(members);
@@ -325,8 +303,8 @@ describe('Cache Module', () => {
 					status: 'confirmed',
 					timezone: 'America/New_York',
 					isOnline: false,
-					isConnected: false,
-				},
+					isConnected: false
+				}
 			];
 
 			await saveFriendsCache(friends);
@@ -352,7 +330,7 @@ describe('Cache Module', () => {
 
 			expect(load).toHaveBeenCalledWith('cache.json', {
 				defaults: {},
-				autoSave: 100,
+				autoSave: 100
 			});
 		});
 
@@ -363,7 +341,7 @@ describe('Cache Module', () => {
 
 			expect(load).toHaveBeenCalledWith('cache.json', {
 				defaults: {},
-				autoSave: false,
+				autoSave: false
 			});
 		});
 	});
@@ -385,31 +363,25 @@ describe('Cache Module', () => {
 			expect(value.data).toEqual({});
 		});
 
-		it('should maintain group member permissions', async () => {
+		it('should maintain group member data', async () => {
 			const members = new Map<string, GroupMember[]>();
 			members.set('group-1', [
 				{
-					id: 'member-1',
-					groupId: 'group-1',
 					userId: 'user-1',
 					discordId: 'discord-1',
 					username: 'Admin',
-					avatar: null,
-					player: null,
-					role: 'admin',
-					canInvite: true,
-					canRemoveMembers: true,
-					canEditGroup: false,
-					joinedAt: new Date().toISOString(),
-				},
+					avatar: undefined,
+					player: undefined,
+					role: 'admin'
+				}
 			]);
 
 			await saveGroupMembersCache(members);
 
 			const [, value] = mockSet.mock.calls[0];
-			expect(value.data['group-1'][0].canInvite).toBe(true);
-			expect(value.data['group-1'][0].canRemoveMembers).toBe(true);
-			expect(value.data['group-1'][0].canEditGroup).toBe(false);
+			expect(value.data['group-1'][0].username).toBe('Admin');
+			expect(value.data['group-1'][0].role).toBe('admin');
+			expect(value.data['group-1'][0].userId).toBe('user-1');
 		});
 	});
 });

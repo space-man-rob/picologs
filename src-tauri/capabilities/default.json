@@ -1,68 +1,66 @@
 {
-  "$schema": "../gen/schemas/desktop-schema.json",
-  "identifier": "default",
-  "description": "Capability for the main window",
-  "windows": [
-    "main"
-  ],
-  "permissions": [
-    "core:default",
-    "fs:default",
-    "fs:allow-exists",
-    "fs:allow-read",
-    "fs:allow-watch",
-    "fs:allow-unwatch",
-    "fs:allow-app-read",
-    "fs:allow-app-write",
-    {
-      "identifier": "fs:scope",
-      "description": "Restricts file system access to only Star Citizen log directories and app data. Prevents arbitrary file system access.",
-      "allow": [
-        { "path": "$APPDATA" },
-        { "path": "$APPDATA/*" },
-        { "path": "$HOME/AppData" },
-        { "path": "$HOME/AppData/*" },
-        { "path": "$HOME/Documents" },
-        { "path": "$HOME/Documents/*" },
-        { "path": "$HOME/Downloads" },
-        { "path": "$HOME/Downloads/*" },
-        { "path": "$HOME/Library" },
-        { "path": "$HOME/Library/*" },
-        { "path": "$HOME/Library/Application Support" },
-        { "path": "$HOME/Library/Application Support/*" }
-      ]
-    },
-    "dialog:default",
-    "store:default",
-    "opener:default",
-    "opener:allow-open-url",
-    {
-      "identifier": "opener:allow-open-url",
-      "allow": [
-        {
-          "url": "discord://*"
-        },
-        {
-          "url": "https://*"
-        }
-      ]
-    },
-    {
-      "identifier": "opener:allow-open-path",
-      "allow": [
-        {
-          "path": "$APPDATA"
-        },
-        {
-          "path": "$APPDATA/**"
-        },
-        {
-          "path": "**/Game.log"
-        }
-      ]
-    },
-    "websocket:default",
-    "updater:default",
-    "process:default"
-  ]
+	"$schema": "../gen/schemas/desktop-schema.json",
+	"identifier": "default",
+	"description": "Capability for the main window",
+	"windows": ["main"],
+	"permissions": [
+		"core:default",
+		"fs:default",
+		"fs:allow-exists",
+		"fs:allow-read",
+		"fs:allow-watch",
+		"fs:allow-unwatch",
+		"fs:allow-app-read",
+		"fs:allow-app-write",
+		{
+			"identifier": "fs:scope",
+			"description": "Restricts file system access to only Star Citizen log directories and app data. Prevents arbitrary file system access.",
+			"allow": [
+				{ "path": "$APPDATA" },
+				{ "path": "$APPDATA/*" },
+				{ "path": "$HOME/AppData" },
+				{ "path": "$HOME/AppData/*" },
+				{ "path": "$HOME/Documents" },
+				{ "path": "$HOME/Documents/*" },
+				{ "path": "$HOME/Downloads" },
+				{ "path": "$HOME/Downloads/*" },
+				{ "path": "$HOME/Library" },
+				{ "path": "$HOME/Library/*" },
+				{ "path": "$HOME/Library/Application Support" },
+				{ "path": "$HOME/Library/Application Support/*" }
+			]
+		},
+		"dialog:default",
+		"store:default",
+		"opener:default",
+		"opener:allow-open-url",
+		{
+			"identifier": "opener:allow-open-url",
+			"allow": [
+				{
+					"url": "discord://*"
+				},
+				{
+					"url": "https://*"
+				}
+			]
+		},
+		{
+			"identifier": "opener:allow-open-path",
+			"allow": [
+				{
+					"path": "$APPDATA"
+				},
+				{
+					"path": "$APPDATA/**"
+				},
+				{
+					"path": "**/Game.log"
+				}
+			]
+		},
+		"websocket:default",
+		"updater:default",
+		"process:default"
+	]
 }

@@ -16,7 +16,7 @@ describe('Compression Utilities', () => {
 			emoji: '🛜',
 			line: `Test log entry ${i} with some content to make it realistic`,
 			timestamp: new Date().toISOString(),
-			original: `<2024.01.01-12:00:00.000> Original log entry ${i} with additional context`,
+			original: `<2024.01.01-12:00:00.000> Original log entry ${i} with additional context`
 		}));
 	};
 
@@ -45,8 +45,8 @@ describe('Compression Utilities', () => {
 					emoji: '🛜',
 					line: 'x'.repeat(6000), // 6KB line
 					timestamp: new Date().toISOString(),
-					original: '<2024.01.01-12:00:00.000> Large log',
-				},
+					original: '<2024.01.01-12:00:00.000> Large log'
+				}
 			];
 
 			const result = shouldCompressLogs(largeLogs);
@@ -105,7 +105,7 @@ describe('Compression Utilities', () => {
 				emoji: '🛜',
 				line: 'Same log line repeated',
 				timestamp: '2024-01-01T12:00:00Z',
-				original: '<2024.01.01-12:00:00.000> Same original',
+				original: '<2024.01.01-12:00:00.000> Same original'
 			}));
 
 			const uncompressedSize = JSON.stringify(repetitiveLogs).length;
@@ -125,8 +125,8 @@ describe('Compression Utilities', () => {
 					emoji: '🛜🚀💥',
 					line: 'Test with émojis and spëcial çharacters 中文',
 					timestamp: new Date().toISOString(),
-					original: '<2024.01.01-12:00:00.000> Special chars: "\'<>&',
-				},
+					original: '<2024.01.01-12:00:00.000> Special chars: "\'<>&'
+				}
 			];
 
 			const compressed = await compressLogs(specialLogs);
@@ -170,8 +170,8 @@ describe('Compression Utilities', () => {
 					emoji: '🛜🚀💥😵',
 					line: 'Test with émojis and spëcial çharacters 中文 日本語',
 					timestamp: new Date().toISOString(),
-					original: '<2024.01.01-12:00:00.000> Special: "\'<>&',
-				},
+					original: '<2024.01.01-12:00:00.000> Special: "\'<>&'
+				}
 			];
 
 			const compressed = await compressLogs(specialLogs);
@@ -202,12 +202,12 @@ describe('Compression Utilities', () => {
 						nested: {
 							level1: {
 								level2: {
-									value: 'deep nested value',
-								},
-							},
-						},
-					},
-				},
+									value: 'deep nested value'
+								}
+							}
+						}
+					}
+				}
 			];
 
 			const compressed = await compressLogs(complexLogs);
@@ -262,8 +262,8 @@ describe('Compression Utilities', () => {
 					arrayField: [1, 2, 3],
 					objectField: { nested: 'value' },
 					floatField: 3.14159,
-					negativeField: -100,
-				},
+					negativeField: -100
+				}
 			];
 
 			const compressed = await compressLogs(mixedTypeLogs);
@@ -289,8 +289,8 @@ describe('Compression Utilities', () => {
 					userId: '550e8400-e29b-41d4-a716-446655440000',
 					emoji: '🛜',
 					line: 'Minimal log',
-					timestamp: new Date().toISOString(),
-				},
+					timestamp: new Date().toISOString()
+				}
 			];
 
 			const compressed = await compressLogs(minimalLogs);
@@ -309,8 +309,8 @@ describe('Compression Utilities', () => {
 					line: 'Log with nulls',
 					timestamp: new Date().toISOString(),
 					original: null,
-					metadata: null,
-				},
+					metadata: null
+				}
 			];
 
 			const compressed = await compressLogs(logsWithNulls);
@@ -328,8 +328,8 @@ describe('Compression Utilities', () => {
 					emoji: '🛜',
 					line: 'x'.repeat(10000),
 					timestamp: new Date().toISOString(),
-					original: 'y'.repeat(20000),
-				},
+					original: 'y'.repeat(20000)
+				}
 			];
 
 			const compressed = await compressLogs(longStringLogs);
@@ -348,7 +348,7 @@ describe('Compression Utilities', () => {
 				emoji: '🛜',
 				line: 'Repeated line',
 				timestamp: '2024-01-01T12:00:00Z',
-				original: '<2024.01.01-12:00:00.000> Same',
+				original: '<2024.01.01-12:00:00.000> Same'
 			}));
 
 			const uncompressedSize = new Blob([JSON.stringify(repetitiveLogs)]).size;

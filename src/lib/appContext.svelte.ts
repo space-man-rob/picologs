@@ -1,4 +1,5 @@
 import { getContext, setContext } from 'svelte';
+import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 import type { Friend as FriendType, Group, GroupMember, GroupInvitation } from '../types';
 import type { ApiFriend, ApiUserProfile } from './api';
 
@@ -11,11 +12,15 @@ export class AppContext {
 	// Will be set to false in layout if no auth data found
 	isSignedIn = $state(true);
 	// Placeholder to prevent flash - will be replaced with real data from cache in layout
-	discordUser = $state<{ id: string; username: string; avatar: string | null } | null>({ id: '', username: '', avatar: null });
+	discordUser = $state<{ id: string; username: string; avatar: string | null } | null>({
+		id: '',
+		username: '',
+		avatar: null
+	});
 	discordUserId = $state<string | null>(null);
 
 	// WebSocket state
-	ws = $state<any>(null);
+	ws = $state<WebSocket | null>(null);
 	connectionStatus = $state<'connected' | 'disconnected' | 'connecting'>('disconnected');
 	connectionError = $state<string | null>(null);
 	copiedStatusVisible = $state(false);
@@ -23,7 +28,16 @@ export class AppContext {
 	// Friends and API data
 	friendsList = $state<FriendType[]>([]);
 	apiFriends = $state<ApiFriend[]>([]);
-	apiFriendRequests = $state<any[]>([]);
+	apiFriendRequests = $state<
+		Array<{
+			id: string;
+			senderId: string;
+			receiverId: string;
+			status: string;
+			createdAt: string;
+			sender: { id: string; username: string; avatar: string | null };
+		}>
+	>([]);
 	apiUserProfile = $state<ApiUserProfile | null>(null);
 
 	// Cached friend code (loaded from store immediately on app start)
@@ -35,7 +49,7 @@ export class AppContext {
 	// Groups data
 	groups = $state<Group[]>([]);
 	groupInvitations = $state<GroupInvitation[]>([]);
-	groupMembers = $state<Map<string, GroupMember[]>>(new Map()); // groupId -> members[]
+	groupMembers = $state<SvelteMap<string, GroupMember[]>>(new SvelteMap()); // groupId -> members[]
 	selectedGroupId = $state<string | null>(null);
 
 	// Selected user for feed filtering
@@ -67,16 +81,23 @@ export class AppContext {
 	}>({});
 
 	// Notifications
-	notifications = $state<Array<{ id: string; message: string; type: 'info' | 'success' | 'error'; customIcon?: string }>>([]);
+	notifications = $state<
+		Array<{ id: string; message: string; type: 'info' | 'success' | 'error'; customIcon?: string }>
+	>([]);
 
 	// Processing states for friend requests and group invitations
-	processingFriendRequests = $state<Set<string>>(new Set());
-	processingGroupInvitations = $state<Set<string>>(new Set());
+	processingFriendRequests = $state<SvelteSet<string>>(new SvelteSet());
+	processingGroupInvitations = $state<SvelteSet<string>>(new SvelteSet());
 
 	/**
 	 * Add a notification toast that auto-dismisses after 5 seconds (unless autoDismiss is false)
 	 */
-	addNotification(message: string, type: 'info' | 'success' | 'error' = 'info', customIcon?: string, autoDismiss: boolean = true) {
+	addNotification(
+		message: string,
+		type: 'info' | 'success' | 'error' = 'info',
+		customIcon?: string,
+		autoDismiss: boolean = true
+	) {
 		const id = crypto.randomUUID();
 		this.notifications = [...this.notifications, { id, message, type, customIcon }];
 
@@ -94,7 +115,7 @@ export class AppContext {
 	 * Remove a notification by ID
 	 */
 	removeNotification(id: string) {
-		this.notifications = this.notifications.filter(n => n.id !== id);
+		this.notifications = this.notifications.filter((n) => n.id !== id);
 	}
 }
 

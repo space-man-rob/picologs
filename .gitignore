@@ -13,3 +13,6 @@ vite.config.ts.timestamp-*
 /static/Game.log
 # Test coverage
 coverage/
+
+# Tauri build artifacts
+src-tauri/target

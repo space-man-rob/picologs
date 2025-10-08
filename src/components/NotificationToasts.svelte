@@ -64,12 +64,19 @@
 	{#each appCtx.notifications as notification (notification.id)}
 		<div
 			transition:fly={{ y: 20, duration: 300 }}
-			class="bg-slate-800/95 backdrop-blur-sm border-2 {getBorderColor(notification.type)} rounded-lg shadow-xl overflow-hidden"
+			class="bg-slate-800/95 backdrop-blur-sm border-2 {getBorderColor(
+				notification.type
+			)} rounded-lg shadow-xl overflow-hidden"
 		>
 			<div class="p-4">
 				<div class="flex items-center gap-3">
-					<div class="flex-shrink-0 w-10 h-10 flex items-center justify-center {getBgColor(notification.type)} rounded-lg text-white">
+					<div
+						class="flex-shrink-0 w-10 h-10 flex items-center justify-center {getBgColor(
+							notification.type
+						)} rounded-lg text-white"
+					>
 						{#if notification.customIcon}
+							<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 							{@html notification.customIcon}
 						{:else}
 							<span class="text-xl leading-none">{getEmoji(notification.type)}</span>

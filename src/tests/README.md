@@ -31,21 +31,25 @@ src/components/
 ## Running Tests
 
 ### Run all tests in watch mode
+
 ```bash
 npm test
 ```
 
 ### Run tests once (CI mode)
+
 ```bash
 npm run test:run
 ```
 
 ### Run with UI
+
 ```bash
 npm run test:ui
 ```
 
 ### Run with coverage
+
 ```bash
 npm run test:coverage
 ```
@@ -77,6 +81,7 @@ The test suite mocks all Tauri APIs to enable testing without a Tauri runtime:
 ### 1. Unit Tests
 
 #### Log Parsing (`log-parsing.test.ts`)
+
 Tests for utility functions extracted from the main page component:
 
 - `parseLogTimestamp()` - Converts Star Citizen log timestamps to ISO 8601
@@ -86,6 +91,7 @@ Tests for utility functions extracted from the main page component:
 - `dedupeAndSortLogs()` - Removes duplicates and sorts by timestamp
 
 #### Regex Utilities (`regex-utils.test.ts`)
+
 Tests for safe regex execution with timeout protection:
 
 - `safeMatch()` - Pattern matching with ReDoS protection
@@ -95,6 +101,7 @@ Tests for safe regex execution with timeout protection:
 ### 2. Component Tests
 
 #### Item Component (`Item.svelte.test.ts`)
+
 Tests for the log item display component:
 
 - Basic rendering with emojis and log text
@@ -105,6 +112,7 @@ Tests for the log item display component:
 - Child item rendering for grouped events
 
 #### Friends Component (`Friends.svelte.test.ts`)
+
 Tests for the friends list component:
 
 - Friends list rendering and sorting (online first, alphabetical)
@@ -117,6 +125,7 @@ Tests for the friends list component:
 ### 3. Integration Tests
 
 #### WebSocket Communication (`websocket.test.ts`)
+
 Tests for real-time communication:
 
 - Connection establishment with JWT authentication
@@ -128,6 +137,7 @@ Tests for real-time communication:
 - Group log broadcasting
 
 #### Log Event Parsing (`log-events.test.ts`)
+
 Tests for real-world Star Citizen log patterns:
 
 - Player connection events with EntityId extraction
@@ -148,16 +158,16 @@ import { createMockLog, createMockFriend } from '../tests/setup';
 
 // Create a mock log entry
 const log = createMockLog({
-  emoji: '🛜',
-  line: 'Player connected',
-  eventType: 'connection',
+	emoji: '🛜',
+	line: 'Player connected',
+	eventType: 'connection'
 });
 
 // Create a mock friend
 const friend = createMockFriend({
-  name: 'TestFriend',
-  status: 'confirmed',
-  isOnline: true,
+	name: 'TestFriend',
+	status: 'confirmed',
+	isOnline: true
 });
 ```
 
@@ -182,9 +192,9 @@ import { render, screen } from 'vitest-browser-svelte';
 import MyComponent from './MyComponent.svelte';
 
 it('should render component', async () => {
-  render(MyComponent, { prop1: 'value' });
+	render(MyComponent, { prop1: 'value' });
 
-  expect(screen.getByText('value')).toBeTruthy();
+	expect(screen.getByText('value')).toBeTruthy();
 });
 ```
 
@@ -194,13 +204,13 @@ Test components with `$state`, `$derived`, and `$effect`:
 
 ```typescript
 it('should update derived state', async () => {
-  const { component } = render(MyComponent, { count: 0 });
+	const { component } = render(MyComponent, { count: 0 });
 
-  // Interact with component to trigger state change
-  await button.click();
+	// Interact with component to trigger state change
+	await button.click();
 
-  // Verify derived state updated
-  expect(screen.getByText('Count: 1')).toBeTruthy();
+	// Verify derived state updated
+	expect(screen.getByText('Count: 1')).toBeTruthy();
 });
 ```
 
@@ -212,9 +222,9 @@ Mock Tauri APIs for specific test scenarios:
 import { vi } from 'vitest';
 
 vi.mock('@tauri-apps/plugin-fs', () => ({
-  readTextFile: vi.fn(async (path: string) => {
-    return '<2024.01.01-12:00:00.000> Mock log content';
-  }),
+	readTextFile: vi.fn(async (path: string) => {
+		return '<2024.01.01-12:00:00.000> Mock log content';
+	})
 }));
 ```
 
@@ -247,19 +257,23 @@ Tests run automatically on:
 ## Debugging Tests
 
 ### Run specific test file
+
 ```bash
 npx vitest run src/lib/regex-utils.test.ts
 ```
 
 ### Run tests matching pattern
+
 ```bash
 npx vitest run -t "parseLogTimestamp"
 ```
 
 ### Debug with VS Code
+
 Add breakpoints and use the built-in debugger with the Vitest extension.
 
 ### View coverage reports
+
 ```bash
 npm run test:coverage
 open coverage/index.html
@@ -277,17 +291,21 @@ open coverage/index.html
 ## Troubleshooting
 
 ### Tests fail with "Cannot find module '@tauri-apps/...'
+
 Ensure all Tauri plugins are mocked in `setup.ts`.
 
 ### Component tests timeout
+
 Increase timeout in `vitest.config.ts` or specific test:
+
 ```typescript
 it('slow test', async () => {
-  // test code
+	// test code
 }, 15000); // 15 second timeout
 ```
 
 ### WebSocket tests fail
+
 Verify mock WebSocket implementation in test setup.
 
 ## Resources

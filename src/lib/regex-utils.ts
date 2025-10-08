@@ -40,11 +40,7 @@ export function safeMatch(
  * @param timeout - Timeout in milliseconds (default: 100ms)
  * @returns True if pattern matches, false otherwise or on timeout
  */
-export function safeTest(
-	pattern: RegExp,
-	text: string,
-	timeout: number = 100
-): boolean {
+export function safeTest(pattern: RegExp, text: string, timeout: number = 100): boolean {
 	const start = Date.now();
 
 	try {

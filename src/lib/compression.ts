@@ -7,12 +7,25 @@
 const COMPRESSION_THRESHOLD_BYTES = 5 * 1024; // 5KB - compress if payload is larger
 const COMPRESSION_THRESHOLD_LOGS = 10; // 10 logs - compress if more than this many
 
+interface Log {
+	id: string;
+	userId: string;
+	player: string | null;
+	emoji: string;
+	line: string;
+	timestamp: string;
+	original: string;
+	open?: boolean;
+	eventType?: string;
+	metadata?: Record<string, unknown>;
+}
+
 /**
  * Compress logs using gzip and return base64-encoded string
  * @param logs - Array of log objects to compress
  * @returns Base64-encoded gzipped JSON string
  */
-export async function compressLogs(logs: any[]): Promise<string> {
+export async function compressLogs(logs: Log[]): Promise<string> {
 	const json = JSON.stringify(logs);
 	const encoder = new TextEncoder();
 	const uint8Array = encoder.encode(json);
@@ -38,7 +51,7 @@ export async function compressLogs(logs: any[]): Promise<string> {
  * @param compressedData - Base64-encoded gzipped data
  * @returns Array of decompressed log objects
  */
-export async function decompressLogs(compressedData: string): Promise<any[]> {
+export async function decompressLogs(compressedData: string): Promise<Log[]> {
 	// Decode base64
 	const binaryString = atob(compressedData);
 	const uint8Array = new Uint8Array(binaryString.length);
@@ -67,7 +80,7 @@ export async function decompressLogs(compressedData: string): Promise<any[]> {
  * @param logs - Array of log objects
  * @returns true if compression should be used
  */
-export function shouldCompressLogs(logs: any[]): boolean {
+export function shouldCompressLogs(logs: Log[]): boolean {
 	if (logs.length > COMPRESSION_THRESHOLD_LOGS) {
 		return true;
 	}

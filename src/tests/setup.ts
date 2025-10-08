@@ -7,7 +7,7 @@ import { vi } from 'vitest';
 
 // Mock Tauri API modules
 vi.mock('@tauri-apps/api/path', () => ({
-	appDataDir: vi.fn(async () => '/mock/app/data/'),
+	appDataDir: vi.fn(async () => '/mock/app/data/')
 }));
 
 vi.mock('@tauri-apps/plugin-fs', () => ({
@@ -20,7 +20,7 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
 	watchImmediate: vi.fn(async (path: string, callback: Function, options?: any) => {
 		// Return a cleanup function
 		return () => {};
-	}),
+	})
 }));
 
 vi.mock('@tauri-apps/plugin-store', () => ({
@@ -37,16 +37,16 @@ vi.mock('@tauri-apps/plugin-store', () => ({
 			}),
 			clear: vi.fn(async () => {
 				store.clear();
-			}),
+			})
 		};
-	}),
+	})
 }));
 
 vi.mock('@tauri-apps/plugin-dialog', () => ({
 	open: vi.fn(async (options?: any) => {
 		// Return mock file path
 		return 'C:\\Program Files\\Roberts Space Industries\\StarCitizen\\LIVE\\Game.log';
-	}),
+	})
 }));
 
 vi.mock('@tauri-apps/plugin-websocket', () => ({
@@ -54,21 +54,21 @@ vi.mock('@tauri-apps/plugin-websocket', () => ({
 		send: vi.fn(async (message: string) => {}),
 		addListener: vi.fn((event: string, callback: Function) => {
 			return () => {}; // Return unsubscribe function
-		}),
-	})),
+		})
+	}))
 }));
 
 vi.mock('@tauri-apps/plugin-opener', () => ({
-	open: vi.fn(async (url: string) => {}),
+	open: vi.fn(async (url: string) => {})
 }));
 
 vi.mock('@tauri-apps/plugin-process', () => ({
 	exit: vi.fn((code?: number) => {}),
-	relaunch: vi.fn(async () => {}),
+	relaunch: vi.fn(async () => {})
 }));
 
 vi.mock('@tauri-apps/plugin-updater', () => ({
-	check: vi.fn(async () => null),
+	check: vi.fn(async () => null)
 }));
 
 vi.mock('@tauri-apps/plugin-http', () => ({
@@ -76,8 +76,8 @@ vi.mock('@tauri-apps/plugin-http', () => ({
 		ok: true,
 		status: 200,
 		json: async () => ({}),
-		text: async () => '',
-	})),
+		text: async () => ''
+	}))
 }));
 
 // Mock window.matchMedia for responsive tests
@@ -91,8 +91,8 @@ Object.defineProperty(window, 'matchMedia', {
 		removeListener: vi.fn(),
 		addEventListener: vi.fn(),
 		removeEventListener: vi.fn(),
-		dispatchEvent: vi.fn(),
-	})),
+		dispatchEvent: vi.fn()
+	}))
 });
 
 // Mock IntersectionObserver for lazy loading tests
@@ -124,7 +124,7 @@ export const createMockLog = (overrides?: Partial<any>) => ({
 	timestamp: new Date().toISOString(),
 	original: '<2024.01.01-12:00:00.000> Test log entry',
 	open: false,
-	...overrides,
+	...overrides
 });
 
 export const createMockFriend = (overrides?: Partial<any>) => ({
@@ -137,7 +137,7 @@ export const createMockFriend = (overrides?: Partial<any>) => ({
 	timezone: 'America/New_York',
 	isOnline: true,
 	isConnected: true,
-	...overrides,
+	...overrides
 });
 
 export const mockLogLines = {
@@ -147,9 +147,8 @@ export const mockLogLines = {
 		"<2024.01.01-12:00:00.000> <Actor Death> CActor::Kill: 'TestPlayer' [12345] in zone 'Stanton' killed by 'EnemyPlayer' [67890] using 'WeaponInstance' [Class WeaponClass] with damage type 'Ballistic' from direction x: 1.0, y: 0.0, z: 0.0",
 	vehicleDestruction:
 		"<2024.01.01-12:00:00.000> <Vehicle Destruction> Vehicle 'AEGS_Gladius_12345' [12345] caused by 'EnemyPlayer' [67890] destroyLevel from 'None' to 'SoftDeath'",
-	shipBoarding:
-		"<2024.01.01-12:00:00.000> <Vehicle Control Flow> Ship 'AEGS_Gladius_1' [12345]",
+	shipBoarding: "<2024.01.01-12:00:00.000> <Vehicle Control Flow> Ship 'AEGS_Gladius_1' [12345]",
 	systemQuit: '<2024.01.01-12:00:00.000> <SystemQuit> Player quit the game',
 	inventoryRequest:
-		'<2024.01.01-12:00:00.000> <RequestLocationInventory> Player[TestPlayer] Location[Port Olisar]',
+		'<2024.01.01-12:00:00.000> <RequestLocationInventory> Player[TestPlayer] Location[Port Olisar]'
 };

@@ -4,6 +4,7 @@
  */
 
 import type WebSocket from '@tauri-apps/plugin-websocket';
+import type { Log } from '../types';
 import { sendJsonMessage } from './websocket-helper';
 
 const DEFAULT_SEND_TIMEOUT = 5000; // 5 seconds
@@ -15,20 +16,24 @@ export async function sendSyncLogsRequest(
 	ws: WebSocket,
 	params: {
 		targetUserId: string;
-		logs: any[];
+		logs: Log[];
 		since: string | null;
 		limit: number;
 		offset: number;
 	}
 ): Promise<void> {
-	await sendJsonMessage(ws, {
-		type: 'sync_logs',
-		targetUserId: params.targetUserId,
-		logs: params.logs,
-		since: params.since,
-		limit: params.limit,
-		offset: params.offset
-	}, DEFAULT_SEND_TIMEOUT);
+	await sendJsonMessage(
+		ws,
+		{
+			type: 'sync_logs',
+			targetUserId: params.targetUserId,
+			logs: params.logs,
+			since: params.since,
+			limit: params.limit,
+			offset: params.offset
+		},
+		DEFAULT_SEND_TIMEOUT
+	);
 }
 
 /**
@@ -36,11 +41,11 @@ export async function sendSyncLogsRequest(
  */
 export async function sendBatchLogs(
 	ws: WebSocket,
-	logs: any[],
+	logs: Log[],
 	compressed: boolean = false,
 	compressedData?: string
 ): Promise<void> {
-	const message: any = {
+	const message: Record<string, unknown> = {
 		type: 'batch_logs'
 	};
 
@@ -60,11 +65,11 @@ export async function sendBatchLogs(
 export async function sendBatchGroupLogs(
 	ws: WebSocket,
 	groupId: string,
-	logs: any[],
+	logs: Log[],
 	compressed: boolean = false,
 	compressedData?: string
 ): Promise<void> {
-	const message: any = {
+	const message: Record<string, unknown> = {
 		type: 'batch_group_logs',
 		groupId
 	};
@@ -90,55 +95,61 @@ export async function sendUpdateMyDetails(
 		usePlayerAsDisplayName: boolean;
 	}
 ): Promise<void> {
-	await sendJsonMessage(ws, {
-		type: 'update_user_profile',
-		data: {
-			player: params.player,
-			timeZone: params.timeZone,
-			usePlayerAsDisplayName: params.usePlayerAsDisplayName
-		}
-	}, DEFAULT_SEND_TIMEOUT);
+	await sendJsonMessage(
+		ws,
+		{
+			type: 'update_user_profile',
+			data: {
+				player: params.player,
+				timeZone: params.timeZone,
+				usePlayerAsDisplayName: params.usePlayerAsDisplayName
+			}
+		},
+		DEFAULT_SEND_TIMEOUT
+	);
 }
 
 /**
  * Send single log message to friends
  */
-export async function sendLog(
-	ws: WebSocket,
-	log: any
-): Promise<void> {
-	await sendJsonMessage(ws, {
-		type: 'log',
-		log
-	}, DEFAULT_SEND_TIMEOUT);
+export async function sendLog(ws: WebSocket, log: Log): Promise<void> {
+	await sendJsonMessage(
+		ws,
+		{
+			type: 'log',
+			log
+		},
+		DEFAULT_SEND_TIMEOUT
+	);
 }
 
 /**
  * Send group log message to a specific group
  */
-export async function sendGroupLog(
-	ws: WebSocket,
-	groupId: string,
-	log: any
-): Promise<void> {
-	await sendJsonMessage(ws, {
-		type: 'group_log',
-		groupId,
-		log
-	}, DEFAULT_SEND_TIMEOUT);
+export async function sendGroupLog(ws: WebSocket, groupId: string, log: Log): Promise<void> {
+	await sendJsonMessage(
+		ws,
+		{
+			type: 'group_log',
+			groupId,
+			log
+		},
+		DEFAULT_SEND_TIMEOUT
+	);
 }
 
 /**
  * Send friend request by friend code
  */
-export async function sendFriendRequestByCode(
-	ws: WebSocket,
-	friendCode: string
-): Promise<void> {
-	await sendJsonMessage(ws, {
-		type: 'friend_request_by_code',
-		friendCode
-	}, DEFAULT_SEND_TIMEOUT);
+export async function sendFriendRequestByCode(ws: WebSocket, friendCode: string): Promise<void> {
+	await sendJsonMessage(
+		ws,
+		{
+			type: 'friend_request_by_code',
+			friendCode
+		},
+		DEFAULT_SEND_TIMEOUT
+	);
 }
 
 /**
@@ -149,26 +160,38 @@ export async function sendFriendRequestResponse(
 	requestId: string,
 	accept: boolean
 ): Promise<void> {
-	await sendJsonMessage(ws, {
-		type: accept ? 'friend_request_response_accept' : 'friend_request_response_deny',
-		requestId
-	}, DEFAULT_SEND_TIMEOUT);
+	await sendJsonMessage(
+		ws,
+		{
+			type: accept ? 'friend_request_response_accept' : 'friend_request_response_deny',
+			requestId
+		},
+		DEFAULT_SEND_TIMEOUT
+	);
 }
 
 /**
  * Send ping message for keepalive
  */
 export async function sendPing(ws: WebSocket): Promise<void> {
-	await sendJsonMessage(ws, {
-		type: 'ping'
-	}, DEFAULT_SEND_TIMEOUT);
+	await sendJsonMessage(
+		ws,
+		{
+			type: 'ping'
+		},
+		DEFAULT_SEND_TIMEOUT
+	);
 }
 
 /**
  * Send pong message in response to ping
  */
 export async function sendPong(ws: WebSocket): Promise<void> {
-	await sendJsonMessage(ws, {
-		type: 'pong'
-	}, DEFAULT_SEND_TIMEOUT);
+	await sendJsonMessage(
+		ws,
+		{
+			type: 'pong'
+		},
+		DEFAULT_SEND_TIMEOUT
+	);
 }

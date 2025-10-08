@@ -3,7 +3,11 @@
 	import type { Snippet } from 'svelte';
 	import { Store, load as loadStore } from '@tauri-apps/plugin-store';
 
-	let { topPanel, bottomPanel, storeKey }: { topPanel: Snippet, bottomPanel: Snippet, storeKey: string } = $props();
+	let {
+		topPanel,
+		bottomPanel,
+		storeKey
+	}: { topPanel: Snippet; bottomPanel: Snippet; storeKey: string } = $props();
 
 	const resizerHeight = 3; // px
 	const minPanelHeight = 50; // px
@@ -47,7 +51,7 @@
 					topHeightPx = (loadedPercent / 100) * containerHeight;
 				}
 			})
-			.catch(error => {
+			.catch((error) => {
 				console.error('[VerticalResizer] Store load error:', error);
 			});
 

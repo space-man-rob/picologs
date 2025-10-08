@@ -9,7 +9,7 @@ import {
 	mergeGroups,
 	mergeGroupMembers,
 	friendsHaveChanged,
-	groupsHaveChanged,
+	groupsHaveChanged
 } from './merge';
 import type { Friend, Group, GroupMember } from '../types';
 
@@ -32,12 +32,12 @@ describe('Merge Utilities', () => {
 					discordId: 'discord-1',
 					friendCode: 'ABC123',
 					name: 'NewFriend',
-					avatar: null,
+					avatar: undefined,
 					status: 'confirmed',
 					timezone: 'UTC',
 					isOnline: true,
-					isConnected: true,
-				},
+					isConnected: true
+				}
 			];
 
 			const result = mergeFriends(existing, fresh);
@@ -54,12 +54,12 @@ describe('Merge Utilities', () => {
 					discordId: 'discord-1',
 					friendCode: 'ABC123',
 					name: 'OldName',
-					avatar: null,
+					avatar: undefined,
 					status: 'confirmed',
 					timezone: 'UTC',
 					isOnline: false,
-					isConnected: false,
-				},
+					isConnected: false
+				}
 			];
 
 			const fresh: Friend[] = [
@@ -72,8 +72,8 @@ describe('Merge Utilities', () => {
 					status: 'confirmed',
 					timezone: 'America/New_York',
 					isOnline: true,
-					isConnected: true,
-				},
+					isConnected: true
+				}
 			];
 
 			const result = mergeFriends(existing, fresh);
@@ -91,23 +91,23 @@ describe('Merge Utilities', () => {
 					discordId: 'discord-1',
 					friendCode: 'ABC123',
 					name: 'Friend1',
-					avatar: null,
+					avatar: undefined,
 					status: 'confirmed',
 					timezone: 'UTC',
 					isOnline: true,
-					isConnected: true,
+					isConnected: true
 				},
 				{
 					id: 'friend-2',
 					discordId: 'discord-2',
 					friendCode: 'DEF456',
 					name: 'Friend2',
-					avatar: null,
+					avatar: undefined,
 					status: 'confirmed',
 					timezone: 'UTC',
 					isOnline: false,
-					isConnected: false,
-				},
+					isConnected: false
+				}
 			];
 
 			const fresh: Friend[] = [
@@ -116,12 +116,12 @@ describe('Merge Utilities', () => {
 					discordId: 'discord-1',
 					friendCode: 'ABC123',
 					name: 'UpdatedFriend1',
-					avatar: null,
+					avatar: undefined,
 					status: 'confirmed',
 					timezone: 'UTC',
 					isOnline: true,
-					isConnected: true,
-				},
+					isConnected: true
+				}
 			];
 
 			const result = mergeFriends(existing, fresh);
@@ -138,12 +138,12 @@ describe('Merge Utilities', () => {
 					discordId: 'discord-1',
 					friendCode: 'ABC123',
 					name: 'Friend1',
-					avatar: null,
+					avatar: undefined,
 					status: 'confirmed',
 					timezone: 'UTC',
 					isOnline: false,
-					isConnected: false,
-				},
+					isConnected: false
+				}
 			];
 
 			const fresh: Friend[] = [
@@ -152,23 +152,23 @@ describe('Merge Utilities', () => {
 					discordId: 'discord-1',
 					friendCode: 'ABC123',
 					name: 'Friend1',
-					avatar: null,
+					avatar: undefined,
 					status: 'confirmed',
 					timezone: 'UTC',
 					isOnline: true,
-					isConnected: true,
+					isConnected: true
 				},
 				{
 					id: 'friend-2',
 					discordId: 'discord-2',
 					friendCode: 'DEF456',
 					name: 'Friend2',
-					avatar: null,
+					avatar: undefined,
 					status: 'confirmed',
 					timezone: 'UTC',
 					isOnline: true,
-					isConnected: true,
-				},
+					isConnected: true
+				}
 			];
 
 			const result = mergeFriends(existing, fresh);
@@ -196,12 +196,13 @@ describe('Merge Utilities', () => {
 					id: 'group-1',
 					name: 'New Group',
 					description: 'Test group',
-					avatar: null,
+					avatar: undefined,
 					tags: ['test'],
 					ownerId: 'user-1',
-					createdAt: '2024-01-01T00:00:00Z',
-					updatedAt: '2024-01-01T00:00:00Z',
-				},
+					memberRole: 'member',
+					memberCount: 1,
+					createdAt: '2024-01-01T00:00:00Z'
+				}
 			];
 
 			const result = mergeGroups(existing, fresh);
@@ -216,12 +217,13 @@ describe('Merge Utilities', () => {
 					id: 'group-1',
 					name: 'Old Name',
 					description: 'Old description',
-					avatar: null,
+					avatar: undefined,
 					tags: [],
 					ownerId: 'user-1',
-					createdAt: '2024-01-01T00:00:00Z',
-					updatedAt: '2024-01-01T00:00:00Z',
-				},
+					memberRole: 'member',
+					memberCount: 1,
+					createdAt: '2024-01-01T00:00:00Z'
+				}
 			];
 
 			const fresh: Group[] = [
@@ -232,9 +234,10 @@ describe('Merge Utilities', () => {
 					avatar: 'new-avatar',
 					tags: ['updated'],
 					ownerId: 'user-1',
-					createdAt: '2024-01-01T00:00:00Z',
-					updatedAt: '2024-01-02T00:00:00Z',
-				},
+					memberRole: 'member',
+					memberCount: 1,
+					createdAt: '2024-01-01T00:00:00Z'
+				}
 			];
 
 			const result = mergeGroups(existing, fresh);
@@ -252,22 +255,24 @@ describe('Merge Utilities', () => {
 					id: 'group-1',
 					name: 'Group 1',
 					description: 'Desc 1',
-					avatar: null,
+					avatar: undefined,
 					tags: [],
 					ownerId: 'user-1',
-					createdAt: '2024-01-01T00:00:00Z',
-					updatedAt: '2024-01-01T00:00:00Z',
+					memberRole: 'member',
+					memberCount: 1,
+					createdAt: '2024-01-01T00:00:00Z'
 				},
 				{
 					id: 'group-2',
 					name: 'Group 2',
 					description: 'Desc 2',
-					avatar: null,
+					avatar: undefined,
 					tags: [],
 					ownerId: 'user-2',
-					createdAt: '2024-01-01T00:00:00Z',
-					updatedAt: '2024-01-01T00:00:00Z',
-				},
+					memberRole: 'owner',
+					memberCount: 1,
+					createdAt: '2024-01-01T00:00:00Z'
+				}
 			];
 
 			const fresh: Group[] = [
@@ -275,12 +280,13 @@ describe('Merge Utilities', () => {
 					id: 'group-1',
 					name: 'Updated Group 1',
 					description: 'Desc 1',
-					avatar: null,
+					avatar: undefined,
 					tags: [],
 					ownerId: 'user-1',
-					createdAt: '2024-01-01T00:00:00Z',
-					updatedAt: '2024-01-01T00:00:00Z',
-				},
+					memberRole: 'member',
+					memberCount: 1,
+					createdAt: '2024-01-01T00:00:00Z'
+				}
 			];
 
 			const result = mergeGroups(existing, fresh);
@@ -307,19 +313,13 @@ describe('Merge Utilities', () => {
 
 			fresh.set('group-1', [
 				{
-					id: 'member-1',
-					groupId: 'group-1',
 					userId: 'user-1',
 					discordId: 'discord-1',
 					username: 'User1',
-					avatar: null,
-					player: null,
-					role: 'member',
-					canInvite: false,
-					canRemoveMembers: false,
-					canEditGroup: false,
-					joinedAt: '2024-01-01T00:00:00Z',
-				},
+					avatar: undefined,
+					player: undefined,
+					role: 'member'
+				}
 			]);
 
 			const result = mergeGroupMembers(existing, fresh);
@@ -333,37 +333,25 @@ describe('Merge Utilities', () => {
 			const existing = new Map<string, GroupMember[]>();
 			existing.set('group-1', [
 				{
-					id: 'member-1',
-					groupId: 'group-1',
 					userId: 'user-1',
 					discordId: 'discord-1',
 					username: 'OldName',
-					avatar: null,
-					player: null,
-					role: 'member',
-					canInvite: false,
-					canRemoveMembers: false,
-					canEditGroup: false,
-					joinedAt: '2024-01-01T00:00:00Z',
-				},
+					avatar: undefined,
+					player: undefined,
+					role: 'member'
+				}
 			]);
 
 			const fresh = new Map<string, GroupMember[]>();
 			fresh.set('group-1', [
 				{
-					id: 'member-1',
-					groupId: 'group-1',
 					userId: 'user-1',
 					discordId: 'discord-1',
 					username: 'NewName',
 					avatar: 'avatar',
 					player: 'Player1',
-					role: 'admin',
-					canInvite: true,
-					canRemoveMembers: true,
-					canEditGroup: true,
-					joinedAt: '2024-01-01T00:00:00Z',
-				},
+					role: 'admin'
+				}
 			]);
 
 			const result = mergeGroupMembers(existing, fresh);
@@ -371,60 +359,41 @@ describe('Merge Utilities', () => {
 			expect(result.size).toBe(1);
 			expect(result.get('group-1')?.[0].username).toBe('NewName');
 			expect(result.get('group-1')?.[0].role).toBe('admin');
-			expect(result.get('group-1')?.[0].canInvite).toBe(true);
 		});
 
 		it('should preserve existing groups not in fresh data', () => {
 			const existing = new Map<string, GroupMember[]>();
 			existing.set('group-1', [
 				{
-					id: 'member-1',
-					groupId: 'group-1',
 					userId: 'user-1',
 					discordId: 'discord-1',
 					username: 'User1',
-					avatar: null,
-					player: null,
-					role: 'member',
-					canInvite: false,
-					canRemoveMembers: false,
-					canEditGroup: false,
-					joinedAt: '2024-01-01T00:00:00Z',
-				},
+					avatar: undefined,
+					player: undefined,
+					role: 'member'
+				}
 			]);
 			existing.set('group-2', [
 				{
-					id: 'member-2',
-					groupId: 'group-2',
 					userId: 'user-2',
 					discordId: 'discord-2',
 					username: 'User2',
-					avatar: null,
-					player: null,
-					role: 'owner',
-					canInvite: true,
-					canRemoveMembers: true,
-					canEditGroup: true,
-					joinedAt: '2024-01-01T00:00:00Z',
-				},
+					avatar: undefined,
+					player: undefined,
+					role: 'owner'
+				}
 			]);
 
 			const fresh = new Map<string, GroupMember[]>();
 			fresh.set('group-1', [
 				{
-					id: 'member-1',
-					groupId: 'group-1',
 					userId: 'user-1',
 					discordId: 'discord-1',
 					username: 'UpdatedUser1',
-					avatar: null,
-					player: null,
-					role: 'admin',
-					canInvite: true,
-					canRemoveMembers: false,
-					canEditGroup: false,
-					joinedAt: '2024-01-01T00:00:00Z',
-				},
+					avatar: undefined,
+					player: undefined,
+					role: 'admin'
+				}
 			]);
 
 			const result = mergeGroupMembers(existing, fresh);
@@ -452,12 +421,12 @@ describe('Merge Utilities', () => {
 					discordId: 'discord-1',
 					friendCode: 'ABC123',
 					name: 'Friend1',
-					avatar: null,
+					avatar: undefined,
 					status: 'confirmed',
 					timezone: 'UTC',
 					isOnline: true,
-					isConnected: true,
-				},
+					isConnected: true
+				}
 			];
 			const fresh: Friend[] = [];
 
@@ -473,12 +442,12 @@ describe('Merge Utilities', () => {
 					discordId: 'discord-1',
 					friendCode: 'ABC123',
 					name: 'Friend1',
-					avatar: null,
+					avatar: undefined,
 					status: 'confirmed',
 					timezone: 'UTC',
 					isOnline: true,
-					isConnected: true,
-				},
+					isConnected: true
+				}
 			];
 			const fresh: Friend[] = [
 				{
@@ -486,12 +455,12 @@ describe('Merge Utilities', () => {
 					discordId: 'discord-2',
 					friendCode: 'DEF456',
 					name: 'Friend2',
-					avatar: null,
+					avatar: undefined,
 					status: 'confirmed',
 					timezone: 'UTC',
 					isOnline: true,
-					isConnected: true,
-				},
+					isConnected: true
+				}
 			];
 
 			const result = friendsHaveChanged(existing, fresh);
@@ -506,12 +475,12 @@ describe('Merge Utilities', () => {
 					discordId: 'discord-1',
 					friendCode: 'ABC123',
 					name: 'Friend1',
-					avatar: null,
+					avatar: undefined,
 					status: 'confirmed',
 					timezone: 'UTC',
 					isOnline: false,
-					isConnected: false,
-				},
+					isConnected: false
+				}
 			];
 			const fresh: Friend[] = [
 				{
@@ -519,12 +488,12 @@ describe('Merge Utilities', () => {
 					discordId: 'discord-1',
 					friendCode: 'ABC123',
 					name: 'Friend1',
-					avatar: null,
+					avatar: undefined,
 					status: 'confirmed',
 					timezone: 'UTC',
 					isOnline: true,
-					isConnected: true,
-				},
+					isConnected: true
+				}
 			];
 
 			const result = friendsHaveChanged(existing, fresh);
@@ -539,12 +508,12 @@ describe('Merge Utilities', () => {
 					discordId: 'discord-1',
 					friendCode: 'ABC123',
 					name: 'OldName',
-					avatar: null,
+					avatar: undefined,
 					status: 'confirmed',
 					timezone: 'UTC',
 					isOnline: true,
-					isConnected: true,
-				},
+					isConnected: true
+				}
 			];
 			const fresh: Friend[] = [
 				{
@@ -552,12 +521,12 @@ describe('Merge Utilities', () => {
 					discordId: 'discord-1',
 					friendCode: 'ABC123',
 					name: 'NewName',
-					avatar: null,
+					avatar: undefined,
 					status: 'confirmed',
 					timezone: 'UTC',
 					isOnline: true,
-					isConnected: true,
-				},
+					isConnected: true
+				}
 			];
 
 			const result = friendsHaveChanged(existing, fresh);
@@ -572,12 +541,12 @@ describe('Merge Utilities', () => {
 					discordId: 'discord-1',
 					friendCode: 'ABC123',
 					name: 'Friend1',
-					avatar: null,
+					avatar: undefined,
 					status: 'confirmed',
 					timezone: 'UTC',
 					isOnline: true,
-					isConnected: false,
-				},
+					isConnected: false
+				}
 			];
 			const fresh: Friend[] = [
 				{
@@ -585,12 +554,12 @@ describe('Merge Utilities', () => {
 					discordId: 'discord-1',
 					friendCode: 'ABC123',
 					name: 'Friend1',
-					avatar: null,
+					avatar: undefined,
 					status: 'confirmed',
 					timezone: 'UTC',
 					isOnline: true,
-					isConnected: true,
-				},
+					isConnected: true
+				}
 			];
 
 			const result = friendsHaveChanged(existing, fresh);
@@ -605,12 +574,12 @@ describe('Merge Utilities', () => {
 					discordId: 'discord-1',
 					friendCode: 'ABC123',
 					name: 'Friend1',
-					avatar: null,
+					avatar: undefined,
 					status: 'confirmed',
 					timezone: 'UTC',
 					isOnline: true,
-					isConnected: true,
-				},
+					isConnected: true
+				}
 			];
 			const fresh: Friend[] = [
 				{
@@ -618,12 +587,12 @@ describe('Merge Utilities', () => {
 					discordId: 'discord-1',
 					friendCode: 'ABC123',
 					name: 'Friend1',
-					avatar: null,
+					avatar: undefined,
 					status: 'confirmed',
 					timezone: 'UTC',
 					isOnline: true,
-					isConnected: true,
-				},
+					isConnected: true
+				}
 			];
 
 			const result = friendsHaveChanged(existing, fresh);
@@ -648,12 +617,13 @@ describe('Merge Utilities', () => {
 					id: 'group-1',
 					name: 'Group1',
 					description: 'Desc',
-					avatar: null,
+					avatar: undefined,
 					tags: [],
 					ownerId: 'user-1',
-					createdAt: '2024-01-01T00:00:00Z',
-					updatedAt: '2024-01-01T00:00:00Z',
-				},
+					memberRole: 'member',
+					memberCount: 1,
+					createdAt: '2024-01-01T00:00:00Z'
+				}
 			];
 			const fresh: Group[] = [];
 
@@ -668,24 +638,26 @@ describe('Merge Utilities', () => {
 					id: 'group-1',
 					name: 'OldName',
 					description: 'Desc',
-					avatar: null,
+					avatar: undefined,
 					tags: [],
 					ownerId: 'user-1',
-					createdAt: '2024-01-01T00:00:00Z',
-					updatedAt: '2024-01-01T00:00:00Z',
-				},
+					memberRole: 'member',
+					memberCount: 1,
+					createdAt: '2024-01-01T00:00:00Z'
+				}
 			];
 			const fresh: Group[] = [
 				{
 					id: 'group-1',
 					name: 'NewName',
 					description: 'Desc',
-					avatar: null,
+					avatar: undefined,
 					tags: [],
 					ownerId: 'user-1',
-					createdAt: '2024-01-01T00:00:00Z',
-					updatedAt: '2024-01-01T00:00:00Z',
-				},
+					memberRole: 'member',
+					memberCount: 1,
+					createdAt: '2024-01-01T00:00:00Z'
+				}
 			];
 
 			const result = groupsHaveChanged(existing, fresh);
@@ -699,12 +671,13 @@ describe('Merge Utilities', () => {
 					id: 'group-1',
 					name: 'Group1',
 					description: 'Desc',
-					avatar: null,
+					avatar: undefined,
 					tags: [],
 					ownerId: 'user-1',
-					createdAt: '2024-01-01T00:00:00Z',
-					updatedAt: '2024-01-01T00:00:00Z',
-				},
+					memberRole: 'member',
+					memberCount: 1,
+					createdAt: '2024-01-01T00:00:00Z'
+				}
 			];
 			const fresh: Group[] = [
 				{
@@ -714,9 +687,10 @@ describe('Merge Utilities', () => {
 					avatar: 'new-avatar',
 					tags: [],
 					ownerId: 'user-1',
-					createdAt: '2024-01-01T00:00:00Z',
-					updatedAt: '2024-01-01T00:00:00Z',
-				},
+					memberRole: 'member',
+					memberCount: 1,
+					createdAt: '2024-01-01T00:00:00Z'
+				}
 			];
 
 			const result = groupsHaveChanged(existing, fresh);
@@ -730,24 +704,26 @@ describe('Merge Utilities', () => {
 					id: 'group-1',
 					name: 'Group1',
 					description: 'Desc',
-					avatar: null,
+					avatar: undefined,
 					tags: [],
 					ownerId: 'user-1',
-					createdAt: '2024-01-01T00:00:00Z',
-					updatedAt: '2024-01-01T00:00:00Z',
-				},
+					memberRole: 'member',
+					memberCount: 1,
+					createdAt: '2024-01-01T00:00:00Z'
+				}
 			];
 			const fresh: Group[] = [
 				{
 					id: 'group-1',
 					name: 'Group1',
 					description: 'Desc',
-					avatar: null,
+					avatar: undefined,
 					tags: [],
 					ownerId: 'user-1',
-					createdAt: '2024-01-01T00:00:00Z',
-					updatedAt: '2024-01-01T00:00:00Z',
-				},
+					memberRole: 'member',
+					memberCount: 1,
+					createdAt: '2024-01-01T00:00:00Z'
+				}
 			];
 
 			const result = groupsHaveChanged(existing, fresh);

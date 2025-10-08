@@ -45,9 +45,10 @@
 				onConnected();
 			}
 		} catch (error) {
-			const errorMessage = error instanceof Error && error.message.includes('timeout')
-				? "Can't connect to server - connection timed out"
-				: 'Failed to connect to server';
+			const errorMessage =
+				error instanceof Error && error.message.includes('timeout')
+					? "Can't connect to server - connection timed out"
+					: 'Failed to connect to server';
 
 			appCtx.connectionStatus = 'disconnected';
 			appCtx.connectionError = errorMessage;
@@ -64,7 +65,12 @@
 
 	// Start connection when component mounts (if user is signed in)
 	$effect(() => {
-		if (appCtx.isSignedIn && appCtx.discordUserId && !appCtx.ws && !appCtx.autoConnectionAttempted) {
+		if (
+			appCtx.isSignedIn &&
+			appCtx.discordUserId &&
+			!appCtx.ws &&
+			!appCtx.autoConnectionAttempted
+		) {
 			appCtx.autoConnectionAttempted = true;
 			connectionPromise = initiateConnection();
 		}

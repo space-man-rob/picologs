@@ -8,7 +8,6 @@ interface DiscordUser {
 	global_name: string | null;
 }
 
-
 /**
  * Handle auth complete via WebSocket message
  * Called when server sends auth_complete with JWT token
@@ -66,7 +65,6 @@ export async function handleAuthComplete(data: {
 	}
 }
 
-
 /**
  * Load stored authentication data
  */
@@ -99,7 +97,7 @@ export async function loadAuthData(): Promise<{ user: DiscordUser; expiresAt: nu
 				}
 
 				// Return expiration time if available, otherwise default to 1 year
-				const expiresAt = payload.exp ? payload.exp * 1000 : Date.now() + (365 * 24 * 60 * 60 * 1000);
+				const expiresAt = payload.exp ? payload.exp * 1000 : Date.now() + 365 * 24 * 60 * 60 * 1000;
 				return { user, expiresAt };
 			} catch (parseError) {
 				console.error('[OAuth Security] Failed to parse JWT:', parseError);
@@ -124,7 +122,6 @@ export async function signOut(): Promise<void> {
 	await store.clear();
 	// No explicit save needed - autoSave will persist the clear operation
 }
-
 
 /**
  * Get stored JWT token with expiration validation

@@ -50,13 +50,11 @@ function getShipType(shipName: string): string {
 		'cutlass',
 		'freelancer',
 		'avenger',
-		'nomad',
+		'nomad'
 	];
 
 	if (!shipName) return 'Unknown Ship';
-	return (
-		shipTypes.find((type) => shipName.toLowerCase().includes(type.toLowerCase())) || shipName
-	);
+	return shipTypes.find((type) => shipName.toLowerCase().includes(type.toLowerCase())) || shipName;
 }
 
 // Helper function from +page.svelte
@@ -270,7 +268,7 @@ describe('Log Parsing Utilities', () => {
 					line: 'First log',
 					timestamp: '2024-01-01T12:00:00.000Z',
 					original: 'original',
-					open: false,
+					open: false
 				},
 				{
 					id: 'log-1', // Duplicate
@@ -280,7 +278,7 @@ describe('Log Parsing Utilities', () => {
 					line: 'First log',
 					timestamp: '2024-01-01T12:00:00.000Z',
 					original: 'original',
-					open: false,
+					open: false
 				},
 				{
 					id: 'log-2',
@@ -290,8 +288,8 @@ describe('Log Parsing Utilities', () => {
 					line: 'Second log',
 					timestamp: '2024-01-01T12:00:01.000Z',
 					original: 'original',
-					open: false,
-				},
+					open: false
+				}
 			];
 
 			const result = dedupeAndSortLogs(logs);
@@ -311,7 +309,7 @@ describe('Log Parsing Utilities', () => {
 					line: 'Third log',
 					timestamp: '2024-01-01T12:00:03.000Z',
 					original: 'original',
-					open: false,
+					open: false
 				},
 				{
 					id: 'log-1',
@@ -321,7 +319,7 @@ describe('Log Parsing Utilities', () => {
 					line: 'First log',
 					timestamp: '2024-01-01T12:00:01.000Z',
 					original: 'original',
-					open: false,
+					open: false
 				},
 				{
 					id: 'log-2',
@@ -331,8 +329,8 @@ describe('Log Parsing Utilities', () => {
 					line: 'Second log',
 					timestamp: '2024-01-01T12:00:02.000Z',
 					original: 'original',
-					open: false,
-				},
+					open: false
+				}
 			];
 
 			const result = dedupeAndSortLogs(logs);
@@ -360,7 +358,7 @@ describe('Log Parsing Utilities', () => {
 					line: 'Second log',
 					timestamp: '2024-01-01T12:00:02.000Z',
 					original: 'original',
-					open: false,
+					open: false
 				},
 				{
 					id: 'log-1',
@@ -370,7 +368,7 @@ describe('Log Parsing Utilities', () => {
 					line: 'First log',
 					timestamp: '2024-01-01T12:00:01.000Z',
 					original: 'original',
-					open: false,
+					open: false
 				},
 				{
 					id: 'log-2', // Duplicate
@@ -380,8 +378,8 @@ describe('Log Parsing Utilities', () => {
 					line: 'Second log',
 					timestamp: '2024-01-01T12:00:02.000Z',
 					original: 'original',
-					open: false,
-				},
+					open: false
+				}
 			];
 
 			const result = dedupeAndSortLogs(logs);

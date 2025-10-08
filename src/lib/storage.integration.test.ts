@@ -338,7 +338,7 @@ describe('Storage Integration Tests', () => {
 				storage.get<string>('concurrentKey')
 			]);
 
-			results.forEach(result => {
+			results.forEach((result) => {
 				expect(result).toBe('concurrentValue');
 			});
 		});
