@@ -4,11 +4,11 @@
  */
 export function getDiscordColor(userId: string): string {
 	const colors = [
+		'#ED4245', // Red
 		'#5865F2', // Blurple
 		'#57F287', // Green
-		'#FEE75C', // Yellow
-		'#EB459E', // Fuchsia
-		'#ED4245'  // Red
+		'#F0B232', // Orange
+		'#EB459E'  // Pink
 	];
 
 	// Simple hash function to get consistent color for same user
