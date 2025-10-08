@@ -126,6 +126,7 @@ export type Group = {
 };
 
 export type GroupMember = {
+	id: string;
 	userId: string;
 	discordId: string;
 	username: string;

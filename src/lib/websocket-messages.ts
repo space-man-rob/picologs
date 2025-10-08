@@ -3,7 +3,7 @@
  * Provides high-level functions for all WebSocket message types in Picologs
  */
 
-import type WebSocket from '@tauri-apps/plugin-websocket';
+import type { WebSocketSocket } from './appContext.svelte';
 import type { Log } from '../types';
 import { sendJsonMessage } from './websocket-helper';
 
@@ -13,7 +13,7 @@ const DEFAULT_SEND_TIMEOUT = 5000; // 5 seconds
  * Send sync_logs message to request log sync from a friend
  */
 export async function sendSyncLogsRequest(
-	ws: WebSocket,
+	ws: WebSocketSocket,
 	params: {
 		targetUserId: string;
 		logs: Log[];
@@ -40,7 +40,7 @@ export async function sendSyncLogsRequest(
  * Send batch_logs message to broadcast batched logs to friends
  */
 export async function sendBatchLogs(
-	ws: WebSocket,
+	ws: WebSocketSocket,
 	logs: Log[],
 	compressed: boolean = false,
 	compressedData?: string
@@ -63,7 +63,7 @@ export async function sendBatchLogs(
  * Send batch_group_logs message to broadcast batched logs to a group
  */
 export async function sendBatchGroupLogs(
-	ws: WebSocket,
+	ws: WebSocketSocket,
 	groupId: string,
 	logs: Log[],
 	compressed: boolean = false,
@@ -88,7 +88,7 @@ export async function sendBatchGroupLogs(
  * Send update_user_profile message to update player info on server
  */
 export async function sendUpdateMyDetails(
-	ws: WebSocket,
+	ws: WebSocketSocket,
 	params: {
 		player: string;
 		timeZone: string;
@@ -112,7 +112,7 @@ export async function sendUpdateMyDetails(
 /**
  * Send single log message to friends
  */
-export async function sendLog(ws: WebSocket, log: Log): Promise<void> {
+export async function sendLog(ws: WebSocketSocket, log: Log): Promise<void> {
 	await sendJsonMessage(
 		ws,
 		{
@@ -126,7 +126,7 @@ export async function sendLog(ws: WebSocket, log: Log): Promise<void> {
 /**
  * Send group log message to a specific group
  */
-export async function sendGroupLog(ws: WebSocket, groupId: string, log: Log): Promise<void> {
+export async function sendGroupLog(ws: WebSocketSocket, groupId: string, log: Log): Promise<void> {
 	await sendJsonMessage(
 		ws,
 		{
@@ -141,7 +141,7 @@ export async function sendGroupLog(ws: WebSocket, groupId: string, log: Log): Pr
 /**
  * Send friend request by friend code
  */
-export async function sendFriendRequestByCode(ws: WebSocket, friendCode: string): Promise<void> {
+export async function sendFriendRequestByCode(ws: WebSocketSocket, friendCode: string): Promise<void> {
 	await sendJsonMessage(
 		ws,
 		{
@@ -156,7 +156,7 @@ export async function sendFriendRequestByCode(ws: WebSocket, friendCode: string)
  * Send friend request response (accept/deny)
  */
 export async function sendFriendRequestResponse(
-	ws: WebSocket,
+	ws: WebSocketSocket,
 	requestId: string,
 	accept: boolean
 ): Promise<void> {
@@ -173,7 +173,7 @@ export async function sendFriendRequestResponse(
 /**
  * Send ping message for keepalive
  */
-export async function sendPing(ws: WebSocket): Promise<void> {
+export async function sendPing(ws: WebSocketSocket): Promise<void> {
 	await sendJsonMessage(
 		ws,
 		{
@@ -186,7 +186,7 @@ export async function sendPing(ws: WebSocket): Promise<void> {
 /**
  * Send pong message in response to ping
  */
-export async function sendPong(ws: WebSocket): Promise<void> {
+export async function sendPong(ws: WebSocketSocket): Promise<void> {
 	await sendJsonMessage(
 		ws,
 		{

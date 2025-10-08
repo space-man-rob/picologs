@@ -7,9 +7,9 @@
 		updateGroup,
 		leaveGroup,
 		inviteFriendToGroup,
-		removeMemberFromGroup
+		removeMemberFromGroup,
+		type ApiGroupMember
 	} from '$lib/api';
-	import type { GroupMember } from '../../../types';
 	import SubNav from '../../../components/SubNav.svelte';
 	import Avatar from '../../../components/Avatar.svelte';
 
@@ -31,7 +31,7 @@
 	});
 
 	// State
-	let members = $state<GroupMember[]>([]);
+	let members = $state<ApiGroupMember[]>([]);
 	let isLoading = $state(true);
 	let isEditing = $state(false);
 	let showLeaveConfirm = $state(false);
@@ -45,7 +45,7 @@
 	let tagInput = $state('');
 
 	// Modal state
-	let memberToRemove = $state<GroupMember | null>(null);
+	let memberToRemove = $state<ApiGroupMember | null>(null);
 	let isRemoving = $state(false);
 	let selectedFriends = $state<string[]>([]);
 	let isSendingInvites = $state(false);
@@ -70,6 +70,12 @@
 	async function loadMembers() {
 		console.log('[Group Detail] loadMembers called - groupId:', groupId, 'group exists:', !!group);
 
+		if (!groupId) {
+			console.log('[Group Detail] No groupId available');
+			isLoading = false;
+			return;
+		}
+
 		if (!group) {
 			console.log('[Group Detail] No group found in cache, cannot load members');
 			isLoading = false;
@@ -92,8 +98,8 @@
 		} catch (error) {
 			console.error('[Group Detail] Error loading members:', error);
 			console.error('[Group Detail] Error details:', {
-				message: error.message,
-				stack: error.stack
+				message: error instanceof Error ? error.message : String(error),
+				stack: error instanceof Error ? error.stack : undefined
 			});
 			// Don't show error notification - group might just be loading
 			// appCtx.addNotification('Error loading group members', 'error');
@@ -104,7 +110,7 @@
 	}
 
 	// Helper functions
-	function getDisplayName(member: GroupMember): string {
+	function getDisplayName(member: ApiGroupMember): string {
 		if (member.usePlayerAsDisplayName && member.player) {
 			return member.player;
 		}
@@ -160,6 +166,11 @@
 			return;
 		}
 
+		if (!groupId) {
+			appCtx.addNotification('Group ID is missing', 'error');
+			return;
+		}
+
 		try {
 			await updateGroup({
 				groupId,
@@ -201,6 +212,11 @@
 
 	// Leave group
 	async function confirmLeave() {
+		if (!groupId) {
+			appCtx.addNotification('Group ID is missing', 'error');
+			return;
+		}
+
 		try {
 			const success = await leaveGroup(groupId);
 			if (success) {
@@ -229,6 +245,11 @@
 			return;
 		}
 
+		if (!groupId) {
+			inviteError = 'Group ID is missing';
+			return;
+		}
+
 		isSendingInvites = true;
 		inviteError = '';
 
@@ -253,13 +274,18 @@
 	}
 
 	// Remove member
-	function openRemoveMemberDialog(member: GroupMember) {
+	function openRemoveMemberDialog(member: ApiGroupMember) {
 		memberToRemove = member;
 		showRemoveMemberConfirm = true;
 	}
 
 	async function confirmRemoveMember() {
 		if (!memberToRemove) return;
+
+		if (!groupId) {
+			appCtx.addNotification('Group ID is missing', 'error');
+			return;
+		}
 
 		isRemoving = true;
 		try {

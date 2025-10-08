@@ -19,7 +19,9 @@
  */
 
 import { load } from '@tauri-apps/plugin-store';
-import type { Friend, Group, GroupMember } from '../types';
+import { SvelteMap } from 'svelte/reactivity';
+import type { Friend } from '../types';
+import type { ApiGroup, ApiGroupMember } from './api';
 
 /** Store filename for cache data */
 const CACHE_STORE = 'cache.json';
@@ -96,10 +98,10 @@ export async function saveFriendsCache(friends: Friend[]): Promise<void> {
  * const cachedGroups = await loadCachedGroups();
  * ```
  */
-export async function loadCachedGroups(): Promise<Group[]> {
+export async function loadCachedGroups(): Promise<ApiGroup[]> {
 	try {
 		const store = await load(CACHE_STORE, { defaults: {}, autoSave: false });
-		const cached = await store.get<CacheData<Group[]>>('groups_cache');
+		const cached = await store.get<CacheData<ApiGroup[]>>('groups_cache');
 		return cached?.data || [];
 	} catch {
 		return [];
@@ -118,7 +120,7 @@ export async function loadCachedGroups(): Promise<Group[]> {
  * await saveGroupsCache(userGroups);
  * ```
  */
-export async function saveGroupsCache(groups: Group[]): Promise<void> {
+export async function saveGroupsCache(groups: ApiGroup[]): Promise<void> {
 	try {
 		const store = await load(CACHE_STORE, { defaults: {}, autoSave: 100 });
 		await store.set('groups_cache', {
@@ -143,18 +145,19 @@ export async function saveGroupsCache(groups: Group[]): Promise<void> {
  * const membersOfGroup = groupMembers.get('group-id-123') || [];
  * ```
  */
-export async function loadCachedGroupMembers(): Promise<Map<string, GroupMember[]>> {
+export async function loadCachedGroupMembers(): Promise<SvelteMap<string, ApiGroupMember[]>> {
 	try {
 		const store = await load(CACHE_STORE, { defaults: {}, autoSave: false });
-		const cached = await store.get<CacheData<Record<string, GroupMember[]>>>('group_members_cache');
+		const cached =
+			await store.get<CacheData<Record<string, ApiGroupMember[]>>>('group_members_cache');
 
 		if (cached?.data) {
-			// Convert object to Map
-			return new Map(Object.entries(cached.data));
+			// Convert object to SvelteMap
+			return new SvelteMap(Object.entries(cached.data));
 		}
-		return new Map();
+		return new SvelteMap();
 	} catch {
-		return new Map();
+		return new SvelteMap();
 	}
 }
 
@@ -173,11 +176,11 @@ export async function loadCachedGroupMembers(): Promise<Map<string, GroupMember[
  * ```
  */
 export async function saveGroupMembersCache(
-	groupMembers: Map<string, GroupMember[]>
+	groupMembers: SvelteMap<string, ApiGroupMember[]>
 ): Promise<void> {
 	try {
 		const store = await load(CACHE_STORE, { defaults: {}, autoSave: 100 });
-		// Convert Map to plain object for storage
+		// Convert SvelteMap to plain object for storage
 		await store.set('group_members_cache', {
 			data: Object.fromEntries(groupMembers),
 			timestamp: new Date().toISOString()

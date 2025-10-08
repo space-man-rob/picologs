@@ -1,7 +1,23 @@
 import { getContext, setContext } from 'svelte';
 import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 import type { Friend as FriendType, Group, GroupMember, GroupInvitation } from '../types';
-import type { ApiFriend, ApiUserProfile } from './api';
+import type {
+	ApiFriend,
+	ApiFriendRequest,
+	ApiUserProfile,
+	ApiGroup,
+	ApiGroupMember,
+	ApiGroupInvitation
+} from './api';
+import type WebSocket from '@tauri-apps/plugin-websocket';
+
+/**
+ * WebSocket connection type from our API module
+ */
+export interface WebSocketSocket {
+	send: (data: string) => Promise<void>;
+	disconnect: () => Promise<void>;
+}
 
 /**
  * Shared application context for authentication, WebSocket connection, friends, and groups data.
@@ -20,7 +36,7 @@ export class AppContext {
 	discordUserId = $state<string | null>(null);
 
 	// WebSocket state
-	ws = $state<WebSocket | null>(null);
+	ws = $state<WebSocketSocket | null>(null);
 	connectionStatus = $state<'connected' | 'disconnected' | 'connecting'>('disconnected');
 	connectionError = $state<string | null>(null);
 	copiedStatusVisible = $state(false);
@@ -28,16 +44,7 @@ export class AppContext {
 	// Friends and API data
 	friendsList = $state<FriendType[]>([]);
 	apiFriends = $state<ApiFriend[]>([]);
-	apiFriendRequests = $state<
-		Array<{
-			id: string;
-			senderId: string;
-			receiverId: string;
-			status: string;
-			createdAt: string;
-			sender: { id: string; username: string; avatar: string | null };
-		}>
-	>([]);
+	apiFriendRequests = $state<ApiFriendRequest[]>([]);
 	apiUserProfile = $state<ApiUserProfile | null>(null);
 
 	// Cached friend code (loaded from store immediately on app start)
@@ -47,9 +54,9 @@ export class AppContext {
 	cachedLogLocation = $state<string | null>(null);
 
 	// Groups data
-	groups = $state<Group[]>([]);
-	groupInvitations = $state<GroupInvitation[]>([]);
-	groupMembers = $state<SvelteMap<string, GroupMember[]>>(new SvelteMap()); // groupId -> members[]
+	groups = $state<ApiGroup[]>([]);
+	groupInvitations = $state<ApiGroupInvitation[]>([]);
+	groupMembers = $state<SvelteMap<string, ApiGroupMember[]>>(new SvelteMap()); // groupId -> members[]
 	selectedGroupId = $state<string | null>(null);
 
 	// Selected user for feed filtering

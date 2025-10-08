@@ -130,8 +130,8 @@ export async function connectWebSocket(
 	const connection = await createWebSocketConnection({
 		url: WS_URL,
 		timeout: 10000,
-		onMessage: async (msg: string) => {
-			const message = parseJsonMessage(msg) as WebSocketMessage | null;
+		onMessage: async (msg) => {
+			const message = parseJsonMessage<WebSocketMessage>(msg);
 			if (!message) return;
 
 			// Handle request-response pattern
@@ -252,13 +252,20 @@ async function sendRequest<T>(type: string, data?: Record<string, unknown>): Pro
 		pendingRequests.set(requestId, {
 			resolve: (value) => {
 				clearTimeout(timeout);
-				resolve(value);
+				resolve(value as T);
 			},
 			reject: (error) => {
 				clearTimeout(timeout);
 				reject(error);
 			}
 		});
+
+		if (!ws) {
+			clearTimeout(timeout);
+			pendingRequests.delete(requestId);
+			reject(new Error('WebSocket disconnected before send'));
+			return;
+		}
 
 		ws.send(
 			JSON.stringify({
@@ -442,22 +449,31 @@ export async function updateUserProfile(data: {
 	}
 }
 
-interface Group {
+export interface ApiGroup {
 	id: string;
 	name: string;
 	description?: string;
 	avatar?: string;
 	tags?: string[];
 	ownerId: string;
+	memberRole: string; // 'owner', 'admin', 'member'
+	memberCount: number;
 	createdAt: string;
 	updatedAt: string;
 }
 
-interface GroupMember {
+export interface ApiGroupMember {
 	id: string;
 	groupId: string;
 	userId: string;
+	discordId: string;
+	username: string;
+	avatar?: string;
+	player?: string;
 	role: string;
+	usePlayerAsDisplayName?: boolean;
+	isOnline?: boolean;
+	isConnected?: boolean;
 	canInvite: boolean;
 	canRemoveMembers: boolean;
 	canEditGroup: boolean;
@@ -467,9 +483,9 @@ interface GroupMember {
 /**
  * Fetch groups list from API via WebSocket
  */
-export async function fetchGroups(): Promise<Group[]> {
+export async function fetchGroups(): Promise<ApiGroup[]> {
 	try {
-		const groups = await sendRequest<Group[]>('get_groups');
+		const groups = await sendRequest<ApiGroup[]>('get_groups');
 		return groups || [];
 	} catch (error) {
 		console.error('[WS API] Error fetching groups:', error);
@@ -481,14 +497,14 @@ export async function fetchGroups(): Promise<Group[]> {
  * Fetch groups with their members in a single request (optimized)
  */
 export async function fetchGroupsWithMembers(): Promise<{
-	groups: Group[];
-	members: Record<string, GroupMember[]>;
+	groups: ApiGroup[];
+	members: Record<string, ApiGroupMember[]>;
 }> {
 	try {
-		const response = await sendRequest<{ groups: Group[]; members: Record<string, GroupMember[]> }>(
-			'get_groups',
-			{ includeMembers: true }
-		);
+		const response = await sendRequest<{
+			groups: ApiGroup[];
+			members: Record<string, ApiGroupMember[]>;
+		}>('get_groups', { includeMembers: true });
 		return response || { groups: [], members: {} };
 	} catch (error) {
 		console.error('[WS API] Error fetching groups with members:', error);
@@ -499,10 +515,10 @@ export async function fetchGroupsWithMembers(): Promise<{
 /**
  * Fetch members of a specific group from API via WebSocket
  */
-export async function fetchGroupMembers(groupId: string): Promise<GroupMember[]> {
+export async function fetchGroupMembers(groupId: string): Promise<ApiGroupMember[]> {
 	try {
 		console.log('[WS API] Requesting group members for groupId:', groupId);
-		const members = await sendRequest<GroupMember[]>('get_group_members', { groupId });
+		const members = await sendRequest<ApiGroupMember[]>('get_group_members', { groupId });
 		console.log('[WS API] Received group members:', members);
 		return members || [];
 	} catch (error) {
@@ -516,7 +532,7 @@ export async function fetchGroupMembers(groupId: string): Promise<GroupMember[]>
 	}
 }
 
-interface GroupInvitation {
+export interface ApiGroupInvitation {
 	id: string;
 	groupId: string;
 	inviterId: string;
@@ -524,14 +540,27 @@ interface GroupInvitation {
 	status: string;
 	createdAt: string;
 	respondedAt?: string;
+	group: {
+		id: string;
+		name: string;
+		description?: string;
+		avatar?: string;
+		tags?: string[];
+	};
+	inviter: {
+		id: string;
+		username: string;
+		avatar?: string;
+		player?: string;
+	};
 }
 
 /**
  * Fetch pending group invitations from API via WebSocket
  */
-export async function fetchGroupInvitations(): Promise<GroupInvitation[]> {
+export async function fetchGroupInvitations(): Promise<ApiGroupInvitation[]> {
 	try {
-		const invitations = await sendRequest<GroupInvitation[]>('get_group_invitations');
+		const invitations = await sendRequest<ApiGroupInvitation[]>('get_group_invitations');
 		return invitations || [];
 	} catch (error) {
 		console.error('[WS API] Error fetching group invitations:', error);
@@ -566,9 +595,9 @@ export async function updateGroup(data: {
 	description?: string;
 	avatar?: string;
 	tags?: string[];
-}): Promise<Group> {
+}): Promise<ApiGroup> {
 	try {
-		const response = await sendRequest<Group>('update_group', data);
+		const response = await sendRequest<ApiGroup>('update_group', data);
 		return response;
 	} catch (error) {
 		console.error('[WS API] Error updating group:', error);

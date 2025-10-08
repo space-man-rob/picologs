@@ -86,7 +86,7 @@ describe('Item Component', () => {
 				original: '<2024.01.01-12:00:00.000> Actor Death log',
 				player: 'TestPlayer',
 				open: false,
-				eventType: 'actor_death',
+				eventType: 'actor_death' as const,
 				metadata: {
 					victimName: 'TestPlayer',
 					victimId: '12345',
@@ -112,7 +112,7 @@ describe('Item Component', () => {
 				original: '<2024.01.01-12:00:00.000> Suicide log',
 				player: 'TestPlayer',
 				open: false,
-				eventType: 'actor_death',
+				eventType: 'actor_death' as const,
 				metadata: {
 					victimName: 'TestPlayer',
 					victimId: '12345',
@@ -136,7 +136,7 @@ describe('Item Component', () => {
 				original: '<2024.01.01-12:00:00.000> Self-destruct log',
 				player: 'TestPlayer',
 				open: false,
-				eventType: 'actor_death',
+				eventType: 'actor_death' as const,
 				metadata: {
 					victimName: 'TestPlayer',
 					victimId: '12345',
@@ -160,7 +160,7 @@ describe('Item Component', () => {
 				original: '<2024.01.01-12:00:00.000> NPC death',
 				player: 'TestPlayer',
 				open: false,
-				eventType: 'actor_death',
+				eventType: 'actor_death' as const,
 				metadata: {
 					victimName: 'PU_Human',
 					victimId: '12345',
@@ -186,7 +186,7 @@ describe('Item Component', () => {
 				original: '<2024.01.01-12:00:00.000> Vehicle control log',
 				player: 'TestPlayer',
 				open: false,
-				eventType: 'vehicle_control_flow',
+				eventType: 'vehicle_control_flow' as const,
 				metadata: {
 					vehicleName: 'AEGS_Gladius_12345'
 				}
@@ -207,7 +207,7 @@ describe('Item Component', () => {
 				original: '<2024.01.01-12:00:00.000> Killing spree',
 				player: 'TestPlayer',
 				open: false,
-				eventType: 'killing_spree'
+				eventType: 'killing_spree' as const
 			};
 
 			const screen = render(Item, props);
@@ -224,7 +224,7 @@ describe('Item Component', () => {
 				original: '<2024.01.01-12:00:00.000> Killing spree',
 				player: 'TestPlayer',
 				open: false,
-				eventType: 'killing_spree'
+				eventType: 'killing_spree' as const
 			};
 
 			const screen = render(Item, props);
@@ -242,7 +242,7 @@ describe('Item Component', () => {
 				original: '<2024.01.01-12:00:00.000> Location change',
 				player: 'TestPlayer',
 				open: false,
-				eventType: 'location_change',
+				eventType: 'location_change' as const,
 				metadata: {
 					location: 'Port_Olisar'
 				}
@@ -263,7 +263,7 @@ describe('Item Component', () => {
 				original: '<2024.01.01-12:00:00.000> System quit',
 				player: 'TestPlayer',
 				open: false,
-				eventType: 'system_quit'
+				eventType: 'system_quit' as const
 			};
 
 			const screen = render(Item, props);
@@ -281,7 +281,7 @@ describe('Item Component', () => {
 				original: '<2024.01.01-12:00:00.000> Vehicle destruction',
 				player: 'TestPlayer',
 				open: false,
-				eventType: 'destruction',
+				eventType: 'destruction' as const,
 				metadata: {
 					vehicleName: 'AEGS_Gladius_12345',
 					causeName: 'EnemyPlayer',
@@ -368,7 +368,7 @@ describe('Item Component', () => {
 				original: '<2024.01.01-12:00:00.000> Death log',
 				player: 'TestPlayer',
 				open: false,
-				eventType: 'actor_death',
+				eventType: 'actor_death' as const,
 				metadata: {
 					victimName: 'TestPlayer',
 					victimId: '12345',

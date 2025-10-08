@@ -7,7 +7,7 @@
 	import WebSocket from '@tauri-apps/plugin-websocket';
 	import { openUrl } from '@tauri-apps/plugin-opener';
 	import { listen } from '@tauri-apps/api/event';
-	import { SvelteMap } from 'svelte/reactivity';
+	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 	import Header from '../components/Header.svelte';
 	import NotificationToasts from '../components/NotificationToasts.svelte';
 	import { setAppContext } from '$lib/appContext.svelte';
@@ -56,7 +56,7 @@
 		AuthCompleteSchema
 	} from '$lib/validation';
 	import type { Update } from '@tauri-apps/plugin-updater';
-	import type { GroupMember } from '../types';
+	import type { ApiGroupMember } from '$lib/api';
 
 	let { children } = $props();
 
@@ -163,9 +163,9 @@
 			}
 
 			// Convert members object to SvelteMap
-			const freshGroupMembers = new SvelteMap<string, GroupMember[]>();
+			const freshGroupMembers = new SvelteMap<string, ApiGroupMember[]>();
 			for (const [groupId, membersList] of Object.entries(members)) {
-				freshGroupMembers.set(groupId, membersList as GroupMember[]);
+				freshGroupMembers.set(groupId, membersList as ApiGroupMember[]);
 			}
 
 			// Merge group members
@@ -739,7 +739,7 @@
 	async function handleAcceptFriend(friendshipId: string) {
 		try {
 			appCtx.processingFriendRequests.add(friendshipId);
-			appCtx.processingFriendRequests = new Set(appCtx.processingFriendRequests);
+			appCtx.processingFriendRequests = new SvelteSet(appCtx.processingFriendRequests);
 
 			const success = await apiAcceptFriendRequest(friendshipId);
 			if (success) {
@@ -752,7 +752,7 @@
 			appCtx.addNotification('Failed to accept friend request', 'error');
 		} finally {
 			appCtx.processingFriendRequests.delete(friendshipId);
-			appCtx.processingFriendRequests = new Set(appCtx.processingFriendRequests);
+			appCtx.processingFriendRequests = new SvelteSet(appCtx.processingFriendRequests);
 		}
 	}
 
@@ -760,7 +760,7 @@
 	async function handleDenyFriend(friendshipId: string) {
 		try {
 			appCtx.processingFriendRequests.add(friendshipId);
-			appCtx.processingFriendRequests = new Set(appCtx.processingFriendRequests);
+			appCtx.processingFriendRequests = new SvelteSet(appCtx.processingFriendRequests);
 
 			const success = await apiDenyFriendRequest(friendshipId);
 			if (success) {
@@ -773,7 +773,7 @@
 			appCtx.addNotification('Failed to deny friend request', 'error');
 		} finally {
 			appCtx.processingFriendRequests.delete(friendshipId);
-			appCtx.processingFriendRequests = new Set(appCtx.processingFriendRequests);
+			appCtx.processingFriendRequests = new SvelteSet(appCtx.processingFriendRequests);
 		}
 	}
 
@@ -781,7 +781,7 @@
 	async function handleAcceptInvitation(invitationId: string) {
 		try {
 			appCtx.processingGroupInvitations.add(invitationId);
-			appCtx.processingGroupInvitations = new Set(appCtx.processingGroupInvitations);
+			appCtx.processingGroupInvitations = new SvelteSet(appCtx.processingGroupInvitations);
 
 			const result = await apiAcceptGroupInvitation(invitationId);
 			if (result) {
@@ -794,7 +794,7 @@
 			appCtx.addNotification('Failed to accept invitation', 'error');
 		} finally {
 			appCtx.processingGroupInvitations.delete(invitationId);
-			appCtx.processingGroupInvitations = new Set(appCtx.processingGroupInvitations);
+			appCtx.processingGroupInvitations = new SvelteSet(appCtx.processingGroupInvitations);
 		}
 	}
 
@@ -802,7 +802,7 @@
 	async function handleDenyInvitation(invitationId: string) {
 		try {
 			appCtx.processingGroupInvitations.add(invitationId);
-			appCtx.processingGroupInvitations = new Set(appCtx.processingGroupInvitations);
+			appCtx.processingGroupInvitations = new SvelteSet(appCtx.processingGroupInvitations);
 
 			const success = await apiDenyGroupInvitation(invitationId);
 			if (success) {
@@ -815,7 +815,7 @@
 			appCtx.addNotification('Failed to deny invitation', 'error');
 		} finally {
 			appCtx.processingGroupInvitations.delete(invitationId);
-			appCtx.processingGroupInvitations = new Set(appCtx.processingGroupInvitations);
+			appCtx.processingGroupInvitations = new SvelteSet(appCtx.processingGroupInvitations);
 		}
 	}
 

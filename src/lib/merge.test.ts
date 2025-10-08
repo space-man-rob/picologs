@@ -4,6 +4,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { SvelteMap } from 'svelte/reactivity';
 import {
 	mergeFriends,
 	mergeGroups,
@@ -11,7 +12,8 @@ import {
 	friendsHaveChanged,
 	groupsHaveChanged
 } from './merge';
-import type { Friend, Group, GroupMember } from '../types';
+import type { Friend } from '../types';
+import type { ApiGroup, ApiGroupMember } from './api';
 
 describe('Merge Utilities', () => {
 	describe('mergeFriends', () => {
@@ -181,8 +183,8 @@ describe('Merge Utilities', () => {
 
 	describe('mergeGroups', () => {
 		it('should merge empty arrays', () => {
-			const existing: Group[] = [];
-			const fresh: Group[] = [];
+			const existing: ApiGroup[] = [];
+			const fresh: ApiGroup[] = [];
 
 			const result = mergeGroups(existing, fresh);
 
@@ -190,8 +192,8 @@ describe('Merge Utilities', () => {
 		});
 
 		it('should add new groups from fresh data', () => {
-			const existing: Group[] = [];
-			const fresh: Group[] = [
+			const existing: ApiGroup[] = [];
+			const fresh: ApiGroup[] = [
 				{
 					id: 'group-1',
 					name: 'New Group',
@@ -201,7 +203,8 @@ describe('Merge Utilities', () => {
 					ownerId: 'user-1',
 					memberRole: 'member',
 					memberCount: 1,
-					createdAt: '2024-01-01T00:00:00Z'
+					createdAt: '2024-01-01T00:00:00Z',
+					updatedAt: '2024-01-01T00:00:00Z'
 				}
 			];
 
@@ -212,7 +215,7 @@ describe('Merge Utilities', () => {
 		});
 
 		it('should update existing groups with fresh data', () => {
-			const existing: Group[] = [
+			const existing: ApiGroup[] = [
 				{
 					id: 'group-1',
 					name: 'Old Name',
@@ -222,11 +225,12 @@ describe('Merge Utilities', () => {
 					ownerId: 'user-1',
 					memberRole: 'member',
 					memberCount: 1,
-					createdAt: '2024-01-01T00:00:00Z'
+					createdAt: '2024-01-01T00:00:00Z',
+					updatedAt: '2024-01-01T00:00:00Z'
 				}
 			];
 
-			const fresh: Group[] = [
+			const fresh: ApiGroup[] = [
 				{
 					id: 'group-1',
 					name: 'Updated Name',
@@ -236,7 +240,8 @@ describe('Merge Utilities', () => {
 					ownerId: 'user-1',
 					memberRole: 'member',
 					memberCount: 1,
-					createdAt: '2024-01-01T00:00:00Z'
+					createdAt: '2024-01-01T00:00:00Z',
+					updatedAt: '2024-01-02T00:00:00Z'
 				}
 			];
 
@@ -250,7 +255,7 @@ describe('Merge Utilities', () => {
 		});
 
 		it('should preserve existing groups not in fresh data', () => {
-			const existing: Group[] = [
+			const existing: ApiGroup[] = [
 				{
 					id: 'group-1',
 					name: 'Group 1',
@@ -260,7 +265,8 @@ describe('Merge Utilities', () => {
 					ownerId: 'user-1',
 					memberRole: 'member',
 					memberCount: 1,
-					createdAt: '2024-01-01T00:00:00Z'
+					createdAt: '2024-01-01T00:00:00Z',
+					updatedAt: '2024-01-01T00:00:00Z'
 				},
 				{
 					id: 'group-2',
@@ -271,11 +277,12 @@ describe('Merge Utilities', () => {
 					ownerId: 'user-2',
 					memberRole: 'owner',
 					memberCount: 1,
-					createdAt: '2024-01-01T00:00:00Z'
+					createdAt: '2024-01-01T00:00:00Z',
+					updatedAt: '2024-01-01T00:00:00Z'
 				}
 			];
 
-			const fresh: Group[] = [
+			const fresh: ApiGroup[] = [
 				{
 					id: 'group-1',
 					name: 'Updated Group 1',
@@ -285,22 +292,23 @@ describe('Merge Utilities', () => {
 					ownerId: 'user-1',
 					memberRole: 'member',
 					memberCount: 1,
-					createdAt: '2024-01-01T00:00:00Z'
+					createdAt: '2024-01-01T00:00:00Z',
+					updatedAt: '2024-01-01T00:00:00Z'
 				}
 			];
 
 			const result = mergeGroups(existing, fresh);
 
-			expect(result).toHaveLength(2);
+			expect(result).toHaveLength(1);
 			expect(result.find((g) => g.id === 'group-1')?.name).toBe('Updated Group 1');
-			expect(result.find((g) => g.id === 'group-2')?.name).toBe('Group 2');
+			expect(result.find((g) => g.id === 'group-2')).toBeUndefined();
 		});
 	});
 
 	describe('mergeGroupMembers', () => {
 		it('should merge empty maps', () => {
-			const existing = new Map<string, GroupMember[]>();
-			const fresh = new Map<string, GroupMember[]>();
+			const existing = new SvelteMap<string, ApiGroupMember[]>();
+			const fresh = new SvelteMap<string, ApiGroupMember[]>();
 
 			const result = mergeGroupMembers(existing, fresh);
 
@@ -308,17 +316,23 @@ describe('Merge Utilities', () => {
 		});
 
 		it('should add new group members from fresh data', () => {
-			const existing = new Map<string, GroupMember[]>();
-			const fresh = new Map<string, GroupMember[]>();
+			const existing = new SvelteMap<string, ApiGroupMember[]>();
+			const fresh = new SvelteMap<string, ApiGroupMember[]>();
 
 			fresh.set('group-1', [
 				{
+					id: 'member-1',
 					userId: 'user-1',
 					discordId: 'discord-1',
 					username: 'User1',
 					avatar: undefined,
 					player: undefined,
-					role: 'member'
+					role: 'member',
+				groupId: 'group-1',
+				canInvite: false,
+				canRemoveMembers: false,
+				canEditGroup: false,
+				joinedAt: '2024-01-01T00:00:00Z'
 				}
 			]);
 
@@ -330,27 +344,39 @@ describe('Merge Utilities', () => {
 		});
 
 		it('should update existing group members', () => {
-			const existing = new Map<string, GroupMember[]>();
+			const existing = new SvelteMap<string, ApiGroupMember[]>();
 			existing.set('group-1', [
 				{
+					id: 'member-1',
 					userId: 'user-1',
 					discordId: 'discord-1',
 					username: 'OldName',
 					avatar: undefined,
 					player: undefined,
-					role: 'member'
+					role: 'member',
+				groupId: 'group-1',
+				canInvite: false,
+				canRemoveMembers: false,
+				canEditGroup: false,
+				joinedAt: '2024-01-01T00:00:00Z'
 				}
 			]);
 
-			const fresh = new Map<string, GroupMember[]>();
+			const fresh = new SvelteMap<string, ApiGroupMember[]>();
 			fresh.set('group-1', [
 				{
+					id: 'member-1',
 					userId: 'user-1',
 					discordId: 'discord-1',
 					username: 'NewName',
 					avatar: 'avatar',
 					player: 'Player1',
-					role: 'admin'
+					role: 'admin',
+				groupId: 'group-1',
+				canInvite: true,
+				canRemoveMembers: false,
+				canEditGroup: false,
+				joinedAt: '2024-01-01T00:00:00Z'
 				}
 			]);
 
@@ -362,45 +388,63 @@ describe('Merge Utilities', () => {
 		});
 
 		it('should preserve existing groups not in fresh data', () => {
-			const existing = new Map<string, GroupMember[]>();
+			const existing = new SvelteMap<string, ApiGroupMember[]>();
 			existing.set('group-1', [
 				{
+					id: 'member-1',
 					userId: 'user-1',
 					discordId: 'discord-1',
 					username: 'User1',
 					avatar: undefined,
 					player: undefined,
-					role: 'member'
+					role: 'member',
+				groupId: 'group-1',
+				canInvite: false,
+				canRemoveMembers: false,
+				canEditGroup: false,
+				joinedAt: '2024-01-01T00:00:00Z'
 				}
 			]);
 			existing.set('group-2', [
 				{
+					id: 'member-2',
 					userId: 'user-2',
 					discordId: 'discord-2',
 					username: 'User2',
 					avatar: undefined,
 					player: undefined,
-					role: 'owner'
+					role: 'owner',
+				groupId: 'group-2',
+				canInvite: true,
+				canRemoveMembers: true,
+				canEditGroup: true,
+				joinedAt: '2024-01-01T00:00:00Z'
 				}
 			]);
 
-			const fresh = new Map<string, GroupMember[]>();
+			const fresh = new SvelteMap<string, ApiGroupMember[]>();
 			fresh.set('group-1', [
 				{
+					id: 'member-1',
 					userId: 'user-1',
 					discordId: 'discord-1',
 					username: 'UpdatedUser1',
 					avatar: undefined,
 					player: undefined,
-					role: 'admin'
+					role: 'admin',
+				groupId: 'group-1',
+				canInvite: true,
+				canRemoveMembers: false,
+				canEditGroup: false,
+				joinedAt: '2024-01-01T00:00:00Z'
 				}
 			]);
 
 			const result = mergeGroupMembers(existing, fresh);
 
-			expect(result.size).toBe(2);
+			expect(result.size).toBe(1);
 			expect(result.get('group-1')?.[0].username).toBe('UpdatedUser1');
-			expect(result.get('group-2')?.[0].username).toBe('User2');
+			expect(result.get('group-2')).toBeUndefined();
 		});
 	});
 
@@ -603,8 +647,8 @@ describe('Merge Utilities', () => {
 
 	describe('groupsHaveChanged', () => {
 		it('should return false for identical empty arrays', () => {
-			const existing: Group[] = [];
-			const fresh: Group[] = [];
+			const existing: ApiGroup[] = [];
+			const fresh: ApiGroup[] = [];
 
 			const result = groupsHaveChanged(existing, fresh);
 
@@ -612,7 +656,7 @@ describe('Merge Utilities', () => {
 		});
 
 		it('should return true for different lengths', () => {
-			const existing: Group[] = [
+			const existing: ApiGroup[] = [
 				{
 					id: 'group-1',
 					name: 'Group1',
@@ -622,10 +666,11 @@ describe('Merge Utilities', () => {
 					ownerId: 'user-1',
 					memberRole: 'member',
 					memberCount: 1,
-					createdAt: '2024-01-01T00:00:00Z'
+					createdAt: '2024-01-01T00:00:00Z',
+				updatedAt: '2024-01-01T00:00:00Z'
 				}
 			];
-			const fresh: Group[] = [];
+			const fresh: ApiGroup[] = [];
 
 			const result = groupsHaveChanged(existing, fresh);
 
@@ -633,7 +678,7 @@ describe('Merge Utilities', () => {
 		});
 
 		it('should return true when group name changes', () => {
-			const existing: Group[] = [
+			const existing: ApiGroup[] = [
 				{
 					id: 'group-1',
 					name: 'OldName',
@@ -643,10 +688,11 @@ describe('Merge Utilities', () => {
 					ownerId: 'user-1',
 					memberRole: 'member',
 					memberCount: 1,
-					createdAt: '2024-01-01T00:00:00Z'
+					createdAt: '2024-01-01T00:00:00Z',
+				updatedAt: '2024-01-01T00:00:00Z'
 				}
 			];
-			const fresh: Group[] = [
+			const fresh: ApiGroup[] = [
 				{
 					id: 'group-1',
 					name: 'NewName',
@@ -656,7 +702,8 @@ describe('Merge Utilities', () => {
 					ownerId: 'user-1',
 					memberRole: 'member',
 					memberCount: 1,
-					createdAt: '2024-01-01T00:00:00Z'
+					createdAt: '2024-01-01T00:00:00Z',
+				updatedAt: '2024-01-01T00:00:00Z'
 				}
 			];
 
@@ -666,7 +713,7 @@ describe('Merge Utilities', () => {
 		});
 
 		it('should return true when avatar changes', () => {
-			const existing: Group[] = [
+			const existing: ApiGroup[] = [
 				{
 					id: 'group-1',
 					name: 'Group1',
@@ -676,10 +723,11 @@ describe('Merge Utilities', () => {
 					ownerId: 'user-1',
 					memberRole: 'member',
 					memberCount: 1,
-					createdAt: '2024-01-01T00:00:00Z'
+					createdAt: '2024-01-01T00:00:00Z',
+				updatedAt: '2024-01-01T00:00:00Z'
 				}
 			];
-			const fresh: Group[] = [
+			const fresh: ApiGroup[] = [
 				{
 					id: 'group-1',
 					name: 'Group1',
@@ -689,7 +737,8 @@ describe('Merge Utilities', () => {
 					ownerId: 'user-1',
 					memberRole: 'member',
 					memberCount: 1,
-					createdAt: '2024-01-01T00:00:00Z'
+					createdAt: '2024-01-01T00:00:00Z',
+				updatedAt: '2024-01-01T00:00:00Z'
 				}
 			];
 
@@ -699,7 +748,7 @@ describe('Merge Utilities', () => {
 		});
 
 		it('should return false when no relevant fields changed', () => {
-			const existing: Group[] = [
+			const existing: ApiGroup[] = [
 				{
 					id: 'group-1',
 					name: 'Group1',
@@ -709,10 +758,11 @@ describe('Merge Utilities', () => {
 					ownerId: 'user-1',
 					memberRole: 'member',
 					memberCount: 1,
-					createdAt: '2024-01-01T00:00:00Z'
+					createdAt: '2024-01-01T00:00:00Z',
+				updatedAt: '2024-01-01T00:00:00Z'
 				}
 			];
-			const fresh: Group[] = [
+			const fresh: ApiGroup[] = [
 				{
 					id: 'group-1',
 					name: 'Group1',
@@ -722,7 +772,8 @@ describe('Merge Utilities', () => {
 					ownerId: 'user-1',
 					memberRole: 'member',
 					memberCount: 1,
-					createdAt: '2024-01-01T00:00:00Z'
+					createdAt: '2024-01-01T00:00:00Z',
+				updatedAt: '2024-01-01T00:00:00Z'
 				}
 			];
 

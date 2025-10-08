@@ -6,6 +6,7 @@
 	import type { ApiFriendRequest } from '$lib/api';
 	import { acceptFriendRequest, denyFriendRequest, fetchFriendRequests } from '$lib/api';
 	import Avatar from './Avatar.svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 
 	const appCtx = getAppContext();
 
@@ -14,7 +15,7 @@
 	async function handleAcceptFriend(friendshipId: string) {
 		try {
 			appCtx.processingFriendRequests.add(friendshipId);
-			appCtx.processingFriendRequests = new Set(appCtx.processingFriendRequests);
+			appCtx.processingFriendRequests = new SvelteSet(appCtx.processingFriendRequests);
 
 			const success = await acceptFriendRequest(friendshipId);
 
@@ -33,14 +34,14 @@
 			appCtx.addNotification('Error accepting friend request', 'error');
 		} finally {
 			appCtx.processingFriendRequests.delete(friendshipId);
-			appCtx.processingFriendRequests = new Set(appCtx.processingFriendRequests);
+			appCtx.processingFriendRequests = new SvelteSet(appCtx.processingFriendRequests);
 		}
 	}
 
 	async function handleDenyFriend(friendshipId: string) {
 		try {
 			appCtx.processingFriendRequests.add(friendshipId);
-			appCtx.processingFriendRequests = new Set(appCtx.processingFriendRequests);
+			appCtx.processingFriendRequests = new SvelteSet(appCtx.processingFriendRequests);
 
 			const success = await denyFriendRequest(friendshipId);
 
@@ -58,7 +59,7 @@
 			appCtx.addNotification('Error ignoring friend request', 'error');
 		} finally {
 			appCtx.processingFriendRequests.delete(friendshipId);
-			appCtx.processingFriendRequests = new Set(appCtx.processingFriendRequests);
+			appCtx.processingFriendRequests = new SvelteSet(appCtx.processingFriendRequests);
 		}
 	}
 
@@ -90,16 +91,16 @@
 					<div class="p-2 mb-1 bg-white/5 rounded hover:bg-white/10 transition-colors">
 						<div class="flex items-center gap-2 mb-2">
 							<Avatar
-								avatar={request.avatar}
-								discordId={request.discordId}
-								userId={request.id}
-								alt={request.username}
+								avatar={request.fromAvatar}
+								discordId={request.fromDiscordId}
+								userId={request.fromUserId}
+								alt={request.fromUsername}
 								size={6}
 							/>
 							<div class="flex-1 min-w-0">
-								<p class="text-xs font-medium text-white truncate">{request.username}</p>
-								{#if request.player}
-									<p class="text-[10px] text-muted truncate">{request.player}</p>
+								<p class="text-xs font-medium text-white truncate">{request.fromUsername}</p>
+								{#if request.fromPlayer}
+									<p class="text-[10px] text-muted truncate">{request.fromPlayer}</p>
 								{/if}
 							</div>
 						</div>
@@ -136,16 +137,16 @@
 					<div class="p-2 mb-1 bg-white/5 rounded">
 						<div class="flex items-center gap-2">
 							<Avatar
-								avatar={request.avatar}
-								discordId={request.discordId}
-								userId={request.id}
-								alt={request.username}
+								avatar={request.fromAvatar}
+								discordId={request.fromDiscordId}
+								userId={request.fromUserId}
+								alt={request.fromUsername}
 								size={6}
 							/>
 							<div class="flex-1 min-w-0">
-								<p class="text-xs font-medium text-white truncate">{request.username}</p>
-								{#if request.player}
-									<p class="text-[10px] text-muted truncate">{request.player}</p>
+								<p class="text-xs font-medium text-white truncate">{request.fromUsername}</p>
+								{#if request.fromPlayer}
+									<p class="text-[10px] text-muted truncate">{request.fromPlayer}</p>
 								{/if}
 							</div>
 							<span class="text-[10px] text-yellow-500">Pending</span>

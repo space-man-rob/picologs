@@ -16,7 +16,8 @@ describe('Compression Utilities', () => {
 			emoji: '🛜',
 			line: `Test log entry ${i} with some content to make it realistic`,
 			timestamp: new Date().toISOString(),
-			original: `<2024.01.01-12:00:00.000> Original log entry ${i} with additional context`
+			original: `<2024.01.01-12:00:00.000> Original log entry ${i} with additional context`,
+			open: false
 		}));
 	};
 
@@ -45,7 +46,8 @@ describe('Compression Utilities', () => {
 					emoji: '🛜',
 					line: 'x'.repeat(6000), // 6KB line
 					timestamp: new Date().toISOString(),
-					original: '<2024.01.01-12:00:00.000> Large log'
+					original: '<2024.01.01-12:00:00.000> Large log',
+					open: false
 				}
 			];
 
@@ -105,7 +107,8 @@ describe('Compression Utilities', () => {
 				emoji: '🛜',
 				line: 'Same log line repeated',
 				timestamp: '2024-01-01T12:00:00Z',
-				original: '<2024.01.01-12:00:00.000> Same original'
+				original: '<2024.01.01-12:00:00.000> Same original',
+				open: false
 			}));
 
 			const uncompressedSize = JSON.stringify(repetitiveLogs).length;
@@ -125,7 +128,8 @@ describe('Compression Utilities', () => {
 					emoji: '🛜🚀💥',
 					line: 'Test with émojis and spëcial çharacters 中文',
 					timestamp: new Date().toISOString(),
-					original: '<2024.01.01-12:00:00.000> Special chars: "\'<>&'
+					original: '<2024.01.01-12:00:00.000> Special chars: "\'<>&',
+					open: false
 				}
 			];
 
@@ -170,7 +174,8 @@ describe('Compression Utilities', () => {
 					emoji: '🛜🚀💥😵',
 					line: 'Test with émojis and spëcial çharacters 中文 日本語',
 					timestamp: new Date().toISOString(),
-					original: '<2024.01.01-12:00:00.000> Special: "\'<>&'
+					original: '<2024.01.01-12:00:00.000> Special: "\'<>&',
+					open: false
 				}
 			];
 
@@ -190,7 +195,8 @@ describe('Compression Utilities', () => {
 					line: 'Test log',
 					timestamp: new Date().toISOString(),
 					original: '<2024.01.01-12:00:00.000> Log',
-					eventType: 'actor_death',
+					open: false,
+					eventType: 'actor_death' as const,
 					metadata: {
 						victimName: 'Player1',
 						victimId: '12345',
@@ -255,14 +261,22 @@ describe('Compression Utilities', () => {
 		it('should handle all data types correctly', async () => {
 			const mixedTypeLogs = [
 				{
-					stringField: 'text',
-					numberField: 42,
-					booleanField: true,
-					nullField: null,
-					arrayField: [1, 2, 3],
-					objectField: { nested: 'value' },
-					floatField: 3.14159,
-					negativeField: -100
+					id: 'log-1',
+					userId: '550e8400-e29b-41d4-a716-446655440000',
+					player: 'Player',
+					emoji: '🛜',
+					line: 'Mixed types test',
+					timestamp: new Date().toISOString(),
+					original: '<2024.01.01-12:00:00.000> Original',
+					open: false,
+					metadata: {
+						victimName: 'text',
+						victimId: '42',
+						zone: 'true',
+						location: 'nested value',
+						weaponClass: '3.14159',
+						damageType: '-100'
+					}
 				}
 			];
 
@@ -287,9 +301,12 @@ describe('Compression Utilities', () => {
 				{
 					id: 'log-1',
 					userId: '550e8400-e29b-41d4-a716-446655440000',
+					player: null,
 					emoji: '🛜',
 					line: 'Minimal log',
-					timestamp: new Date().toISOString()
+					timestamp: new Date().toISOString(),
+					original: '',
+					open: false
 				}
 			];
 
@@ -308,8 +325,9 @@ describe('Compression Utilities', () => {
 					emoji: '🛜',
 					line: 'Log with nulls',
 					timestamp: new Date().toISOString(),
-					original: null,
-					metadata: null
+					original: '',
+					open: false,
+					metadata: undefined
 				}
 			];
 
@@ -328,7 +346,8 @@ describe('Compression Utilities', () => {
 					emoji: '🛜',
 					line: 'x'.repeat(10000),
 					timestamp: new Date().toISOString(),
-					original: 'y'.repeat(20000)
+					original: 'y'.repeat(20000),
+					open: false
 				}
 			];
 
@@ -348,7 +367,8 @@ describe('Compression Utilities', () => {
 				emoji: '🛜',
 				line: 'Repeated line',
 				timestamp: '2024-01-01T12:00:00Z',
-				original: '<2024.01.01-12:00:00.000> Same'
+				original: '<2024.01.01-12:00:00.000> Same',
+				open: false
 			}));
 
 			const uncompressedSize = new Blob([JSON.stringify(repetitiveLogs)]).size;

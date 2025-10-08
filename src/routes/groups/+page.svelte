@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { getAppContext } from '$lib/appContext.svelte';
-	import { acceptGroupInvitation, denyGroupInvitation } from '$lib/api';
-	import type { GroupInvitation } from '../../types';
+	import { acceptGroupInvitation, denyGroupInvitation, type ApiGroupInvitation } from '$lib/api';
 	import Skeleton from '../../components/Skeleton.svelte';
 	import SubNav from '../../components/SubNav.svelte';
 
@@ -26,7 +25,7 @@
 		return `${years}y ago`;
 	}
 
-	async function handleAcceptInvitation(invitation: GroupInvitation) {
+	async function handleAcceptInvitation(invitation: ApiGroupInvitation) {
 		appCtx.processingGroupInvitations.add(invitation.id);
 		appCtx.processingGroupInvitations = appCtx.processingGroupInvitations;
 
@@ -48,7 +47,7 @@
 		}
 	}
 
-	async function handleDenyInvitation(invitation: GroupInvitation) {
+	async function handleDenyInvitation(invitation: ApiGroupInvitation) {
 		appCtx.processingGroupInvitations.add(invitation.id);
 		appCtx.processingGroupInvitations = appCtx.processingGroupInvitations;
 

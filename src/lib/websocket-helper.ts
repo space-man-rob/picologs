@@ -4,6 +4,7 @@
  */
 
 import WebSocket from '@tauri-apps/plugin-websocket';
+import type { WebSocketSocket } from './appContext.svelte';
 
 // Tauri WebSocket message types
 export interface TauriWebSocketTextMessage {
@@ -111,7 +112,7 @@ export async function createWebSocketConnection(
  * Send a JSON message with timeout protection
  */
 export async function sendJsonMessage(
-	socket: WebSocket,
+	socket: WebSocketSocket,
 	data: Record<string, unknown>,
 	timeout: number = DEFAULT_SEND_TIMEOUT
 ): Promise<void> {
@@ -129,7 +130,7 @@ export async function sendJsonMessage(
 export function extractMessageString(msg: TauriWebSocketMessage): string | null {
 	if (typeof msg === 'string') {
 		return msg;
-	} else if (msg.type === 'Text' && 'data' in msg && msg.data) {
+	} else if (msg.type === 'Text' && 'data' in msg && typeof msg.data === 'string') {
 		return msg.data;
 	} else if ('data' in msg && msg.data && typeof msg.data === 'string') {
 		return msg.data;

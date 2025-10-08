@@ -460,7 +460,8 @@
 		})();
 
 		// Listen for group logs from WebSocket
-		const handleGroupLog = async (event: CustomEvent) => {
+		const handleGroupLog = (event: Event) => {
+			if (!(event instanceof CustomEvent)) return;
 			const { log, senderId } = event.detail;
 
 			// Add log to fileContent and disk
@@ -468,12 +469,13 @@
 			fileContent = dedupeAndSortLogs([...fileContent, newLog]);
 
 			if (appCtx.isSignedIn) {
-				await appendLogToDisk(newLog);
+				appendLogToDisk(newLog).catch(console.error);
 			}
 		};
 
 		// Listen for friend logs from WebSocket
-		const handleFriendLog = async (event: CustomEvent) => {
+		const handleFriendLog = (event: Event) => {
+			if (!(event instanceof CustomEvent)) return;
 			const { log } = event.detail;
 
 			// Add log to fileContent and disk
@@ -481,18 +483,20 @@
 			fileContent = dedupeAndSortLogs([...fileContent, newLog]);
 
 			if (appCtx.isSignedIn) {
-				await appendLogToDisk(newLog);
+				appendLogToDisk(newLog).catch(console.error);
 			}
 		};
 
 		// Listen for friend coming online and trigger delta sync
-		const handleFriendCameOnline = async (event: CustomEvent) => {
+		const handleFriendCameOnline = (event: Event) => {
+			if (!(event instanceof CustomEvent)) return;
 			const { friendId } = event.detail;
-			await requestLogSyncFromFriend(friendId);
+			requestLogSyncFromFriend(friendId).catch(console.error);
 		};
 
 		// Listen for sync_logs messages (receiving synced logs from friends)
-		const handleSyncLogsReceived = async (event: CustomEvent) => {
+		const handleSyncLogsReceived = (event: Event) => {
+			if (!(event instanceof CustomEvent)) return;
 			const { logs, senderId } = event.detail;
 			if (!logs || !Array.isArray(logs)) return;
 
@@ -502,7 +506,7 @@
 
 			if (appCtx.isSignedIn) {
 				// Save all logs to disk
-				await saveLogsToDisk(fileContent);
+				saveLogsToDisk(fileContent).catch(console.error);
 			}
 
 			// Update sync timestamp for this friend
@@ -511,10 +515,10 @@
 			}
 		};
 
-		window.addEventListener('group-log-received', handleGroupLog as (event: Event) => void);
-		window.addEventListener('friend-log-received', handleFriendLog as (event: Event) => void);
-		window.addEventListener('friend-came-online', handleFriendCameOnline as (event: Event) => void);
-		window.addEventListener('sync-logs-received', handleSyncLogsReceived as (event: Event) => void);
+		window.addEventListener('group-log-received', handleGroupLog);
+		window.addEventListener('friend-log-received', handleFriendLog);
+		window.addEventListener('friend-came-online', handleFriendCameOnline);
+		window.addEventListener('sync-logs-received', handleSyncLogsReceived);
 
 		// Async initialization
 		(async () => {
@@ -624,16 +628,10 @@
 				debounceTimer = null;
 			}
 
-			window.removeEventListener('group-log-received', handleGroupLog as (event: Event) => void);
-			window.removeEventListener('friend-log-received', handleFriendLog as (event: Event) => void);
-			window.removeEventListener(
-				'friend-came-online',
-				handleFriendCameOnline as (event: Event) => void
-			);
-			window.removeEventListener(
-				'sync-logs-received',
-				handleSyncLogsReceived as (event: Event) => void
-			);
+			window.removeEventListener('group-log-received', handleGroupLog);
+			window.removeEventListener('friend-log-received', handleFriendLog);
+			window.removeEventListener('friend-came-online', handleFriendCameOnline);
+			window.removeEventListener('sync-logs-received', handleSyncLogsReceived);
 		};
 	});
 

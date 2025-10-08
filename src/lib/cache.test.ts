@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { SvelteMap } from 'svelte/reactivity';
 import {
 	loadCachedFriends,
 	saveFriendsCache,
@@ -12,7 +13,8 @@ import {
 	saveGroupMembersCache,
 	clearAllCache
 } from './cache';
-import type { Friend, Group, GroupMember } from '../types';
+import type { Friend } from '../types';
+import type { ApiGroup, ApiGroupMember } from './api';
 
 // Mock Tauri store
 const mockGet = vi.fn(async (key: string) => null);
@@ -108,7 +110,7 @@ describe('Cache Module', () => {
 
 	describe('Groups Cache', () => {
 		it('should load cached groups', async () => {
-			const mockGroups: Group[] = [
+			const mockGroups: ApiGroup[] = [
 				{
 					id: 'group-1',
 					name: 'Test Group',
@@ -118,7 +120,8 @@ describe('Cache Module', () => {
 					ownerId: 'user-1',
 					memberRole: 'owner',
 					memberCount: 1,
-					createdAt: new Date().toISOString()
+					createdAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString()
 				}
 			];
 
@@ -142,7 +145,7 @@ describe('Cache Module', () => {
 		});
 
 		it('should save groups to cache', async () => {
-			const groups: Group[] = [
+			const groups: ApiGroup[] = [
 				{
 					id: 'group-1',
 					name: 'Test Group',
@@ -152,7 +155,8 @@ describe('Cache Module', () => {
 					ownerId: 'user-1',
 					memberRole: 'owner',
 					memberCount: 1,
-					createdAt: new Date().toISOString()
+					createdAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString()
 				}
 			];
 
@@ -173,15 +177,21 @@ describe('Cache Module', () => {
 
 	describe('Group Members Cache', () => {
 		it('should load cached group members as Map', async () => {
-			const mockMembers: Record<string, GroupMember[]> = {
+			const mockMembers: Record<string, ApiGroupMember[]> = {
 				'group-1': [
 					{
+						id: 'member-1',
+						groupId: 'group-1',
 						userId: 'user-1',
 						discordId: 'discord-1',
 						username: 'User1',
 						avatar: undefined,
 						player: 'Player1',
-						role: 'owner'
+						role: 'owner',
+						canInvite: true,
+						canRemoveMembers: true,
+						canEditGroup: true,
+						joinedAt: new Date().toISOString()
 					}
 				]
 			};
@@ -217,15 +227,21 @@ describe('Cache Module', () => {
 		});
 
 		it('should save group members Map as object', async () => {
-			const members = new Map<string, GroupMember[]>();
+			const members = new SvelteMap<string, ApiGroupMember[]>();
 			members.set('group-1', [
 				{
+					id: 'member-1',
+					groupId: 'group-1',
 					userId: 'user-1',
 					discordId: 'discord-1',
 					username: 'User1',
 					avatar: undefined,
 					player: 'Player1',
-					role: 'owner'
+					role: 'owner',
+					canInvite: true,
+					canRemoveMembers: true,
+					canEditGroup: true,
+					joinedAt: new Date().toISOString()
 				}
 			]);
 
@@ -238,25 +254,37 @@ describe('Cache Module', () => {
 		});
 
 		it('should handle multiple groups in cache', async () => {
-			const members = new Map<string, GroupMember[]>();
+			const members = new SvelteMap<string, ApiGroupMember[]>();
 			members.set('group-1', [
 				{
+					id: 'member-1',
+					groupId: 'group-1',
 					userId: 'user-1',
 					discordId: 'discord-1',
 					username: 'User1',
 					avatar: undefined,
 					player: undefined,
-					role: 'owner'
+					role: 'owner',
+					canInvite: true,
+					canRemoveMembers: true,
+					canEditGroup: true,
+					joinedAt: new Date().toISOString()
 				}
 			]);
 			members.set('group-2', [
 				{
+					id: 'member-2',
+					groupId: 'group-2',
 					userId: 'user-2',
 					discordId: 'discord-2',
 					username: 'User2',
 					avatar: undefined,
 					player: undefined,
-					role: 'member'
+					role: 'member',
+					canInvite: false,
+					canRemoveMembers: false,
+					canEditGroup: false,
+					joinedAt: new Date().toISOString()
 				}
 			]);
 
@@ -355,7 +383,7 @@ describe('Cache Module', () => {
 		});
 
 		it('should handle empty Map correctly', async () => {
-			const emptyMap = new Map<string, GroupMember[]>();
+			const emptyMap = new SvelteMap<string, ApiGroupMember[]>();
 
 			await saveGroupMembersCache(emptyMap);
 
@@ -364,15 +392,21 @@ describe('Cache Module', () => {
 		});
 
 		it('should maintain group member data', async () => {
-			const members = new Map<string, GroupMember[]>();
+			const members = new SvelteMap<string, ApiGroupMember[]>();
 			members.set('group-1', [
 				{
+					id: 'member-1',
+					groupId: 'group-1',
 					userId: 'user-1',
 					discordId: 'discord-1',
 					username: 'Admin',
 					avatar: undefined,
 					player: undefined,
-					role: 'admin'
+					role: 'admin',
+					canInvite: true,
+					canRemoveMembers: false,
+					canEditGroup: false,
+					joinedAt: new Date().toISOString()
 				}
 			]);
 

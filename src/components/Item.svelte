@@ -3,6 +3,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import Fuse from 'fuse.js';
 	import fleet from '../libs/fleet.json';
+	import type { Log } from '../types';
 
 	let {
 		open = $bindable(),
@@ -15,6 +16,17 @@
 		eventType = undefined,
 		reportedBy = undefined,
 		child = false
+	}: {
+		open: boolean;
+		emoji: string;
+		line: string;
+		timestamp: string;
+		original: string;
+		player: string | null;
+		metadata?: Log['metadata'];
+		eventType?: Log['eventType'];
+		reportedBy?: string[];
+		child?: boolean;
 	} = $props();
 
 	const formatDate = (date: string) => {
@@ -49,8 +61,8 @@
 
 	type Fleet = typeof fleet;
 
-	function getShipData(metadata: Record<string, unknown>) {
-		if (metadata?.vehicleName) {
+	function getShipData(metadata: Log['metadata']) {
+		if (metadata?.vehicleName && typeof metadata.vehicleName === 'string') {
 			const vehicleNameParts = metadata.vehicleName.split('_');
 			// Only pop if the last part is numeric, to avoid removing parts of the name
 			if (
@@ -106,7 +118,10 @@
 	);
 	let shipName = $derived(shipData ? shipData.name : null);
 
-	function checkVictimName(victimName: string) {
+	function checkVictimName(victimName?: string | null) {
+		if (!victimName) {
+			return 'unknown';
+		}
 		if (victimName.includes('kopion')) {
 			return 'Kopion';
 		}
@@ -144,18 +159,18 @@
 			{#if isHardDeath}
 				<img
 					src={shipImage}
-					alt={metadata.vehicleName}
+					alt={metadata?.vehicleName || 'Vehicle'}
 					class="absolute top-0 left-1/2 -translate-x-1/2 h-10 w-10 max-w-full -rotate-[15deg] -translate-x-[calc(50%+0.25rem)] object-contain object-center opacity-90 [clip-path:polygon(0_0,50%_0,50%_100%,0%_100%)] [filter:drop-shadow(2px_2px_0_rgba(0,0,0,0.4))_brightness(2)_saturate(1)]"
 				/>
 				<img
 					src={shipImage}
-					alt={metadata.vehicleName}
+					alt={metadata?.vehicleName || 'Vehicle'}
 					class="absolute top-0 left-1/2 -translate-x-1/2 h-10 w-10 max-w-full rotate-[15deg] translate-x-[calc(-50%+0.25rem)] object-contain object-center opacity-90 [clip-path:polygon(50%_0,100%_0,100%_100%,50%_100%)] [filter:drop-shadow(2px_2px_0_rgba(0,0,0,0.4))_brightness(2)_saturate(1)]"
 				/>
 			{:else}
 				<img
 					src={shipImage}
-					alt={metadata.vehicleName}
+					alt={metadata?.vehicleName || 'Vehicle'}
 					class="absolute top-0 left-1/2 -translate-x-1/2 h-10 w-10 max-w-full object-contain object-center [filter:drop-shadow(2px_2px_0_rgba(0,0,0,0.4))_brightness(2)_saturate(1)] {child
 						? 'hidden'
 						: ''}"
@@ -175,32 +190,34 @@
 		<div class="flex justify-center pt-1 self-start {child ? 'text-xs' : 'text-2xl'}">{emoji}</div>
 	{/if}
 	<div class="min-w-0 overflow-hidden">
-		{#if eventType === 'actor_death' && metadata.damageType === 'SelfDestruct'}
-			{@const zone = metadata.zone.split('_').slice(0, -1).join(' ')}
+		{#if eventType === 'actor_death' && metadata?.damageType === 'SelfDestruct'}
+			{@const zone = metadata.zone?.split('_').slice(0, -1).join(' ')}
 			<div class="{open ? '' : 'truncate'} {child ? 'text-xs' : 'text-base'}">
-				{checkVictimName(metadata.victimName)} was killed when the {#if zone != 'Unknown'}{zone}{:else}ship{/if}
-				was self destructed {#if metadata.killerName != 'unknown'}by {checkVictimName(
+				{checkVictimName(metadata.victimName)} was killed when the {#if zone && zone != 'Unknown'}{zone}{:else}ship{/if}
+				was self destructed {#if metadata.killerName && metadata.killerName != 'unknown'}by {checkVictimName(
 						metadata.killerName
 					)}{/if}
 			</div>
-		{:else if eventType === 'actor_death' && metadata.damageType === 'Suicide'}
+		{:else if eventType === 'actor_death' && metadata?.damageType === 'Suicide'}
 			<div class="{open ? '' : 'truncate'} {child ? 'text-xs' : 'text-base'}">
-				{checkVictimName(metadata.victimName)} committed suicide
+				{checkVictimName(metadata?.victimName)} committed suicide
 			</div>
 		{:else if eventType === 'actor_death'}
 			{@const weapon = metadata?.weaponClass?.replace('_', ' ')}
 			{@const zone = metadata?.zone?.split('_')?.slice(0, -1)?.join(' ')}
 			<div class="{open ? '' : 'truncate'} {child ? 'text-xs' : 'text-base'}">
-				{checkVictimName(metadata.victimName)} was killed {#if zone && zone != 'Unknown'}
-					while in {zone}{/if} by {checkVictimName(metadata.killerName) || 'unknown'}
+				{checkVictimName(metadata?.victimName)} was killed {#if zone && zone != 'Unknown'}
+					while in {zone}{/if} by {checkVictimName(metadata?.killerName) || 'unknown'}
 				{#if weapon != 'unknown'}using
 					{weapon}{/if}
-				{#if metadata.damageType != 'unknown'}
+				{#if metadata?.damageType && metadata.damageType != 'unknown'}
 					caused by {convertCamelCaseToWords(metadata.damageType)}{/if}
 			</div>
 		{:else if eventType === 'vehicle_control_flow'}
 			<div class="{open ? '' : 'truncate'} {child ? 'text-xs' : 'text-base'}">
-				{player} controls a {shipName || metadata.vehicleName.split('_').slice(0, -1).join(' ')}
+				{player} controls a {shipName ||
+					metadata?.vehicleName?.split('_').slice(0, -1).join(' ') ||
+					'unknown vehicle'}
 			</div>
 		{:else if eventType === 'killing_spree'}
 			<div
@@ -213,7 +230,8 @@
 			</div>
 		{:else if eventType === 'location_change'}
 			<div class="{open ? '' : 'truncate'} {child ? 'text-xs' : 'text-base'}">
-				{player} requested inventory in {metadata.location.split('_').join(' ')}
+				{player} requested inventory in {metadata?.location?.split('_').join(' ') ||
+					'unknown location'}
 			</div>
 		{:else if eventType === 'system_quit'}
 			<div class="{open ? '' : 'truncate'} {child ? 'text-xs' : 'text-base'}">

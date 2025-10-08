@@ -1,4 +1,6 @@
-import type { Friend, Group, GroupMember } from '../types';
+import { SvelteMap } from 'svelte/reactivity';
+import type { Friend } from '../types';
+import type { ApiGroup, ApiGroupMember } from './api';
 
 /**
  * Smart merge for friends list - preserves UI state and handles updates smoothly
@@ -27,8 +29,8 @@ export function mergeFriends(existing: Friend[], fresh: Friend[]): Friend[] {
  * Smart merge for groups list - preserves order and UI state
  * Server is the source of truth - only keeps groups that exist in fresh data
  */
-export function mergeGroups(existing: Group[], fresh: Group[]): Group[] {
-	const merged = new Map<string, Group>();
+export function mergeGroups(existing: ApiGroup[], fresh: ApiGroup[]): ApiGroup[] {
+	const merged = new Map<string, ApiGroup>();
 
 	// Only process fresh data - server is source of truth
 	fresh.forEach((freshGroup) => {
@@ -47,10 +49,10 @@ export function mergeGroups(existing: Group[], fresh: Group[]): Group[] {
  * Server is the source of truth - only keeps group members that exist in fresh data
  */
 export function mergeGroupMembers(
-	existing: Map<string, GroupMember[]>,
-	fresh: Map<string, GroupMember[]>
-): Map<string, GroupMember[]> {
-	const merged = new Map<string, GroupMember[]>();
+	existing: SvelteMap<string, ApiGroupMember[]>,
+	fresh: SvelteMap<string, ApiGroupMember[]>
+): SvelteMap<string, ApiGroupMember[]> {
+	const merged = new SvelteMap<string, ApiGroupMember[]>();
 
 	// Only copy fresh data - server is source of truth
 	fresh.forEach((members, groupId) => {
@@ -113,7 +115,7 @@ export function friendsHaveChanged(existing: Friend[], fresh: Friend[]): boolean
 /**
  * Check if two groups arrays have meaningful differences
  */
-export function groupsHaveChanged(existing: Group[], fresh: Group[]): boolean {
+export function groupsHaveChanged(existing: ApiGroup[], fresh: ApiGroup[]): boolean {
 	if (existing.length !== fresh.length) return true;
 
 	const existingIds = new Set(existing.map((g) => g.id));

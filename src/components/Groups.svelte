@@ -1,5 +1,6 @@
 <script lang="ts">
-	import type { GroupMember, Friend } from '../types';
+	import type { Friend } from '../types';
+	import type { ApiGroupMember } from '$lib/api';
 	import { getAppContext } from '$lib/appContext.svelte';
 	import User from './User.svelte';
 	import Skeleton from './Skeleton.svelte';
@@ -32,7 +33,7 @@
 
 	let sortedGroups = $derived([...groups].sort((a, b) => a.name.localeCompare(b.name)));
 
-	function getSortedMembers(groupId: string): GroupMember[] {
+	function getSortedMembers(groupId: string): ApiGroupMember[] {
 		const members = groupMembers.get(groupId) || [];
 		return [...members].sort((a, b) => {
 			// Online members first
