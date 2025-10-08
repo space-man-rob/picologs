@@ -8,6 +8,7 @@
 		leaveGroup,
 		inviteFriendToGroup,
 		removeMemberFromGroup,
+		uploadAvatar,
 		type ApiGroupMember
 	} from '$lib/api';
 	import SubNav from '../../../components/SubNav.svelte';
@@ -41,8 +42,13 @@
 	// Edit form state
 	let editName = $state('');
 	let editDescription = $state('');
+	let editAvatar = $state('');
 	let editTags = $state<string[]>([]);
 	let tagInput = $state('');
+	let avatarFile = $state<File | null>(null);
+	let avatarPreview = $state<string>('');
+	let isUploading = $state(false);
+	let uploadError = $state('');
 
 	// Modal state
 	let memberToRemove = $state<ApiGroupMember | null>(null);
@@ -146,7 +152,9 @@
 		if (!group) return;
 		editName = group.name;
 		editDescription = group.description || '';
+		editAvatar = group.avatar || '';
 		editTags = group.tags || [];
+		avatarPreview = group.avatar || '';
 		isEditing = true;
 	}
 
@@ -155,9 +163,13 @@
 		if (group) {
 			editName = group.name;
 			editDescription = group.description || '';
+			editAvatar = group.avatar || '';
 			editTags = group.tags || [];
 		}
 		tagInput = '';
+		avatarFile = null;
+		avatarPreview = group?.avatar || '';
+		uploadError = '';
 	}
 
 	async function saveChanges() {
@@ -172,15 +184,37 @@
 		}
 
 		try {
+			let avatarUrl = editAvatar;
+
+			// Upload avatar if a new file was selected
+			if (avatarFile) {
+				isUploading = true;
+				uploadError = '';
+
+				try {
+					avatarUrl = await uploadAvatar(avatarFile);
+				} catch (error) {
+					console.error('[Group Detail] Error uploading avatar:', error);
+					uploadError = error instanceof Error ? error.message : 'Failed to upload avatar';
+					isUploading = false;
+					return;
+				}
+
+				isUploading = false;
+			}
+
+			// Update group with all changes including avatar
 			await updateGroup({
 				groupId,
 				name: editName.trim(),
 				description: editDescription.trim() || undefined,
+				avatar: avatarUrl || undefined,
 				tags: editTags.length > 0 ? editTags : undefined
 			});
 
 			appCtx.addNotification('Group updated!', 'success', '✓');
 			isEditing = false;
+			avatarFile = null;
 
 			// Refresh groups list
 			appCtx.isSyncingGroups = true;
@@ -208,6 +242,40 @@
 			e.preventDefault();
 			addTag();
 		}
+	}
+
+	// Avatar handlers
+	function handleFileChange(e: Event) {
+		const input = e.target as HTMLInputElement;
+		const file = input.files?.[0];
+
+		if (file) {
+			if (!file.type.startsWith('image/')) {
+				uploadError = 'Please select an image file';
+				return;
+			}
+			if (file.size > 5 * 1024 * 1024) {
+				uploadError = 'Image must be less than 5MB';
+				return;
+			}
+
+			avatarFile = file;
+			uploadError = '';
+
+			// Create preview
+			const reader = new FileReader();
+			reader.onload = (e) => {
+				avatarPreview = e.target?.result as string;
+			};
+			reader.readAsDataURL(file);
+		}
+	}
+
+	function clearAvatar() {
+		avatarFile = null;
+		avatarPreview = '';
+		editAvatar = '';
+		uploadError = '';
 	}
 
 	// Leave group
@@ -380,6 +448,49 @@
 								</div>
 
 								<div>
+									<span class="block text-sm font-medium text-muted mb-2">Group Avatar</span>
+									{#if avatarPreview}
+										<div class="mb-4">
+											<div class="relative inline-block">
+												<img
+													src={avatarPreview}
+													alt="Avatar preview"
+													class="w-32 h-32 rounded-lg object-cover border border-panel"
+												/>
+												<button
+													type="button"
+													onclick={clearAvatar}
+													class="absolute -top-2 -right-2 w-6 h-6 flex items-center justify-center bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors shadow-lg"
+												>
+													<span class="text-sm leading-none">✕</span>
+												</button>
+											</div>
+										</div>
+									{:else}
+										<label
+											for="group-avatar-edit"
+											class="flex flex-col items-center justify-center w-full h-32 border-2 border-panel border-dashed rounded-lg cursor-pointer bg-overlay-light hover:bg-overlay-card transition-colors"
+										>
+											<div class="flex flex-col items-center justify-center pt-5 pb-6">
+												<span class="text-3xl mb-2">📤</span>
+												<p class="text-sm text-muted">Click to upload image</p>
+												<p class="text-xs text-subtle">PNG, JPG, GIF up to 5MB</p>
+											</div>
+											<input
+												id="group-avatar-edit"
+												type="file"
+												accept="image/*"
+												onchange={handleFileChange}
+												class="hidden"
+											/>
+										</label>
+									{/if}
+									{#if uploadError}
+										<p class="mt-1 text-sm text-red-400">{uploadError}</p>
+									{/if}
+								</div>
+
+								<div>
 									<label for="tagInput" class="block text-sm font-medium text-muted mb-2">
 										Tags
 									</label>
@@ -424,14 +535,16 @@
 								<div class="flex gap-3">
 									<button
 										onclick={saveChanges}
-										class="px-4 py-2 btn-success text-white rounded-lg border"
+										disabled={isUploading}
+										class="px-4 py-2 btn-success text-white rounded-lg border disabled:opacity-50 disabled:cursor-not-allowed"
 									>
 										<span class="text-lg">💾</span>
-										<span>Save Changes</span>
+										<span>{isUploading ? 'Uploading...' : 'Save Changes'}</span>
 									</button>
 									<button
 										onclick={cancelEditing}
-										class="px-4 py-2 btn-white-overlay text-white rounded-lg border"
+										disabled={isUploading}
+										class="px-4 py-2 btn-white-overlay text-white rounded-lg border disabled:opacity-50 disabled:cursor-not-allowed"
 									>
 										<span class="text-lg">✕</span>
 										<span>Cancel</span>

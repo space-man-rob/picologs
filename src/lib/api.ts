@@ -649,3 +649,52 @@ export async function removeMemberFromGroup(data: {
 		return false;
 	}
 }
+
+/**
+ * Upload an avatar image to the website API
+ * Returns the URL of the uploaded image
+ */
+export async function uploadAvatar(file: File): Promise<string> {
+	try {
+		// Import Tauri's fetch which supports FormData
+		const { fetch } = await import('@tauri-apps/plugin-http');
+
+		// Get the website URL based on environment
+		const isDev = import.meta.env.MODE === 'development';
+		const websiteUrl = isDev
+			? import.meta.env.VITE_WEBSITE_URL_DEV
+			: import.meta.env.VITE_WEBSITE_URL_PROD;
+
+		// Get JWT token for authentication
+		const jwtToken = await getJwtToken();
+		if (!jwtToken) {
+			throw new Error('Not authenticated - JWT token required');
+		}
+
+		// Create FormData and append the file
+		const formData = new FormData();
+		formData.append('file', file);
+
+		// Make the upload request
+		const response = await fetch(`${websiteUrl}/api/upload`, {
+			method: 'POST',
+			body: formData,
+			headers: {
+				// JWT token for authentication - website expects this in cookies normally,
+				// but we'll send it as a bearer token from the desktop app
+				Authorization: `Bearer ${jwtToken}`
+			}
+		});
+
+		if (!response.ok) {
+			const errorData = await response.json();
+			throw new Error(errorData.error || 'Failed to upload avatar');
+		}
+
+		const result = await response.json();
+		return result.url;
+	} catch (error) {
+		console.error('[API] Error uploading avatar:', error);
+		throw error;
+	}
+}

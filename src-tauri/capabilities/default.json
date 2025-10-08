@@ -61,6 +61,25 @@
 		},
 		"websocket:default",
 		"updater:default",
-		"process:default"
+		"process:default",
+		"http:default",
+		"http:allow-fetch",
+		"http:allow-fetch-cancel",
+		"http:allow-fetch-read-body",
+		"http:allow-fetch-send",
+		{
+			"identifier": "http:default",
+			"allow": [
+				{
+					"url": "http://localhost:5173/*"
+				},
+				{
+					"url": "https://picologs.com/*"
+				},
+				{
+					"url": "https://*.fly.storage.tigris.dev/*"
+				}
+			]
+		}
 	]
 }
