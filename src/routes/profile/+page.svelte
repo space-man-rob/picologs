@@ -1,14 +1,27 @@
 <script lang="ts">
 	import { getAppContext } from '$lib/appContext.svelte';
-	import { sendUpdateMyDetails } from '$lib/websocket-messages';
+	import { updateUserProfile } from '$lib/api';
 	import { Copy, Check } from '@lucide/svelte';
 	import SubNav from '../../components/SubNav.svelte';
 
 	const appCtx = getAppContext();
 
+	// Auto-detect timezone if not set
+	function getDefaultTimezone(): string {
+		const savedTz = appCtx.apiUserProfile?.timeZone;
+		if (savedTz && savedTz !== 'UTC') {
+			return savedTz;
+		}
+		try {
+			return Intl.DateTimeFormat().resolvedOptions().timeZone;
+		} catch {
+			return 'UTC';
+		}
+	}
+
 	// Form state
 	let player = $state(appCtx.apiUserProfile?.player || '');
-	let timeZone = $state(appCtx.apiUserProfile?.timeZone || 'UTC');
+	let timeZone = $state(getDefaultTimezone());
 	let usePlayerAsDisplayName = $state(appCtx.apiUserProfile?.usePlayerAsDisplayName || false);
 	let saving = $state(false);
 	let copySuccess = $state(false);
@@ -42,7 +55,17 @@
 	$effect(() => {
 		if (appCtx.apiUserProfile) {
 			player = appCtx.apiUserProfile.player || '';
-			timeZone = appCtx.apiUserProfile.timeZone || 'UTC';
+			// Auto-detect timezone if not set
+			const savedTz = appCtx.apiUserProfile.timeZone;
+			if (savedTz && savedTz !== 'UTC') {
+				timeZone = savedTz;
+			} else {
+				try {
+					timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+				} catch {
+					timeZone = 'UTC';
+				}
+			}
 			usePlayerAsDisplayName = appCtx.apiUserProfile.usePlayerAsDisplayName || false;
 		}
 	});
@@ -103,38 +126,44 @@
 	async function handleSave() {
 		if (!validateForm()) return;
 
-		const ws = appCtx.ws;
-		const userId = appCtx.discordUser?.id;
-
-		if (!ws || !userId) {
-			appCtx.addNotification('Not connected to server. Please sign in again.', 'error');
+		if (!appCtx.apiUserProfile) {
+			appCtx.addNotification('Profile not loaded. Please refresh the page.', 'error');
 			return;
 		}
+
+		// Store original values for rollback on error
+		const originalPlayer = appCtx.apiUserProfile.player;
+		const originalTimeZone = appCtx.apiUserProfile.timeZone;
+		const originalUsePlayerAsDisplayName = appCtx.apiUserProfile.usePlayerAsDisplayName;
 
 		saving = true;
 
 		try {
-			// Send update via WebSocket
-			await sendUpdateMyDetails(ws, {
-				userId: userId,
-				playerName: player.trim(),
-				timezone: timeZone
+			// Send update via WebSocket with request-response pattern
+			const updatedProfile = await updateUserProfile({
+				player: player.trim(),
+				timeZone: timeZone,
+				usePlayerAsDisplayName: usePlayerAsDisplayName
 			});
 
-			// Update local state
-			if (appCtx.apiUserProfile) {
-				appCtx.apiUserProfile = {
-					...appCtx.apiUserProfile,
-					player: player.trim(),
-					timeZone: timeZone,
-					usePlayerAsDisplayName: usePlayerAsDisplayName
-				};
-			}
+			// Update local state with confirmed server data
+			appCtx.apiUserProfile = {
+				...appCtx.apiUserProfile,
+				...updatedProfile
+			};
 
 			appCtx.addNotification('Profile updated successfully', 'success', '✓');
 		} catch (error) {
 			console.error('Failed to save profile:', error);
-			appCtx.addNotification('Failed to save profile. Please try again.', 'error');
+
+			// Rollback local state on error
+			player = originalPlayer || '';
+			timeZone = originalTimeZone || 'UTC';
+			usePlayerAsDisplayName = originalUsePlayerAsDisplayName || false;
+
+			// Show appropriate error message
+			const errorMessage = error instanceof Error ? error.message : 'Failed to save profile. Please try again.';
+			appCtx.addNotification(errorMessage, 'error');
 		} finally {
 			saving = false;
 		}

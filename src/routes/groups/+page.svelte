@@ -85,12 +85,46 @@
 		}
 	}
 
-	function handleCreateGroup() {
-		appCtx.addNotification(
-			'Group creation coming soon!',
-			'info',
-			'🚧'
-		);
+	let showCreateModal = $state(false);
+	let createGroupName = $state('');
+	let createGroupDescription = $state('');
+	let isCreating = $state(false);
+
+	function openCreateGroupModal() {
+		showCreateModal = true;
+		createGroupName = '';
+		createGroupDescription = '';
+		isCreating = false;
+	}
+
+	async function handleCreateGroup() {
+		if (!createGroupName.trim()) {
+			appCtx.addNotification('Please enter a group name', 'error');
+			return;
+		}
+
+		isCreating = true;
+		try {
+			const { createGroup } = await import('$lib/api');
+			const result = await createGroup({
+				name: createGroupName.trim(),
+				description: createGroupDescription.trim() || undefined
+			});
+
+			if (result?.id) {
+				appCtx.addNotification(`Created ${createGroupName}!`, 'success', '✓');
+				showCreateModal = false;
+				// Refresh groups list
+				appCtx.isSyncingGroups = true;
+			} else {
+				appCtx.addNotification('Failed to create group', 'error');
+			}
+		} catch (error) {
+			console.error('[Groups] Error creating group:', error);
+			appCtx.addNotification('Error creating group', 'error');
+		} finally {
+			isCreating = false;
+		}
 	}
 
 	// Derived values
@@ -115,7 +149,7 @@
 					<p class="text-muted">View and manage your groups</p>
 				</div>
 				<button
-					onclick={handleCreateGroup}
+					onclick={openCreateGroupModal}
 					class="flex items-center gap-2 px-4 py-2 btn-white-overlay text-white rounded-lg border transition-colors duration-200 w-full sm:w-auto justify-center flex-shrink-0"
 				>
 					<span class="text-lg">➕</span>
@@ -207,7 +241,7 @@
 						Create your first group to start collaborating with others
 					</p>
 					<button
-						onclick={handleCreateGroup}
+						onclick={openCreateGroupModal}
 						class="flex items-center gap-2 px-4 py-2 btn-white-overlay text-white rounded-lg border transition-colors duration-200"
 					>
 						<span class="text-xl">➕</span>
@@ -217,7 +251,8 @@
 			{:else}
 				<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 					{#each sortedGroups as group (group.id)}
-						<div
+						<a
+							href="/groups/{group.id}"
 							class="block p-6 rounded-lg border border-panel transition-all hover:brightness-110 cursor-pointer bg-secondary"
 						>
 							<div class="flex items-start justify-between mb-4">
@@ -260,7 +295,7 @@
 									{formatTimeAgo(group.createdAt)}
 								</span>
 							</div>
-						</div>
+						</a>
 					{/each}
 				</div>
 			{/if}
@@ -277,3 +312,62 @@
 		overflow: hidden;
 	}
 </style>
+
+<!-- Create Group Modal -->
+{#if showCreateModal}
+	<div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+		<div class="bg-secondary rounded-lg border border-panel p-6 max-w-md w-full">
+			<h3 class="text-xl font-bold text-white mb-4">Create New Group</h3>
+
+			<div class="space-y-4 mb-6">
+				<div>
+					<label for="groupName" class="block text-sm font-medium text-muted mb-2">
+						Group Name
+					</label>
+					<input
+						type="text"
+						id="groupName"
+						bind:value={createGroupName}
+						placeholder="Enter group name"
+						maxlength="50"
+						class="w-full px-4 py-2 bg-overlay-light border border-panel rounded-lg text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-blue-500"
+					/>
+					<p class="mt-1 text-xs text-subtle">{createGroupName.length}/50 characters</p>
+				</div>
+
+				<div>
+					<label for="groupDescription" class="block text-sm font-medium text-muted mb-2">
+						Description (Optional)
+					</label>
+					<textarea
+						id="groupDescription"
+						bind:value={createGroupDescription}
+						placeholder="Enter group description"
+						rows="3"
+						maxlength="200"
+						class="w-full px-4 py-2 bg-overlay-light border border-panel rounded-lg text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-blue-500"
+					></textarea>
+					<p class="mt-1 text-xs text-subtle">{createGroupDescription.length}/200 characters</p>
+				</div>
+			</div>
+
+			<div class="flex gap-3">
+				<button
+					type="button"
+					onclick={() => (showCreateModal = false)}
+					disabled={isCreating}
+					class="flex-1 px-4 py-2 btn-white-overlay text-white rounded-lg border transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+				>
+					Cancel
+				</button>
+				<button
+					onclick={handleCreateGroup}
+					disabled={!createGroupName.trim() || isCreating}
+					class="flex-1 px-4 py-2 btn-success text-white rounded-lg border transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+				>
+					{isCreating ? 'Creating...' : 'Create Group'}
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}

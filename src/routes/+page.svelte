@@ -823,10 +823,9 @@
 							if (appCtx.ws && appCtx.discordUserId) {
 								// Fire-and-forget WebSocket send with timeout protection (don't block log parsing)
 								sendUpdateMyDetails(appCtx.ws, {
-									userId: appCtx.discordUserId, // Use Discord ID for WebSocket
-									playerName: playerName,
-									playerId: playerId, // Include SC player ID as metadata
-									timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+									player: playerName,
+									timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+									usePlayerAsDisplayName: false
 								}).catch(() => {
 									// Silently fail - will retry on next update
 								});

@@ -2,67 +2,74 @@ import type { Friend, Group, GroupMember } from '../types';
 
 /**
  * Smart merge for friends list - preserves UI state and handles updates smoothly
+ * Server is the source of truth - only keeps friends that exist in fresh data
  */
 export function mergeFriends(existing: Friend[], fresh: Friend[]): Friend[] {
 	const merged = new Map<string, Friend>();
 
-	// Keep existing items (they may have UI state we want to preserve)
-	existing.forEach((friend) => {
-		merged.set(friend.id, friend);
-	});
-
-	// Update with fresh data
+	// Only process fresh data - server is source of truth
 	fresh.forEach((freshFriend) => {
-		const existingFriend = merged.get(freshFriend.id);
+		const existingFriend = existing.find(f => f.id === freshFriend.id);
 
 		merged.set(freshFriend.id, {
 			...freshFriend,
-			// If there's any UI-specific state in existing, preserve it here
-			// Currently Friend type doesn't have UI-only state, but this pattern allows for it
+			// Preserve UI-specific state if it exists (e.g., isOnline, isConnected)
+			isOnline: existingFriend?.isOnline ?? freshFriend.isOnline,
+			isConnected: existingFriend?.isConnected ?? freshFriend.isConnected,
 		});
 	});
 
+	// Items in existing but not in fresh are removed (e.g., unfriended users)
 	return Array.from(merged.values());
 }
 
 /**
  * Smart merge for groups list - preserves order and UI state
+ * Server is the source of truth - only keeps groups that exist in fresh data
  */
 export function mergeGroups(existing: Group[], fresh: Group[]): Group[] {
 	const merged = new Map<string, Group>();
 
-	// Keep existing items
-	existing.forEach((group) => {
-		merged.set(group.id, group);
-	});
-
-	// Update with fresh data
+	// Only process fresh data - server is source of truth
 	fresh.forEach((freshGroup) => {
-		const existingGroup = merged.get(freshGroup.id);
-
 		merged.set(freshGroup.id, {
 			...freshGroup,
 			// Preserve any UI-only state if needed in the future
 		});
 	});
 
+	// Items in existing but not in fresh are removed (e.g., groups you've left)
 	return Array.from(merged.values());
 }
 
 /**
  * Smart merge for group members - merges Map structures
+ * Server is the source of truth - only keeps group members that exist in fresh data
  */
 export function mergeGroupMembers(
 	existing: Map<string, GroupMember[]>,
 	fresh: Map<string, GroupMember[]>
 ): Map<string, GroupMember[]> {
-	const merged = new Map<string, GroupMember[]>(existing);
+	const merged = new Map<string, GroupMember[]>();
 
-	// Update with fresh data
+	// Only copy fresh data - server is source of truth
 	fresh.forEach((members, groupId) => {
-		merged.set(groupId, members);
+		const existingMembers = existing.get(groupId) || [];
+
+		// Preserve online/connected status for members if they exist
+		const mergedMembers = members.map(freshMember => {
+			const existingMember = existingMembers.find(m => m.discordId === freshMember.discordId);
+			return {
+				...freshMember,
+				isOnline: existingMember?.isOnline ?? freshMember.isOnline,
+				isConnected: existingMember?.isConnected ?? freshMember.isConnected,
+			};
+		});
+
+		merged.set(groupId, mergedMembers);
 	});
 
+	// Groups in existing but not in fresh are removed (e.g., groups you've left)
 	return merged;
 }
 

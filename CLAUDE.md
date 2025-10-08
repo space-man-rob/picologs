@@ -11,7 +11,7 @@ Picologs is a Tauri desktop application for viewing and filtering Star Citizen G
 - **Frontend**: SvelteKit 2 with Svelte 5 (runes API), TypeScript, TailwindCSS
 - **Desktop Runtime**: Tauri 2 (Rust backend with webview frontend)
 - **Build**: Vite with static adapter (SSG, no SSR)
-- **Backend Integration**: WebSocket client connecting to remote server at `wss://picologs-server.fly.dev/ws`
+- **Backend Integration**: WebSocket client connecting to configurable remote server (configured via environment variables)
 
 ## Development Commands
 

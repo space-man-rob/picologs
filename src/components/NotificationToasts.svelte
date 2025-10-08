@@ -67,12 +67,12 @@
 			class="bg-slate-800/95 backdrop-blur-sm border-2 {getBorderColor(notification.type)} rounded-lg shadow-xl overflow-hidden"
 		>
 			<div class="p-4">
-				<div class="flex items-start gap-3">
-					<div class="flex-shrink-0 p-2 {getBgColor(notification.type)} rounded-lg text-white">
+				<div class="flex items-center gap-3">
+					<div class="flex-shrink-0 w-10 h-10 flex items-center justify-center {getBgColor(notification.type)} rounded-lg text-white">
 						{#if notification.customIcon}
 							{@html notification.customIcon}
 						{:else}
-							<span class="text-xl">{getEmoji(notification.type)}</span>
+							<span class="text-xl leading-none">{getEmoji(notification.type)}</span>
 						{/if}
 					</div>
 					<div class="flex-1 min-w-0">
@@ -86,9 +86,9 @@
 							e.stopPropagation();
 							appCtx.removeNotification(notification.id);
 						}}
-						class="flex-shrink-0 p-1 text-white/60 hover:text-white transition-colors"
+						class="flex-shrink-0 w-6 h-6 flex items-center justify-center text-white/60 hover:text-white transition-colors rounded hover:bg-white/10"
 					>
-						<span class="text-base">✕</span>
+						<span class="text-base leading-none">✕</span>
 					</button>
 				</div>
 			</div>

@@ -18,6 +18,7 @@
 		fetchFriendRequests,
 		fetchUserProfile,
 		fetchGroups,
+		fetchGroupsWithMembers,
 		fetchGroupMembers,
 		fetchGroupInvitations,
 		subscribe as apiSubscribe,
@@ -154,7 +155,8 @@
 		appCtx.isSyncingGroups = true;
 
 		try {
-			const groups = await fetchGroups();
+			// Fetch groups with members in a single optimized request
+			const { groups, members } = await fetchGroupsWithMembers();
 
 			// Only update if data has changed
 			if (groupsHaveChanged(appCtx.groups, groups)) {
@@ -162,11 +164,10 @@
 				await saveGroupsCache(appCtx.groups);
 			}
 
-			// Fetch members for each group
+			// Convert members object to Map
 			const freshGroupMembers = new Map<string, any[]>();
-			for (const group of groups) {
-				const members = await fetchGroupMembers(group.id);
-				freshGroupMembers.set(group.id, members);
+			for (const [groupId, membersList] of Object.entries(members)) {
+				freshGroupMembers.set(groupId, membersList);
 			}
 
 			// Merge group members

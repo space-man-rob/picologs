@@ -5,12 +5,16 @@
 	 */
 	import { getAppContext } from '$lib/appContext.svelte';
 	import { connectWebSocket as apiConnectWebSocket } from '$lib/api';
+	import type { Snippet } from 'svelte';
 
 	const appCtx = getAppContext();
 
-	let { onConnected, onError } = $props<{
+	let { onConnected, onError, connecting, connected, error } = $props<{
 		onConnected?: () => void;
 		onError?: (error: Error) => void;
+		connecting?: Snippet;
+		connected?: Snippet;
+		error?: Snippet<[Error]>;
 	}>();
 
 	// Create a promise for WebSocket connection
@@ -76,23 +80,27 @@
 {#if connectionPromise}
 	{#await connectionPromise}
 		<!-- Connection in progress -->
-		<slot name="connecting">
+		{#if connecting}
+			{@render connecting()}
+		{:else}
 			<div class="flex items-center gap-2 px-4 py-2 text-sm text-white/70">
 				<div class="animate-spin">⚡</div>
 				<span>Connecting to server...</span>
 			</div>
-		</slot>
+		{/if}
 	{:then}
 		<!-- Connected successfully -->
-		<slot name="connected">
-			<!-- Empty by default - connection successful -->
-		</slot>
-	{:catch error}
+		{#if connected}
+			{@render connected()}
+		{/if}
+	{:catch err}
 		<!-- Connection failed -->
-		<slot name="error" {error}>
+		{#if error}
+			{@render error(err)}
+		{:else}
 			<div class="flex items-center gap-2 px-4 py-2 text-sm text-red-400">
 				<span>❌</span>
-				<span>{error.message || 'Connection failed'}</span>
+				<span>{err.message || 'Connection failed'}</span>
 				<button
 					onclick={() => retryConnection()}
 					class="ml-2 px-2 py-1 bg-red-500/20 hover:bg-red-500/30 rounded text-xs"
@@ -100,6 +108,6 @@
 					Retry
 				</button>
 			</div>
-		</slot>
+		{/if}
 	{/await}
 {/if}

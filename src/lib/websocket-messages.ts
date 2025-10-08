@@ -80,23 +80,23 @@ export async function sendBatchGroupLogs(
 }
 
 /**
- * Send update_my_details message to update player info on server
+ * Send update_user_profile message to update player info on server
  */
 export async function sendUpdateMyDetails(
 	ws: WebSocket,
 	params: {
-		userId: string;
-		playerName: string;
-		playerId?: string;
-		timezone: string;
+		player: string;
+		timeZone: string;
+		usePlayerAsDisplayName: boolean;
 	}
 ): Promise<void> {
 	await sendJsonMessage(ws, {
-		type: 'update_my_details',
-		userId: params.userId,
-		playerName: params.playerName,
-		playerId: params.playerId,
-		timezone: params.timezone
+		type: 'update_user_profile',
+		data: {
+			player: params.player,
+			timeZone: params.timeZone,
+			usePlayerAsDisplayName: params.usePlayerAsDisplayName
+		}
 	}, DEFAULT_SEND_TIMEOUT);
 }
 

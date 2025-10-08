@@ -21,7 +21,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost ws://localhost:8080 wss://picologs-server.fly.dev wss://ws.picologs.com https://cdn.discordapp.com https://picologs.com http://localhost:5173; img-src 'self' data: https: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self'; font-src 'self' data: https://fonts.gstatic.com; frame-src https://picologs.com http://localhost:5173; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self';"
+      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost ws://localhost:8080 wss://* https://cdn.discordapp.com https://* http://localhost:5173; img-src 'self' data: https: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self'; font-src 'self' data: https://fonts.gstatic.com; frame-src https://* http://localhost:5173; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self';"
     }
   },
   "bundle": {

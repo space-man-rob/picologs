@@ -29,11 +29,12 @@ export interface ApiFriend {
 	createdAt: string;
 	friendUserId: string;
 	friendDiscordId: string;
-	friendDisplayName: string; // Server sends friendDisplayName, not friendUsername
+	friendUsername: string;
+	friendDisplayName: string;
 	friendAvatar: string | null;
 	friendPlayer: string | null;
 	friendTimeZone: string | null;
-	friendUsePlayerAsDisplayName?: boolean | null;
+	friendUsePlayerAsDisplayName: boolean;
 }
 
 /**
@@ -46,10 +47,11 @@ export interface ApiFriendRequest {
 	fromUserId: string;
 	fromDiscordId: string;
 	fromUsername: string;
+	fromDisplayName: string;
 	fromAvatar: string | null;
 	fromPlayer: string | null;
 	fromTimeZone: string | null;
-	fromUsePlayerAsDisplayName: boolean | null;
+	fromUsePlayerAsDisplayName: boolean;
 	direction: 'incoming' | 'outgoing';
 }
 
@@ -60,6 +62,7 @@ export interface ApiUserProfile {
 	id: string;
 	discordId: string;
 	username: string;
+	displayName: string;
 	avatar: string | null;
 	player: string | null;
 	timeZone: string | null;
@@ -117,9 +120,13 @@ export async function connectWebSocket(
 				const { resolve, reject } = pendingRequests.get(message.requestId)!;
 				pendingRequests.delete(message.requestId);
 
+				console.log('[WS API] Received response for requestId:', message.requestId, 'type:', message.type);
+
 				if (message.type === 'error') {
-					reject(new Error(message.error || 'Unknown error'));
+					console.error('[WS API] Error response:', message);
+					reject(new Error(message.error || message.message || 'Unknown error'));
 				} else {
+					console.log('[WS API] Success response data:', message.data);
 					resolve(message.data);
 				}
 				return;
@@ -379,6 +386,23 @@ export function isWebSocketConnected(): boolean {
 }
 
 /**
+ * Update user profile via WebSocket with request-response pattern
+ */
+export async function updateUserProfile(data: {
+	player: string;
+	timeZone: string;
+	usePlayerAsDisplayName: boolean;
+}): Promise<ApiUserProfile> {
+	try {
+		const updatedProfile = await sendRequest<ApiUserProfile>('update_user_profile', data);
+		return updatedProfile;
+	} catch (error) {
+		console.error('[WS API] Error updating user profile:', error);
+		throw error;
+	}
+}
+
+/**
  * Fetch groups list from API via WebSocket
  */
 export async function fetchGroups(): Promise<any[]> {
@@ -392,14 +416,31 @@ export async function fetchGroups(): Promise<any[]> {
 }
 
 /**
+ * Fetch groups with their members in a single request (optimized)
+ */
+export async function fetchGroupsWithMembers(): Promise<{ groups: any[]; members: Record<string, any[]> }> {
+	try {
+		const response = await sendRequest<{ groups: any[]; members: Record<string, any[]> }>('get_groups', { includeMembers: true });
+		return response || { groups: [], members: {} };
+	} catch (error) {
+		console.error('[WS API] Error fetching groups with members:', error);
+		return { groups: [], members: {} };
+	}
+}
+
+/**
  * Fetch members of a specific group from API via WebSocket
  */
 export async function fetchGroupMembers(groupId: string): Promise<any[]> {
 	try {
+		console.log('[WS API] Requesting group members for groupId:', groupId);
 		const members = await sendRequest<any[]>('get_group_members', { groupId });
+		console.log('[WS API] Received group members:', members);
 		return members || [];
 	} catch (error) {
 		console.error('[WS API] Error fetching group members:', error);
+		console.error('[WS API] Error type:', typeof error);
+		console.error('[WS API] Error keys:', Object.keys(error));
 		return [];
 	}
 }
@@ -414,5 +455,87 @@ export async function fetchGroupInvitations(): Promise<any[]> {
 	} catch (error) {
 		console.error('[WS API] Error fetching group invitations:', error);
 		return [];
+	}
+}
+
+/**
+ * Create a new group
+ */
+export async function createGroup(data: {
+	name: string;
+	description?: string;
+	avatar?: string;
+	tags?: string[];
+}): Promise<{ id: string } | null> {
+	try {
+		const response = await sendRequest<{ id: string }>('create_group', data);
+		return response;
+	} catch (error) {
+		console.error('[WS API] Error creating group:', error);
+		return null;
+	}
+}
+
+/**
+ * Update group information (name, description, avatar, tags)
+ */
+export async function updateGroup(data: {
+	groupId: string;
+	name?: string;
+	description?: string;
+	avatar?: string;
+	tags?: string[];
+}): Promise<any> {
+	try {
+		const response = await sendRequest('update_group', data);
+		return response;
+	} catch (error) {
+		console.error('[WS API] Error updating group:', error);
+		throw error;
+	}
+}
+
+/**
+ * Leave a group (non-owners only)
+ */
+export async function leaveGroup(groupId: string): Promise<boolean> {
+	try {
+		await sendRequest('leave_group', { groupId });
+		return true;
+	} catch (error) {
+		console.error('[WS API] Error leaving group:', error);
+		return false;
+	}
+}
+
+/**
+ * Invite a friend to the group
+ */
+export async function inviteFriendToGroup(data: {
+	groupId: string;
+	friendId: string;
+}): Promise<{ id: string } | null> {
+	try {
+		const response = await sendRequest<{ id: string }>('invite_friend_to_group', data);
+		return response;
+	} catch (error) {
+		console.error('[WS API] Error inviting friend to group:', error);
+		return null;
+	}
+}
+
+/**
+ * Remove a member from the group
+ */
+export async function removeMemberFromGroup(data: {
+	groupId: string;
+	memberId: string;
+}): Promise<boolean> {
+	try {
+		await sendRequest('remove_member_from_group', data);
+		return true;
+	} catch (error) {
+		console.error('[WS API] Error removing member from group:', error);
+		return false;
 	}
 }
