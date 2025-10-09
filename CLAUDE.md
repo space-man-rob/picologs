@@ -12,6 +12,48 @@ Picologs is a Tauri desktop application for viewing and filtering Star Citizen G
 - **Desktop Runtime**: Tauri 2 (Rust backend with webview frontend)
 - **Build**: Vite with static adapter (SSG, no SSR)
 - **Backend Integration**: WebSocket client connecting to configurable remote server (configured via environment variables)
+- **Shared Components**: `@space-man-rob/shared-components` from GitHub Packages (private package)
+
+## Shared Components
+
+This project uses shared Svelte 5 components from `@space-man-rob/shared-components`, a private npm package published to GitHub Packages. These components are designed with a prop-based architecture and work across both the desktop app and website.
+
+**Available Components:**
+- **ProfilePage**: User profile management component (used in `src/routes/profile/+page.svelte`)
+- **SubNav**: Side navigation component
+
+**Installation:**
+Components are installed via npm and require GitHub authentication:
+
+```bash
+export GITHUB_TOKEN=$(gh auth token)
+npm install
+```
+
+**Authentication Required:**
+The package is private and requires a GitHub Personal Access Token with `read:packages` scope. Contributors need to set the `GITHUB_TOKEN` environment variable before running `npm install`.
+
+**Usage Pattern:**
+Shared components accept all data via props and use callbacks for side effects:
+
+```svelte
+<script lang="ts">
+  import { ProfilePage } from '@space-man-rob/shared-components';
+
+  async function handleSave(data) {
+    const updated = await updateUserProfile(data); // WebSocket API
+    appCtx.apiUserProfile = { ...appCtx.apiUserProfile!, ...updated };
+  }
+</script>
+
+<ProfilePage
+  userProfile={appCtx.apiUserProfile}
+  onSave={handleSave}
+  onNotification={appCtx.addNotification}
+/>
+```
+
+See the monorepo's `shared-components/PUBLISHING.md` for more details on the shared components system.
 
 ## Development Commands
 
@@ -56,7 +98,7 @@ npm run tauri [command]
 
 - `src/routes/+layout.svelte`: Root layout, initializes `AppContext`, handles auth and WebSocket lifecycle
 - `src/routes/+page.svelte`: Main log viewer page with file watching and real-time updates
-- `src/routes/profile/+page.svelte`: User profile settings with JWT-authenticated iframe
+- `src/routes/profile/+page.svelte`: User profile settings using shared ProfilePage component
 
 ### Authentication Flow
 
