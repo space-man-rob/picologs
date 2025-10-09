@@ -45,59 +45,41 @@ export async function sendSyncLogsRequest(
 /**
  * Send batch_logs message to broadcast batched logs to friends
  *
- * Uses LogTransmit format to exclude 'original' field and reduce bandwidth.
- * Note: When using compression, the compressed data is already in LogTransmit format.
+ * Always uses compression for optimal bandwidth.
  */
 export async function sendBatchLogs(
 	ws: WebSocketSocket,
-	logs: Log[],
-	compressed: boolean = false,
-	compressedData?: string
+	compressedData: string
 ): Promise<void> {
-	const message: Record<string, unknown> = {
-		type: 'batch_logs'
-	};
-
-	if (compressed && compressedData) {
-		// Compressed data already contains optimized logs
-		message.compressed = true;
-		message.compressedData = compressedData;
-	} else {
-		// Convert logs to transmission format (removes 'original' field)
-		message.logs = logs.map(toLogTransmit);
-	}
-
-	await sendJsonMessage(ws, message, DEFAULT_SEND_TIMEOUT);
+	await sendJsonMessage(
+		ws,
+		{
+			type: 'batch_logs',
+			compressedData
+		},
+		DEFAULT_SEND_TIMEOUT
+	);
 }
 
 /**
  * Send batch_group_logs message to broadcast batched logs to a group
  *
- * Uses LogTransmit format to exclude 'original' field and reduce bandwidth.
- * Note: When using compression, the compressed data is already in LogTransmit format.
+ * Always uses compression for optimal bandwidth.
  */
 export async function sendBatchGroupLogs(
 	ws: WebSocketSocket,
 	groupId: string,
-	logs: Log[],
-	compressed: boolean = false,
-	compressedData?: string
+	compressedData: string
 ): Promise<void> {
-	const message: Record<string, unknown> = {
-		type: 'batch_group_logs',
-		groupId
-	};
-
-	if (compressed && compressedData) {
-		// Compressed data already contains optimized logs
-		message.compressed = true;
-		message.compressedData = compressedData;
-	} else {
-		// Convert logs to transmission format (removes 'original' field)
-		message.logs = logs.map(toLogTransmit);
-	}
-
-	await sendJsonMessage(ws, message, DEFAULT_SEND_TIMEOUT);
+	await sendJsonMessage(
+		ws,
+		{
+			type: 'batch_group_logs',
+			groupId,
+			compressedData
+		},
+		DEFAULT_SEND_TIMEOUT
+	);
 }
 
 /**

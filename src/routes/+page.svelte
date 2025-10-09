@@ -16,7 +16,7 @@
 	import VerticalResizer from '../components/VerticalResizer.svelte';
 	import { sendFriendRequest as apiSendFriendRequest } from '$lib/api';
 	import { getAppContext } from '$lib/appContext.svelte';
-	import { compressLogs, shouldCompressLogs } from '$lib/compression';
+	import { compressLogs } from '$lib/compression';
 	import { safeMatch } from '$lib/regex-utils';
 	import {
 		sendSyncLogsRequest,
@@ -346,15 +346,8 @@
 		// Flush friend logs
 		if (friendLogsBuffer.length > 0) {
 			try {
-				const useCompression = shouldCompressLogs(friendLogsBuffer);
-
-				if (useCompression) {
-					const compressedData = await compressLogs(friendLogsBuffer);
-					await sendBatchLogs(appCtx.ws, friendLogsBuffer, true, compressedData);
-				} else {
-					await sendBatchLogs(appCtx.ws, friendLogsBuffer, false);
-				}
-
+				const compressedData = await compressLogs(friendLogsBuffer);
+				await sendBatchLogs(appCtx.ws, compressedData);
 				friendLogsBuffer = [];
 			} catch (err) {
 				// Error sending batched friend logs
@@ -365,14 +358,8 @@
 		for (const [groupId, logs] of groupLogsBuffers.entries()) {
 			if (logs.length > 0) {
 				try {
-					const useCompression = shouldCompressLogs(logs);
-
-					if (useCompression) {
-						const compressedData = await compressLogs(logs);
-						await sendBatchGroupLogs(appCtx.ws, groupId, logs, true, compressedData);
-					} else {
-						await sendBatchGroupLogs(appCtx.ws, groupId, logs, false);
-					}
+					const compressedData = await compressLogs(logs);
+					await sendBatchGroupLogs(appCtx.ws, groupId, compressedData);
 				} catch (err) {
 					// Error sending batched group logs
 				}
@@ -1114,22 +1101,7 @@
 		});
 
 		if (typeof selectedPath === 'string' && selectedPath) {
-			// SECURITY: Validate file path to ensure it's a Star Citizen log file
-			const validPathPatterns = [
-				/Roberts Space Industries[\\/]StarCitizen[\\/](LIVE|PTU|HOTFIX)[\\/]Game\.log$/i,
-				/StarCitizen[\\/](LIVE|PTU|HOTFIX)[\\/]Game\.log$/i,
-				// Allow any path ending with /Game.log for development/testing
-				/Game\.log$/i
-			];
-
-			const isValidPath = validPathPatterns.some((regex) => regex.test(selectedPath));
-			if (!isValidPath) {
-				alert(
-					'Please select a valid Star Citizen Game.log file.\n\nExpected location:\nRoberts Space Industries\\StarCitizen\\[LIVE|PTU|HOTFIX]\\Game.log'
-				);
-				return;
-			}
-
+			// Allow any .log file to be selected
 			file = selectedPath;
 			fileContent = [];
 			prevLineCount = 0;

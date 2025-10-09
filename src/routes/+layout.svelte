@@ -388,23 +388,16 @@
 				}
 			});
 
-			// Handle batched friend logs (with optional compression)
+			// Handle batched friend logs (always compressed)
 			apiSubscribe('batch_logs', async (message: unknown) => {
 				try {
 					// SECURITY: Validate incoming batch logs message
 					const validated = validateMessage(BatchLogsSchema, message);
-					if (!validated) {
+					if (!validated || !validated.compressedData) {
 						return;
 					}
 
-					let logs: unknown[];
-
-					// Check if message is compressed
-					if (validated.compressed && validated.compressedData) {
-						logs = await decompressLogs(validated.compressedData);
-					} else {
-						logs = validated.logs || [];
-					}
+					const logs = await decompressLogs(validated.compressedData);
 
 					if (logs && Array.isArray(logs)) {
 						// Dispatch individual events for each log in the batch
@@ -421,23 +414,16 @@
 				}
 			});
 
-			// Handle batched group logs (with optional compression)
+			// Handle batched group logs (always compressed)
 			apiSubscribe('batch_group_logs', async (message: unknown) => {
 				try {
 					// SECURITY: Validate incoming batch group logs message
 					const validated = validateMessage(BatchGroupLogsSchema, message);
-					if (!validated) {
+					if (!validated || !validated.compressedData) {
 						return;
 					}
 
-					let logs: unknown[];
-
-					// Check if message is compressed
-					if (validated.compressed && validated.compressedData) {
-						logs = await decompressLogs(validated.compressedData);
-					} else {
-						logs = validated.logs || [];
-					}
+					const logs = await decompressLogs(validated.compressedData);
 
 					if (logs && Array.isArray(logs)) {
 						// Dispatch individual events for each log in the batch
