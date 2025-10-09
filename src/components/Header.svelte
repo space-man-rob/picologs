@@ -637,10 +637,6 @@
 {/if}
 
 <style>
-	.glow-success {
-		box-shadow: 0 0 6px var(--color-success-glow);
-	}
-
 	.shadow-error {
 		box-shadow: 0 8px 32px var(--color-error-glow);
 	}
