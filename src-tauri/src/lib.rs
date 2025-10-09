@@ -1,6 +1,6 @@
 use tauri::Emitter;
 use tauri::Manager;
-use tauri::menu::{Menu, MenuItemBuilder};
+use tauri::menu::Menu;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -122,46 +122,9 @@ pub fn run() {
                 }
             }
 
-            // Create Help menu items
-            let terms = MenuItemBuilder::with_id("terms", "Terms of Service").build(app)?;
-            let privacy = MenuItemBuilder::with_id("privacy", "Privacy Policy").build(app)?;
-
-            // Get the default menu
+            // Set the default menu
             let menu = Menu::default(app.handle())?;
-
-            // Find and modify the existing Help submenu
-            if let Ok(items) = menu.items() {
-                for item in items {
-                    if let Some(submenu) = item.as_submenu() {
-                        if let Ok(text) = submenu.text() {
-                            if text == "Help" {
-                                // Add separator and our items to the existing Help menu
-                                submenu.append(
-                                    &tauri::menu::PredefinedMenuItem::separator(app)?
-                                )?;
-                                submenu.append(&terms)?;
-                                submenu.append(&privacy)?;
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-
             app.set_menu(menu)?;
-
-            // Handle menu events
-            app.on_menu_event(move |_app_handle, event| {
-                match event.id().as_ref() {
-                    "terms" => {
-                        let _ = tauri_plugin_opener::open_url("https://picologs.com/terms", None::<&str>);
-                    }
-                    "privacy" => {
-                        let _ = tauri_plugin_opener::open_url("https://picologs.com/privacy", None::<&str>);
-                    }
-                    _ => {}
-                }
-            });
 
             Ok(())
         })
