@@ -4,13 +4,16 @@
  */
 
 import type { WebSocketSocket } from './appContext.svelte';
-import type { Log } from '../types';
+import type { Log, LogTransmit } from '../types';
+import { toLogTransmit } from '../types';
 import { sendJsonMessage } from './websocket-helper';
 
 const DEFAULT_SEND_TIMEOUT = 5000; // 5 seconds
 
 /**
  * Send sync_logs message to request log sync from a friend
+ *
+ * Uses LogTransmit format to exclude 'original' field and reduce bandwidth.
  */
 export async function sendSyncLogsRequest(
 	ws: WebSocketSocket,
@@ -22,12 +25,15 @@ export async function sendSyncLogsRequest(
 		offset: number;
 	}
 ): Promise<void> {
+	// Convert logs to transmission format (removes 'original' field)
+	const transmitLogs: LogTransmit[] = params.logs.map(toLogTransmit);
+
 	await sendJsonMessage(
 		ws,
 		{
 			type: 'sync_logs',
 			targetUserId: params.targetUserId,
-			logs: params.logs,
+			logs: transmitLogs,
 			since: params.since,
 			limit: params.limit,
 			offset: params.offset
@@ -38,6 +44,9 @@ export async function sendSyncLogsRequest(
 
 /**
  * Send batch_logs message to broadcast batched logs to friends
+ *
+ * Uses LogTransmit format to exclude 'original' field and reduce bandwidth.
+ * Note: When using compression, the compressed data is already in LogTransmit format.
  */
 export async function sendBatchLogs(
 	ws: WebSocketSocket,
@@ -50,10 +59,12 @@ export async function sendBatchLogs(
 	};
 
 	if (compressed && compressedData) {
+		// Compressed data already contains optimized logs
 		message.compressed = true;
 		message.compressedData = compressedData;
 	} else {
-		message.logs = logs;
+		// Convert logs to transmission format (removes 'original' field)
+		message.logs = logs.map(toLogTransmit);
 	}
 
 	await sendJsonMessage(ws, message, DEFAULT_SEND_TIMEOUT);
@@ -61,6 +72,9 @@ export async function sendBatchLogs(
 
 /**
  * Send batch_group_logs message to broadcast batched logs to a group
+ *
+ * Uses LogTransmit format to exclude 'original' field and reduce bandwidth.
+ * Note: When using compression, the compressed data is already in LogTransmit format.
  */
 export async function sendBatchGroupLogs(
 	ws: WebSocketSocket,
@@ -75,10 +89,12 @@ export async function sendBatchGroupLogs(
 	};
 
 	if (compressed && compressedData) {
+		// Compressed data already contains optimized logs
 		message.compressed = true;
 		message.compressedData = compressedData;
 	} else {
-		message.logs = logs;
+		// Convert logs to transmission format (removes 'original' field)
+		message.logs = logs.map(toLogTransmit);
 	}
 
 	await sendJsonMessage(ws, message, DEFAULT_SEND_TIMEOUT);

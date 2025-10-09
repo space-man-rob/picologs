@@ -1,32 +1,34 @@
 /**
  * Compression utilities for log data using gzip
  * Uses browser's native CompressionStream/DecompressionStream APIs
+ *
+ * IMPORTANT: This module compresses LogTransmit objects (without 'original' field)
+ * to reduce bandwidth. The 'original' field is kept in local storage but excluded
+ * from network transmission.
  */
+
+import type { Log, LogTransmit } from '../types';
+import { toLogTransmit } from '../types';
 
 // Compression constants - must match server-side constants
 const COMPRESSION_THRESHOLD_BYTES = 5 * 1024; // 5KB - compress if payload is larger
 const COMPRESSION_THRESHOLD_LOGS = 10; // 10 logs - compress if more than this many
 
-interface Log {
-	id: string;
-	userId: string;
-	player: string | null;
-	emoji: string;
-	line: string;
-	timestamp: string;
-	original: string;
-	open?: boolean;
-	eventType?: string;
-	metadata?: Record<string, unknown>;
-}
-
 /**
  * Compress logs using gzip and return base64-encoded string
+ *
+ * Converts logs to LogTransmit format (removing 'original' field) before compression
+ * to reduce bandwidth. The 'original' field is ~50% of the payload size and is only
+ * needed locally when users expand log entries.
+ *
  * @param logs - Array of log objects to compress
- * @returns Base64-encoded gzipped JSON string
+ * @returns Base64-encoded gzipped JSON string of optimized logs
  */
 export async function compressLogs(logs: Log[]): Promise<string> {
-	const json = JSON.stringify(logs);
+	// Convert to transmission format (removes 'original' field for bandwidth optimization)
+	const transmitLogs: LogTransmit[] = logs.map(toLogTransmit);
+
+	const json = JSON.stringify(transmitLogs);
 	const encoder = new TextEncoder();
 	const uint8Array = encoder.encode(json);
 
@@ -48,8 +50,14 @@ export async function compressLogs(logs: Log[]): Promise<string> {
 
 /**
  * Decompress base64-encoded gzipped data and return log array
+ *
+ * Note: Decompressed logs are in LogTransmit format (without 'original' field).
+ * When received from friends/groups, these logs will have 'original' set to an empty
+ * string or undefined. The expanded view in the UI will show "Original log unavailable"
+ * for remote logs, or we can hide the expand functionality for remote logs.
+ *
  * @param compressedData - Base64-encoded gzipped data
- * @returns Array of decompressed log objects
+ * @returns Array of decompressed LogTransmit objects (cast to Log for compatibility)
  */
 export async function decompressLogs(compressedData: string): Promise<Log[]> {
 	// Decode base64
@@ -72,7 +80,21 @@ export async function decompressLogs(compressedData: string): Promise<Log[]> {
 	const decoder = new TextDecoder();
 	const json = decoder.decode(decompressedArrayBuffer);
 
-	return JSON.parse(json);
+	const transmitLogs: LogTransmit[] = JSON.parse(json);
+
+	// Convert LogTransmit to Log format by adding missing fields
+	// Recursive function to convert children as well
+	function convertToLog(transmitLog: LogTransmit): Log {
+		const log: Log = {
+			...transmitLog,
+			original: '', // Remote logs don't have original text
+			open: false, // UI state always starts closed
+			children: transmitLog.children?.map(convertToLog)
+		};
+		return log;
+	}
+
+	return transmitLogs.map(convertToLog);
 }
 
 /**

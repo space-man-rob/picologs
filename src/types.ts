@@ -52,6 +52,47 @@ export type Log = {
 	children?: Log[];
 };
 
+/**
+ * LogTransmit - Optimized type for WebSocket transmission
+ *
+ * This type is used when sending logs over the network to reduce bandwidth.
+ * It excludes the 'original' field which contains the raw log text that is
+ * only needed locally for display purposes when a user expands a log entry.
+ *
+ * The 'original' field is still stored in the local logs.json file but is
+ * not transmitted to friends/groups to reduce payload size by ~50%.
+ *
+ * For on-demand access to original logs, a future enhancement could add a
+ * separate message type like 'request_log_details' to fetch the original
+ * text only when a user clicks to expand a log from a friend.
+ */
+export type LogTransmit = Omit<Log, 'original' | 'open' | 'children'> & {
+	children?: LogTransmit[];
+};
+
+/**
+ * Convert a Log object to LogTransmit format for network transmission
+ *
+ * Removes the 'original' field (raw log text) and 'open' UI state to reduce
+ * payload size. Recursively processes children if present.
+ *
+ * @param log - The full Log object from local storage
+ * @returns Optimized LogTransmit object for network transmission
+ */
+export function toLogTransmit(log: Log): LogTransmit {
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	const { original, open, children, ...rest } = log;
+
+	const transmit: LogTransmit = rest;
+
+	// Recursively convert children if present
+	if (children && children.length > 0) {
+		transmit.children = children.map(toLogTransmit);
+	}
+
+	return transmit;
+}
+
 export type RecentEvent = {
 	eventType: string;
 	timestamp: string;

@@ -14,6 +14,10 @@ const MAX_EMOJI_LENGTH = 10;
 
 /**
  * Log entry schema
+ *
+ * Note: The 'original' field is optional for received logs because we use
+ * LogTransmit format for network transmission (excludes 'original' to reduce bandwidth).
+ * Local logs stored in logs.json will always have the 'original' field.
  */
 export const LogSchema = z.object({
 	id: z.string().max(100),
@@ -22,7 +26,7 @@ export const LogSchema = z.object({
 	emoji: z.string().max(MAX_EMOJI_LENGTH),
 	line: z.string().max(MAX_STRING_LENGTH),
 	timestamp: z.string().datetime(),
-	original: z.string().max(MAX_LOG_CONTENT),
+	original: z.string().max(MAX_LOG_CONTENT).optional().default(''),
 	open: z.boolean().optional().default(false),
 	eventType: z.string().max(50).optional(),
 	metadata: z.record(z.string(), z.any()).optional()

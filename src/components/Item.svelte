@@ -254,26 +254,32 @@
 			<div
 				class="mt-2 rounded-lg bg-overlay-light p-2 pr-10 text-left text-xs text-white/70 break-all relative"
 			>
-				<div
-					role="button"
-					tabindex="0"
-					class="absolute top-2 right-2 cursor-pointer text-white/70 hover:text-white transition-colors"
-					onclick={copyToClipboard}
-					onkeydown={(e) => {
-						if (e.key === 'Enter' || e.key === ' ') {
-							e.preventDefault();
-							copyToClipboard(e);
-						}
-					}}
-					title="Copy to clipboard"
-				>
-					{#if copied}
-						<Check size={16} />
-					{:else}
-						<Copy size={16} />
-					{/if}
-				</div>
-				{original}
+				{#if original && original.trim()}
+					<div
+						role="button"
+						tabindex="0"
+						class="absolute top-2 right-2 cursor-pointer text-white/70 hover:text-white transition-colors"
+						onclick={copyToClipboard}
+						onkeydown={(e) => {
+							if (e.key === 'Enter' || e.key === ' ') {
+								e.preventDefault();
+								copyToClipboard(e);
+							}
+						}}
+						title="Copy to clipboard"
+					>
+						{#if copied}
+							<Check size={16} />
+						{:else}
+							<Copy size={16} />
+						{/if}
+					</div>
+					{original}
+				{:else}
+					<div class="text-white/50 italic">
+						Original log text not available for remote logs
+					</div>
+				{/if}
 			</div>
 		{/if}
 	</div>
