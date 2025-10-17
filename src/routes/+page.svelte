@@ -6,7 +6,6 @@
 	import { Users, FolderOpen } from '@lucide/svelte';
 	import Item from '../components/Item.svelte';
 	import { onMount, tick } from 'svelte';
-	import { fade } from 'svelte/transition';
 	import Friends from '../components/Friends.svelte';
 	import Groups from '../components/Groups.svelte';
 	import User from '../components/User.svelte';
@@ -14,6 +13,7 @@
 	import type { Log, Friend as FriendType } from '../types';
 	import Resizer from '../components/Resizer.svelte';
 	import VerticalResizer from '../components/VerticalResizer.svelte';
+	import { JumpToPresent } from '@space-man-rob/shared-svelte';
 	import { sendFriendRequest as apiSendFriendRequest } from '$lib/api';
 	import { getAppContext } from '$lib/appContext.svelte';
 	import { compressLogs } from '$lib/compression';
@@ -601,10 +601,6 @@
 				clearTimeout(debounceTimer);
 				debounceTimer = null;
 			}
-			if (scrollDebounceTimer !== null) {
-				clearTimeout(scrollDebounceTimer);
-				scrollDebounceTimer = null;
-			}
 
 			window.removeEventListener('group-log-received', handleGroupLog);
 			window.removeEventListener('friend-log-received', handleFriendLog);
@@ -1132,9 +1128,6 @@
 
 	let fileContentContainer = $state<HTMLDivElement | null>(null);
 	let atTheBottom = $state(true);
-	let hasScrollbar = $state(false);
-	let showScrollBanner = $state(false);
-	let scrollDebounceTimer: number | null = null;
 
 	function handleScroll(event: Event) {
 		if (!(event.target instanceof HTMLDivElement)) {
@@ -1142,25 +1135,7 @@
 		}
 		const target = event.target;
 		const isAtBottom = target.scrollTop + target.clientHeight >= target.scrollHeight - 5;
-		const hasContent = target.scrollHeight > target.clientHeight;
-
-		hasScrollbar = hasContent;
 		atTheBottom = isAtBottom;
-
-		// Hide banner immediately while scrolling
-		showScrollBanner = false;
-
-		// Clear existing timer
-		if (scrollDebounceTimer !== null) {
-			clearTimeout(scrollDebounceTimer);
-		}
-
-		// Only show banner after user has stopped scrolling for 1 second
-		if (!isAtBottom && hasContent) {
-			scrollDebounceTimer = setTimeout(() => {
-				showScrollBanner = true;
-			}, 1000) as unknown as number;
-		}
 	}
 
 	const shipTypes = [
@@ -1469,28 +1444,8 @@
 									{/if}
 								</div>
 
-								<!-- Jump to present banner (Discord style, bottom positioned) -->
-								{#if showScrollBanner}
-									<div
-										in:fade={{ duration: 200 }}
-										out:fade={{ duration: 200 }}
-										class="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-panel text-white px-4 py-2.5 rounded-lg shadow-xl border border-white/5"
-									>
-										<span class="text-sm font-medium">You're viewing old logs</span>
-										<button
-											onclick={() => {
-												showScrollBanner = false;
-												fileContentContainer?.scrollTo({
-													top: fileContentContainer.scrollHeight,
-													behavior: 'smooth'
-												});
-											}}
-											class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-1.5 rounded transition-colors"
-										>
-											Jump To Present
-										</button>
-									</div>
-								{/if}
+								<!-- Jump to present banner -->
+								<JumpToPresent container={fileContentContainer} />
 							</div>
 						{/snippet}
 					</Resizer>
@@ -1609,28 +1564,8 @@
 					{/if}
 				</div>
 
-				<!-- Jump to present banner (Discord style, bottom positioned) -->
-				{#if showScrollBanner}
-					<div
-						in:fade={{ duration: 200 }}
-						out:fade={{ duration: 200 }}
-						class="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-panel text-white px-4 py-2.5 rounded-lg shadow-xl border border-white/5"
-					>
-						<span class="text-sm font-medium">You're viewing old logs</span>
-						<button
-							onclick={() => {
-								showScrollBanner = false;
-								fileContentContainer?.scrollTo({
-									top: fileContentContainer.scrollHeight,
-									behavior: 'smooth'
-								});
-							}}
-							class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-1.5 rounded transition-colors"
-						>
-							Jump To Present
-						</button>
-					</div>
-				{/if}
+				<!-- Jump to present banner -->
+				<JumpToPresent container={fileContentContainer} />
 			</div>
 
 			<!-- Footer spanning full width -->
