@@ -8,7 +8,9 @@
 	import { openUrl } from '@tauri-apps/plugin-opener';
 	import { listen } from '@tauri-apps/api/event';
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
-	import Header from '../components/Header.svelte';
+	import { ask } from '@tauri-apps/plugin-dialog';
+	import { goto } from '$app/navigation';
+	import { Header } from '@space-man-rob/shared-svelte';
 	import NotificationToasts from '../components/NotificationToasts.svelte';
 	import { setAppContext } from '$lib/appContext.svelte';
 	import {
@@ -68,6 +70,19 @@
 
 	// Update info state (not in context - layout-specific)
 	let updateInfo = $state<Update | null>(null);
+
+	// Transform API friend requests to match shared Header interface
+	let friendRequests = $derived(
+		appCtx.apiFriendRequests.map((req) => ({
+			id: req.id,
+			direction: req.direction,
+			username: req.fromUsername,
+			player: req.fromPlayer,
+			avatar: req.fromAvatar,
+			discordId: req.fromDiscordId,
+			createdAt: req.createdAt
+		}))
+	);
 
 	// Sync user profile from API
 	async function syncUserProfileFromAPI() {
@@ -662,6 +677,16 @@
 
 	// Handle sign out
 	async function handleSignOut() {
+		// Show Tauri confirmation dialog
+		const answer = await ask('Are you sure you want to sign out?', {
+			title: 'Sign Out',
+			kind: 'info'
+		});
+
+		if (!answer) {
+			return;
+		}
+
 		try {
 			await signOut();
 			appCtx.isSignedIn = false;
@@ -688,6 +713,23 @@
 		} catch (error) {
 			// Sign out failed
 		}
+	}
+
+	// Handle clear logs with Tauri dialog
+	async function handleClearLogs() {
+		const answer = await ask('This action cannot be reverted. Are you sure?', {
+			title: 'Clear Logs',
+			kind: 'warning'
+		});
+
+		if (answer && appCtx.pageActions.clearLogs) {
+			appCtx.pageActions.clearLogs();
+		}
+	}
+
+	// Handle navigation
+	function handleNavigate(path: string) {
+		goto(path);
 	}
 
 	// Install update
@@ -1101,29 +1143,31 @@
 <div class="h-dvh overflow-hidden grid grid-rows-[auto_1fr]">
 	<Header
 		friendCode={appCtx.apiUserProfile?.friendCode || appCtx.cachedFriendCode}
-		{connectWebSocket}
 		connectionStatus={appCtx.connectionStatus}
-		bind:copiedStatusVisible={appCtx.copiedStatusVisible}
-		selectFile={appCtx.pageActions.selectFile || (() => {})}
-		logLocation={appCtx.pageActions.logLocation}
-		clearLogs={appCtx.pageActions.clearLogs || (() => {})}
-		{updateInfo}
-		{installUpdate}
-		isSignedIn={appCtx.isSignedIn}
-		discordUser={appCtx.discordUser}
-		{handleSignIn}
-		{handleSignOut}
 		connectionError={appCtx.connectionError}
-		authError={appCtx.authError}
+		logLocation={appCtx.pageActions.logLocation}
+		updateInfo={updateInfo !== null}
+		isSignedIn={appCtx.isSignedIn}
 		isAuthenticating={appCtx.isAuthenticating}
-		friendRequests={appCtx.apiFriendRequests}
+		authError={appCtx.authError}
+		discordUser={appCtx.discordUser}
+		{friendRequests}
 		groupInvitations={appCtx.groupInvitations}
+		processingFriendRequests={appCtx.processingFriendRequests}
+		processingGroupInvitations={appCtx.processingGroupInvitations}
+		showLogSelection={true}
+		showClearLogs={true}
+		onSelectFile={appCtx.pageActions.selectFile}
+		onClearLogs={handleClearLogs}
+		onInstallUpdate={installUpdate}
+		onSignIn={handleSignIn}
+		onSignOut={handleSignOut}
+		onReconnect={connectWebSocket}
 		onAcceptFriend={handleAcceptFriend}
 		onDenyFriend={handleDenyFriend}
 		onAcceptInvitation={handleAcceptInvitation}
 		onDenyInvitation={handleDenyInvitation}
-		processingFriendRequests={appCtx.processingFriendRequests}
-		processingGroupInvitations={appCtx.processingGroupInvitations}
+		onNavigate={handleNavigate}
 	/>
 
 	<div class="overflow-hidden flex flex-col">

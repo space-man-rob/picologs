@@ -39,7 +39,6 @@ export class AppContext {
 	ws = $state<WebSocketSocket | null>(null);
 	connectionStatus = $state<'connected' | 'disconnected' | 'connecting'>('disconnected');
 	connectionError = $state<string | null>(null);
-	copiedStatusVisible = $state(false);
 
 	// Friends and API data
 	friendsList = $state<FriendType[]>([]);
