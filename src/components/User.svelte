@@ -1,7 +1,7 @@
 <script lang="ts">
-	import type { Friend as UserDisplayType } from '../types';
+	import type { Friend as UserDisplayType} from '../types';
 	import { getAppContext } from '$lib/appContext.svelte';
-	import Avatar from './Avatar.svelte';
+	import { Avatar } from 'shared-svelte';
 
 	const appCtx = getAppContext();
 

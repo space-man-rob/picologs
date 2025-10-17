@@ -14,7 +14,7 @@
 	} from '$lib/api';
 	import { Plus, Pencil, LogOut, X, Save, Trash2, Loader2 } from '@lucide/svelte';
 	import SubNav from '../../../components/SubNav.svelte';
-	import Avatar from '../../../components/Avatar.svelte';
+	import { Avatar } from 'shared-svelte';
 
 	const appCtx = getAppContext();
 

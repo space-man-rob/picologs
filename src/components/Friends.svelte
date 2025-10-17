@@ -5,7 +5,7 @@
 	import { getAppContext } from '$lib/appContext.svelte';
 	import type { ApiFriendRequest } from '$lib/api';
 	import { acceptFriendRequest, denyFriendRequest, fetchFriendRequests } from '$lib/api';
-	import Avatar from './Avatar.svelte';
+	import { Avatar } from 'shared-svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 
 	const appCtx = getAppContext();

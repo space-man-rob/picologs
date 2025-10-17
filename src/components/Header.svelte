@@ -16,7 +16,7 @@
 		Bell,
 		AlertTriangle
 	} from '@lucide/svelte';
-	import Avatar from './Avatar.svelte';
+	import { Avatar } from 'shared-svelte';
 
 	let {
 		friendCode,
