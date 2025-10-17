@@ -54,7 +54,7 @@ jobs:
       - name: install frontend dependencies
         run: npm ci
         env:
-          GITHUB_TOKEN: ${{ secrets.PACKAGES_READ_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: tauri-apps/tauri-action@v0
         id: tauri
